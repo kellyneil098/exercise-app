@@ -125,10 +125,10 @@ public struct Planner: Sendable {
             let c = candidates(pattern: slot.pattern, slot: slot, input: input)
             if let best = c.first, best.isAvailable {
                 chosen.append(Chosen(slot: slot, exercise: best.exercise, estimate: best.estimate))
-            } else if slot.band == .heavy,
-                      let capped = c.first(where: { if case .overDumbbellMax = $0.exclusion { return true } else { return false } }),
+            } else if let capped = c.first(where: { if case .overDumbbellMax = $0.exclusion { return true } else { return false } }),
                       let max = input.location.dumbbellMaxWeight {
-                // The heavy slot never silently disappears: use the heaviest dumbbell available.
+                // A slot never silently disappears just because the rack tops out: use the heaviest
+                // dumbbell available and let the user push reps instead.
                 chosen.append(Chosen(slot: slot, exercise: capped.exercise, estimate: WeightEstimate(weight: max, source: .estimated)))
             }
         }

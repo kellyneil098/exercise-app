@@ -150,26 +150,29 @@ legs 90min @crunch_union_square  est 47min
 
 legs 30min @building_gym  est 28min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
+  2. Dumbbell Romanian Deadlift [hinge/medium] 3x8-12 @50~
+  3. Walking Lunge [quad_isolation/medium] 3x8-12 @10~
+  6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Walking Lunge
+
+legs 45min @building_gym  est 43min
+  1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
+  2. Dumbbell Romanian Deadlift [hinge/medium] 4x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
   4. Cable Pull-Through [hamstring_isolation/medium] 3x8-12 @20~
+  5. Dumbbell Calf Raise [calf/volume] 3x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Cable Pull-Through
 
-legs 45min @building_gym  est 37min
+legs 60min @building_gym  est 47min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
+  2. Dumbbell Romanian Deadlift [hinge/medium] 4x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
   4. Cable Pull-Through [hamstring_isolation/medium] 4x8-12 @20~
   5. Dumbbell Calf Raise [calf/volume] 4x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Cable Pull-Through
 
-legs 60min @building_gym  est 37min
+legs 90min @building_gym  est 47min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
-  3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
-  4. Cable Pull-Through [hamstring_isolation/medium] 4x8-12 @20~
-  5. Dumbbell Calf Raise [calf/volume] 4x15-20 @10~
-  6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Cable Pull-Through
-
-legs 90min @building_gym  est 37min
-  1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
+  2. Dumbbell Romanian Deadlift [hinge/medium] 4x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
   4. Cable Pull-Through [hamstring_isolation/medium] 4x8-12 @20~
   5. Dumbbell Calf Raise [calf/volume] 4x15-20 @10~

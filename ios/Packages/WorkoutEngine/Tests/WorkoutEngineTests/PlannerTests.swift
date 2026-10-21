@@ -171,6 +171,8 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(heavy.band, .heavy)
         XCTAssertEqual(heavy.weight, 50)
         XCTAssertEqual(heavy.weightSource, .estimated)
+        let hinge = plan.blocks.first { $0.pattern == "hinge" }
+        XCTAssertEqual(hinge?.weight, 50, "hinge slot should fall back to capped dumbbell RDL, not vanish")
     }
 
     func testRoundingDown() {
