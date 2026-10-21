@@ -49,7 +49,7 @@ final class ActiveSession: Identifiable {
 
     var isFinished: Bool { currentBlock == nil }
 
-    var completedCount: Int { plan.blocks.filter(isComplete).count }
+    var completedCount: Int { plan.blocks.filter { !skipped.contains($0.id) && workingSetsDone($0) >= $0.sets }.count }
 
     // MARK: Logging
 
@@ -139,3 +139,9 @@ enum RestNotifier {
 #if canImport(UserNotifications)
 import UserNotifications
 #endif
+
+extension EffortRating {
+    var label: String {
+        switch self { case .easy: "Easy"; case .good: "Good"; case .didNotFinish: "Didn't finish" }
+    }
+}

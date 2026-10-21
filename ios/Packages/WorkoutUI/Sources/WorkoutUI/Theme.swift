@@ -158,3 +158,37 @@ public enum Haptics {
         #endif
     }
 }
+
+/// Quiet numeric control replacing the stock Stepper: label left, −/+ right.
+public struct Adjuster: View {
+    let label: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    public init(_ label: String, value: Binding<Double>, in range: ClosedRange<Double>, step: Double = 1) {
+        self.label = label; _value = value; self.range = range; self.step = step
+    }
+    public var body: some View {
+        HStack {
+            Text(label).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+            Spacer()
+            HStack(spacing: 0) {
+                button("minus") { value = max(range.lowerBound, value - step) }
+                Rectangle().fill(Theme.Colors.hairline).frame(width: 1, height: 20)
+                button("plus") { value = min(range.upperBound, value + step) }
+            }
+            .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+        }
+    }
+    func button(_ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary).frame(width: 44, height: 36)
+        }
+        .buttonStyle(PressStyle())
+    }
+}
+
+public extension Binding where Value == Int {
+    var asDouble: Binding<Double> { Binding<Double>(get: { Double(wrappedValue) }, set: { wrappedValue = Int($0) }) }
+}

@@ -106,11 +106,11 @@ struct SettingsView: View {
             Toggle("Keep screen awake during workouts", isOn: Binding(
                 get: { model.settings?.keepScreenAwake ?? true },
                 set: { v in if var s = model.settings { s.keepScreenAwake = v; try? model.store.save(s) } }
-            )).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+            )).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary).tint(Theme.Colors.brass)
             Toggle("Rest timer sound", isOn: Binding(
                 get: { model.settings?.restTimerSoundOn ?? true },
                 set: { v in if var s = model.settings { s.restTimerSoundOn = v; try? model.store.save(s) } }
-            )).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+            )).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary).tint(Theme.Colors.brass)
         }
     }
 }
@@ -126,8 +126,7 @@ struct EquipmentEditor: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                     TextField("Gym name", text: $location.name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                    Stepper(dbMax == 0 ? "Dumbbells: no limit" : "Dumbbells up to \(dbMax.formatted()) lb", value: $dbMax, in: 0...150, step: 5)
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                    Adjuster(dbMax == 0 ? "Dumbbells: no limit" : "Dumbbells up to \(dbMax.formatted()) lb", value: $dbMax, in: 0...150, step: 5)
                     Hairline()
                     ForEach(model.catalog.equipmentTypes, id: \.key) { eq in
                         Button { if selected.contains(eq.key) { selected.remove(eq.key) } else { selected.insert(eq.key) } } label: {

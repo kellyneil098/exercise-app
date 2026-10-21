@@ -77,9 +77,9 @@ struct OnboardingView: View {
     var running: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             Text("Running").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-            Stepper("\(runs) runs a week", value: $runs, in: 2...3).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
-            Stepper("Easy pace \(Int(easyPace)):\(String(format: "%02d", Int((easyPace * 60).truncatingRemainder(dividingBy: 60)))) /mi", value: $easyPace, in: 6...16, step: 0.25).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
-            Stepper("\(weeklyMiles.formatted()) miles this week", value: $weeklyMiles, in: 2...40, step: 0.5).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+            Adjuster("\(runs) runs a week", value: $runs.asDouble, in: 2...3)
+            Adjuster("Easy pace \(Int(easyPace)):\(String(format: "%02d", Int((easyPace * 60).truncatingRemainder(dividingBy: 60)))) /mi", value: $easyPace, in: 6...16, step: 0.25)
+            Adjuster("\(weeklyMiles.formatted()) miles this week", value: $weeklyMiles, in: 2...40, step: 0.5)
             Text("Volume grows 10% a week toward 1.5× this, with every fourth week lighter.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
         }
     }

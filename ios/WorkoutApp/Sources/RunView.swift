@@ -137,14 +137,14 @@ struct LogRunSheet: View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                 Overline("Log \(run.runType)")
-                Stepper("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
-                Stepper("\(minutes) min", value: $minutes, in: 0...600).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
+                Adjuster("\(minutes) min", value: $minutes.asDouble, in: 0...600)
                 if distance > 0, minutes > 0 {
                     Text(formatPace(Double(minutes * 60) / distance) + " /mi").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.brass)
                 }
                 HStack(spacing: Theme.Spacing.s) {
                     ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
-                        Chip(e.rawValue.capitalized, selected: e == effort) { effort = e }
+                        Chip(e.label, selected: e == effort) { effort = e }
                     }
                 }
                 Spacer()

@@ -145,17 +145,15 @@ struct BlockCard: View {
             }
         } else {
             VStack(spacing: Theme.Spacing.m) {
-                HStack(spacing: Theme.Spacing.m) {
-                    Stepper("\(reps) \(block.measure == .seconds ? "sec" : "reps")", value: $reps, in: 0...200, step: block.measure == .seconds ? 5 : 1)
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                VStack(spacing: Theme.Spacing.s) {
+                    Adjuster("\(reps) \(block.measure == .seconds ? "sec" : "reps")", value: $reps.asDouble, in: 0...200, step: block.measure == .seconds ? 5 : 1)
                     if block.weight != nil {
-                        Stepper("\(weight.formatted()) lb", value: $weight, in: 0...1000, step: session.input.location.plateIncrement)
-                            .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                        Adjuster("\(weight.formatted()) lb", value: $weight, in: 0...1000, step: session.input.location.plateIncrement)
                     }
                 }
                 HStack(spacing: Theme.Spacing.s) {
                     ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
-                        Button(e.rawValue.capitalized) { log(effort: e) }
+                        Button(e.label) { log(effort: e) }
                             .font(Theme.Fonts.caption).padding(.vertical, 12).frame(maxWidth: .infinity)
                             .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
                             .foregroundStyle(Theme.Colors.textPrimary).buttonStyle(PressStyle())
@@ -257,8 +255,8 @@ struct FinishView: View {
     var body: some View {
         VStack(spacing: Theme.Spacing.xl) {
             Spacer()
-            Text("\(session.plan.blocks.count)").font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-            Text("exercises done").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+            Text("\(session.completedCount)").font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
+            Text(session.completedCount == 1 ? "exercise done" : "exercises done").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
             Spacer()
             PillButton("Finish") { Haptics.play(.sessionDone); session.finish() }.padding(.horizontal, Theme.Spacing.l)
         }
