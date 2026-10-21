@@ -25,11 +25,11 @@ struct HomeView: View {
                     }
                     .foregroundStyle(Theme.Colors.textSecondary)
 
-                    Text(dayType.rawValue.capitalized).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
+                    Text(dayType.label).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
 
                     HStack(spacing: Theme.Spacing.s) {
                         ForEach(DayType.allCases, id: \.self) { d in
-                            Chip(d.rawValue.capitalized, selected: d == dayType) { withAnimation(Theme.Motion.quick) { dayType = d } }
+                            Chip(d.label, selected: d == dayType) { withAnimation(Theme.Motion.quick) { dayType = d } }
                         }
                     }
 

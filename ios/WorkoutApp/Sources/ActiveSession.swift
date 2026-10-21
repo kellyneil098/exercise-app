@@ -2,6 +2,20 @@ import Foundation
 import Observation
 import WorkoutEngine
 import WorkoutStore
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
+
+/// The one thing to do right now: a warm-up or a working set of a block.
+struct DeckStep: Equatable {
+    let block: PlanBlock
+    let isWarmup: Bool
+    /// 0-based within its kind (warm-up n / working set n).
+    let index: Int
+
+    var warmup: WarmupSet? { isWarmup ? block.warmups[index] : nil }
+    var id: String { "\(block.id)-\(isWarmup ? "w" : "s")-\(index)" }
+}
 
 /// The live deck (§7). Every logged set is written to SQLite immediately; the deck is derived from those rows.
 @Observable @MainActor
@@ -14,6 +28,8 @@ final class ActiveSession: Identifiable {
     /// Blocks the user deferred; they come back at the end.
     private(set) var deferred: Set<UUID> = []
     private(set) var skipped: Set<UUID> = []
+    /// Manual deck order from the overview; empty = slot order.
+    private(set) var order: [UUID]
     var restEndsAt: Date? {
         didSet { UserDefaults.standard.set(restEndsAt, forKey: "restEndsAt") }
     }
@@ -26,20 +42,32 @@ final class ActiveSession: Identifiable {
             restEndsAt = saved
         }
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
+        order = (UserDefaults.standard.array(forKey: "deckOrder-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
     }
 
     // MARK: Ordering
 
-    /// Supersetted blocks sit right after their host; the deck shows them paired.
+    /// Slot order with supersetted blocks right after their host, overridden by any manual order; deferred blocks sink to the end.
     var orderedBlocks: [PlanBlock] {
-        var out: [PlanBlock] = []
+        var base: [PlanBlock] = []
         for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where !b.isSupersetted {
-            out.append(b)
-            if let partner = plan.supersetPartner(of: b) { out.append(partner) }
+            base.append(b)
+            if let partner = plan.supersetPartner(of: b) { base.append(partner) }
         }
-        let active = out.filter { !deferred.contains($0.id) }
-        let later = out.filter { deferred.contains($0.id) }
-        return active + later
+        if !order.isEmpty {
+            let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+            base.sort { (rank[$0.id] ?? .max, $0.slot) < (rank[$1.id] ?? .max, $1.slot) }
+        }
+        return base.filter { !deferred.contains($0.id) } + base.filter { deferred.contains($0.id) }
+    }
+
+    func move(fromOffsets: IndexSet, toOffset: Int) {
+        let current = orderedBlocks
+        for i in fromOffsets { deferred.remove(current[i].id) }
+        var ids = current.map(\.id)
+        ids.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        order = ids
+        UserDefaults.standard.set(ids.map(\.uuidString), forKey: "deckOrder-\(row.id)")
     }
 
     func logs(for block: PlanBlock) -> [SetLog] {
@@ -50,7 +78,7 @@ final class ActiveSession: Identifiable {
 
     func isComplete(_ block: PlanBlock) -> Bool { skipped.contains(block.id) || workingSetsDone(block) >= block.sets }
 
-    /// Next set to perform. A superset partner alternates with its host (partner set during host rest).
+    /// Next block to work. A superset partner alternates with its host (partner set during host rest).
     var currentBlock: PlanBlock? {
         for b in orderedBlocks where !isComplete(b) {
             if let p = plan.supersetPartner(of: b), !isComplete(p), !deferred.contains(p.id),
@@ -62,31 +90,63 @@ final class ActiveSession: Identifiable {
         return nil
     }
 
+    var currentStep: DeckStep? {
+        guard let b = currentBlock else { return nil }
+        let warm = logs(for: b).filter(\.isWarmup).count
+        if b.band == .heavy, warm < b.warmups.count { return DeckStep(block: b, isWarmup: true, index: warm) }
+        return DeckStep(block: b, isWarmup: false, index: workingSetsDone(b))
+    }
+
+    /// Blocks queued behind the current one — what peeks out of the stack.
+    func upcoming(limit: Int) -> [PlanBlock] {
+        guard let cur = currentBlock else { return [] }
+        return Array(orderedBlocks.filter { $0.id != cur.id && !isComplete($0) }.prefix(limit))
+    }
+
     var isFinished: Bool { currentBlock == nil }
 
     var completedCount: Int { plan.blocks.filter { !skipped.contains($0.id) && workingSetsDone($0) >= $0.sets }.count }
 
+    var remainingCount: Int { plan.blocks.filter { !isComplete($0) }.count }
+
     // MARK: Logging
 
-    func log(block: PlanBlock, reps: Int, weight: Double?, effort: EffortRating?, isWarmup: Bool = false) {
+    /// Swipe-right / rating: logs the current step. Reps are implied by the rating (the deck asks for nothing else):
+    /// easy and good hit the top of the range, hard the bottom, didn't-finish falls short of the target.
+    func complete(effort: EffortRating?) {
+        guard let step = currentStep else { return }
+        let b = step.block
+        if let w = step.warmup {
+            append(block: b, reps: w.reps, weight: w.weight, effort: nil, isWarmup: true)
+            startRest(seconds: 60)
+            return
+        }
+        let timed = b.measure == .seconds
+        let reps: Int = switch effort {
+        case .hard: timed ? b.repHigh : b.repLow
+        case .didNotFinish: timed ? b.repLow : max(0, b.repLow - 1)
+        default: b.repHigh
+        }
+        append(block: b, reps: reps, weight: b.weight, effort: effort, isWarmup: false)
+        guard let next = currentBlock else { skipRest(); return }
+        if next.supersetHostID == b.id { skipRest(); return }   // partner's set fills the host's rest
+        startRest(seconds: plan.host(of: b)?.restSeconds ?? b.restSeconds)
+    }
+
+    private func append(block: PlanBlock, reps: Int, weight: Double?, effort: EffortRating?, isWarmup: Bool) {
         let index = logs(for: block).count
         let set = SetLog(userId: model.userId, sessionId: row.id, exerciseKey: block.exerciseKey, slot: block.slot, setIndex: index,
                          isPadding: !isWarmup && (index - block.warmups.count) >= block.prescribedSets, isWarmup: isWarmup,
                          weight: weight, targetReps: block.measure == .seconds ? block.repHigh : block.repLow, repsDone: reps, effort: effort)
         try? model.store.save(set)
         logs.append(set)
-        if !isComplete(block) || plan.supersetPartner(of: block) != nil {
-            startRest(seconds: block.restSeconds)
-        } else {
-            restEndsAt = nil
-        }
     }
 
     func undoLast(block: PlanBlock) {
         guard let last = logs(for: block).max(by: { $0.setIndex < $1.setIndex }) else { return }
         try? model.store.delete(last)
         logs.removeAll { $0.id == last.id }
-        restEndsAt = nil
+        skipRest()
     }
 
     func startRest(seconds: Int) {
@@ -97,12 +157,42 @@ final class ActiveSession: Identifiable {
 
     func skipRest() { restEndsAt = nil; RestNotifier.cancel() }
 
-    // MARK: Deck actions
+    // MARK: Deck management (overview)
 
-    func defer_(_ block: PlanBlock) { deferred.insert(block.id); restEndsAt = nil }
-    func skip(_ block: PlanBlock) { skipped.insert(block.id); restEndsAt = nil }
+    func defer_(_ block: PlanBlock) { deferred.insert(block.id); skipRest() }
+    func skip(_ block: PlanBlock) { skipped.insert(block.id); skipRest() }
+    func unskip(_ block: PlanBlock) { skipped.remove(block.id); deferred.remove(block.id) }
 
-    /// Swipe-left substitution: same slot, same superset relationship, weight re-estimated (§7.3).
+    func setWeight(_ block: PlanBlock, _ w: Double) {
+        mutate(block) { $0.weight = max(0, w); $0.weightSource = .measured }
+    }
+
+    /// Fewer sets than prescribed re-prescribes; extra sets are padding and don't gate progression.
+    func setSets(_ block: PlanBlock, _ n: Int) {
+        mutate(block) { $0.sets = max(1, n); $0.prescribedSets = min($0.prescribedSets, $0.sets) }
+    }
+
+    func shiftReps(_ block: PlanBlock, by d: Int) {
+        mutate(block) { guard $0.repLow + d >= 1 else { return }; $0.repLow += d; $0.repHigh += d }
+    }
+
+    func increment(for block: PlanBlock) -> Double {
+        model.catalog.exercises[block.exerciseKey]?.dumbbellBased == true ? EngineConfig.default.dumbbellIncrement : input.location.plateIncrement
+    }
+
+    private func mutate(_ block: PlanBlock, _ change: (inout PlanBlock) -> Void) {
+        guard let i = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return }
+        change(&plan.blocks[i])
+        persistPlan()
+    }
+
+    private func persistPlan() {
+        row = SessionRow(id: row.id, userId: row.userId, dayType: plan.dayType, locationId: row.locationId, durationMin: row.durationMin,
+                         startedAt: row.startedAt, plan: plan)
+        try? model.store.save(row)
+    }
+
+    /// Substitution: same slot, same superset relationship, weight re-estimated (§7.3).
     func candidates(for block: PlanBlock) -> [Candidate] {
         guard let slot = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot }) else { return [] }
         let used = Set(plan.blocks.map(\.exerciseKey)).subtracting([block.exerciseKey])
@@ -111,9 +201,7 @@ final class ActiveSession: Identifiable {
 
     func swap(_ block: PlanBlock, to exercise: Exercise) {
         plan = model.planner.swap(block: block, to: exercise, in: plan, input: input)
-        row = SessionRow(id: row.id, userId: row.userId, dayType: plan.dayType, locationId: row.locationId, durationMin: row.durationMin,
-                         startedAt: row.startedAt, plan: plan)
-        try? model.store.save(row)
+        persistPlan()
     }
 
     func finish() { model.finish(self, abandoned: false) }
@@ -151,12 +239,8 @@ enum RestNotifier {
     }
 }
 
-#if canImport(UserNotifications)
-import UserNotifications
-#endif
-
 extension EffortRating {
     var label: String {
-        switch self { case .easy: "Easy"; case .good: "Good"; case .didNotFinish: "Didn't finish" }
+        switch self { case .easy: "Easy"; case .good: "Good"; case .hard: "Hard"; case .didNotFinish: "Didn't finish" }
     }
 }

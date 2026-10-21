@@ -1,7 +1,7 @@
 import Foundation
 
 public enum EffortRating: String, Codable, Sendable, Hashable {
-    case easy, good, didNotFinish
+    case easy, good, hard, didNotFinish
 }
 
 /// One logged working set. `value` is reps, or seconds for timed holds.
@@ -112,6 +112,11 @@ public struct Progression: Sendable {
         }
         // Session ended early: neither a success nor a failure.
         guard allPrescribedLogged else { return ProgressionOutcome(state: s, change: .hold) }
+        if result.rating == .hard {
+            // Everything got done but it was a grind: keep the load, and it doesn't count as a failure.
+            s.weightSource = .measured; s.consecutiveFailures = 0
+            return ProgressionOutcome(state: s, change: .hold)
+        }
 
         let step = self.step(for: exercise, band: result.band, location: location)
         if allTop {
@@ -141,7 +146,7 @@ public struct Progression: Sendable {
         var s = state
         s.weightSource = .measured
         let current = s.setCount ?? result.prescribedSets
-        if result.rating == .didNotFinish { return ProgressionOutcome(state: s, change: .hold) }
+        if result.rating == .didNotFinish || result.rating == .hard { return ProgressionOutcome(state: s, change: .hold) }
         if allTop || result.rating == .easy {
             if current < config.nonLoadableMaxSets {
                 s.setCount = current + 1

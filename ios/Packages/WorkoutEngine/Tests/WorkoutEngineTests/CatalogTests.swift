@@ -6,7 +6,7 @@ final class CatalogTests: XCTestCase {
 
     func testSeedLoads() {
         XCTAssertGreaterThan(c.exercises.count, 40)
-        XCTAssertEqual(c.slotTemplates.count, 3)
+        XCTAssertEqual(c.slotTemplates.count, 4)
         XCTAssertEqual(c.seededLocations.map(\.key).sorted(), ["building_gym", "crunch_union_square"])
         XCTAssertEqual(c.progressionSteps.heavyLower, 10)
     }

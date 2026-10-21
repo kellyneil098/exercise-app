@@ -180,10 +180,10 @@ final class AppModel {
             applyProgression(session)
             var split = splitState
             split.nextDayIndex += 1
-            if var rot = split.heavyRotations[session.plan.dayType] {
-                rot.position = (rot.position + 1) % max(1, rot.sequence.count)
-                var rots = split.heavyRotations; rots[session.plan.dayType] = rot; split.heavyRotations = rots
-            }
+            let day = session.plan.dayType
+            var rot = split.heavyRotations[day] ?? HeavyRotation(sequence: catalog.heavyRotationDefaults[day] ?? [])
+            rot.position = (rot.position + 1) % max(1, rot.sequence.count)
+            var rots = split.heavyRotations; rots[day] = rot; split.heavyRotations = rots
             try? store.save(split)
             runRebaseline()
         }

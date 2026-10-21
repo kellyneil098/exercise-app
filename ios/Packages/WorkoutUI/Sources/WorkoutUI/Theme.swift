@@ -17,11 +17,12 @@ public enum Theme {
         public static let push = Color(hex: 0xB07D6E)
         public static let pull = Color(hex: 0x6E8FA3)
         public static let legs = Color(hex: 0x7E9A7A)
+        public static let fullBody = Color(hex: 0x9A8AA3)
         public static let run = Color(hex: 0xA39A6E)
         public static let destructive = Color(hex: 0xB5635E)
 
         public static func day(_ d: DayType) -> Color {
-            switch d { case .push: push; case .pull: pull; case .legs: legs }
+            switch d { case .push: push; case .pull: pull; case .legs: legs; case .fullBody: fullBody }
         }
     }
 
@@ -129,7 +130,7 @@ public struct DayTag: View {
     public var body: some View {
         HStack(spacing: 6) {
             Circle().fill(Theme.Colors.day(day)).frame(width: 6, height: 6)
-            Text(day.rawValue.capitalized).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+            Text(day.label).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
         }
     }
 }

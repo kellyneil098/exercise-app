@@ -22,6 +22,13 @@ final class ProgressionTests: XCTestCase {
         XCTAssertEqual(o.state.workingWeight, 125) // progressed from the 120 actually lifted, not the stored 100
     }
 
+    func testHardRatingHoldsEvenAtTopOfRange() {
+        let o = p.apply(result([12, 12, 12, 12], rating: .hard), to: state(100), exercise: bench, location: loc)
+        XCTAssertEqual(o.change, .hold)
+        XCTAssertEqual(o.state.workingWeight, 100)
+        XCTAssertEqual(o.state.consecutiveFailures, 0)
+    }
+
     func testIncompleteSessionHolds() {
         let o = p.apply(result([12], prescribed: 4), to: state(100), exercise: bench, location: loc)
         XCTAssertEqual(o.change, .hold); XCTAssertEqual(o.state.workingWeight, 100); XCTAssertEqual(o.state.consecutiveFailures, 0)

@@ -3,11 +3,17 @@ import WorkoutEngine
 import WorkoutStore
 import WorkoutUI
 
+/// The minimal workout view: one card at a time. Swipe right = set done (→ rest → next card),
+/// swipe left = rate the set (weight adjusts itself from the rating). Everything else lives in `DeckOverview`.
 struct DeckView: View {
     @Bindable var session: ActiveSession
     @Environment(AppModel.self) private var model
-    @State private var swapTarget: PlanBlock?
-    @State private var confirmAbandon = false
+    @State private var showOverview = false
+    @State private var rating = false
+    @State private var drag: CGSize = .zero
+
+    private enum Direction { case left, right }
+    private let threshold: CGFloat = 110
 
     var body: some View {
         Screen {
@@ -16,32 +22,13 @@ struct DeckView: View {
                 if session.isFinished {
                     FinishView(session: session)
                 } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: Theme.Spacing.m) {
-                                ForEach(session.orderedBlocks) { block in
-                                    BlockCard(session: session, block: block, isCurrent: block.id == session.currentBlock?.id,
-                                              onSwap: { swapTarget = block })
-                                        .id(block.id)
-                                }
-                            }
-                            .padding(.horizontal, Theme.Spacing.m)
-                            .padding(.bottom, 120)
-                        }
-                        .onChange(of: session.currentBlock?.id) { _, id in
-                            if let id { withAnimation(Theme.Motion.spring) { proxy.scrollTo(id, anchor: .top) } }
-                        }
-                    }
+                    stack
+                    hint
                 }
             }
-            .overlay(alignment: .bottom) { RestBar(session: session) }
         }
-        .sheet(item: $swapTarget) { block in SwapSheet(session: session, block: block) }
-        .confirmationDialog("End this workout?", isPresented: $confirmAbandon, titleVisibility: .visible) {
-            Button("Finish and save progress") { session.finish() }
-            Button("Discard", role: .destructive) { session.abandon() }
-            Button("Keep going", role: .cancel) {}
-        }
+        .sheet(isPresented: $showOverview) { DeckOverview(session: session) }
+        .onChange(of: session.currentStep?.id) { _, _ in rating = false }
         #if os(iOS)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = model.settings?.keepScreenAwake ?? true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
@@ -55,152 +42,277 @@ struct DeckView: View {
                 Text("\(session.completedCount) of \(session.plan.blocks.count)").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
             }
             Spacer()
-            Button("End") { confirmAbandon = true }.font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+            Button { showOverview = true } label: {
+                Image(systemName: "rectangle.stack").font(.system(size: 20, weight: .regular))
+            }
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .accessibilityLabel("Deck overview")
         }
         .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
     }
-}
 
-struct BlockCard: View {
-    let session: ActiveSession
-    let block: PlanBlock
-    let isCurrent: Bool
-    let onSwap: () -> Void
-    @State private var reps: Int = 0
-    @State private var weight: Double = 0
-    @State private var offset: CGFloat = 0
+    // MARK: Stack
 
-    var done: Int { session.workingSetsDone(block) }
-    var complete: Bool { session.isComplete(block) }
+    var stack: some View {
+        ZStack {
+            ForEach(Array(session.upcoming(limit: 2).enumerated().reversed()), id: \.element.id) { i, b in
+                PeekCard(block: b)
+                    .scaleEffect(1 - CGFloat(i + 1) * 0.04)
+                    .offset(y: CGFloat(i + 1) * 14)
+                    .opacity(0.55 - Double(i) * 0.2)
+            }
+            topCard
+        }
+        .padding(.horizontal, Theme.Spacing.l)
+        .frame(maxHeight: .infinity)
+        .animation(Theme.Motion.spring, value: session.currentStep?.id)
+    }
 
-    var body: some View {
-        Card(raised: isCurrent) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Overline(block.band == .heavy ? "Heavy" : block.isSupersetted ? "Superset" : block.pattern.replacingOccurrences(of: "_", with: " "))
-                            if block.isEstimate { Overline("· est") }
-                        }
-                        Text(block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+    @ViewBuilder var topCard: some View {
+        if let end = session.restEndsAt {
+            RestCard(session: session, endsAt: end)
+                .transition(.opacity)
+        } else if let step = session.currentStep {
+            Group {
+                if rating {
+                    RateCard(step: step) { e in
+                        Haptics.play(.setLogged)
+                        fly(.left) { session.complete(effort: e) }
                     }
-                    Spacer()
-                    if complete { Image(systemName: "checkmark").foregroundStyle(Theme.Colors.brass) }
+                } else {
+                    SetCard(step: step, session: session)
                 }
+            }
+            .overlay(alignment: .top) { swipeLabel }
+            .offset(drag)
+            .rotationEffect(.degrees(Double(drag.width / 24)))
+            .gesture(dragGesture)
+            .id(step.id)
+        }
+    }
 
-                HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.m) {
-                    if let w = block.weight {
-                        Text(w.formatted(.number.precision(.fractionLength(0...1)))).font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
-                        Text("lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+    @ViewBuilder var swipeLabel: some View {
+        let strength = min(1, abs(drag.width) / threshold)
+        if drag.width > 30 {
+            Overline(rating ? "Back" : "Done").foregroundStyle(Theme.Colors.brass).opacity(strength).padding(.top, Theme.Spacing.m)
+        } else if drag.width < -30, !rating {
+            Overline("Rate").foregroundStyle(Theme.Colors.textSecondary).opacity(strength).padding(.top, Theme.Spacing.m)
+        }
+    }
+
+    var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { v in drag = CGSize(width: v.translation.width, height: v.translation.height * 0.15) }
+            .onEnded { v in
+                let x = v.translation.width + (v.predictedEndTranslation.width - v.translation.width) * 0.3
+                if x > threshold {
+                    if rating {
+                        withAnimation(Theme.Motion.spring) { drag = .zero; rating = false }
+                    } else {
+                        Haptics.play(.setLogged)
+                        fly(.right) { session.complete(effort: nil) }
                     }
-                    Text("\(block.sets) × \(repRange)").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
-                    Spacer()
-                    Text("\(block.restSeconds)s rest").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                } else if x < -threshold, !rating {
+                    Haptics.play(.swap)
+                    fly(.left) { rating = true }
+                } else {
+                    withAnimation(Theme.Motion.spring) { drag = .zero }
                 }
+            }
+    }
 
-                if isCurrent && !complete { controls }
-                if done > 0 || !block.warmups.isEmpty { setDots }
+    private func fly(_ dir: Direction, then action: @escaping () -> Void) {
+        withAnimation(.easeOut(duration: 0.22)) {
+            drag = CGSize(width: dir == .right ? 640 : -640, height: drag.height)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) { drag = .zero }
+            withAnimation(Theme.Motion.spring) { action() }
+        }
+    }
+
+    @ViewBuilder var hint: some View {
+        HStack {
+            if session.restEndsAt != nil {
+                Spacer(); Overline("Tap to skip rest"); Spacer()
+            } else if rating {
+                Spacer(); Overline("Swipe right to go back"); Spacer()
+            } else {
+                Overline("← Rate"); Spacer(); Overline("Done →")
             }
         }
-        .opacity(complete && !isCurrent ? 0.55 : 1)
-        .offset(x: offset)
-        .gesture(
-            DragGesture(minimumDistance: 24)
-                .onChanged { v in if v.translation.width < 0 { offset = max(v.translation.width, -96) } }
-                .onEnded { v in
-                    withAnimation(Theme.Motion.spring) { offset = 0 }
-                    if v.translation.width < -72 { Haptics.play(.swap); onSwap() }
+        .padding(.horizontal, Theme.Spacing.xl).padding(.vertical, Theme.Spacing.l)
+    }
+}
+
+// MARK: Cards
+
+private let cardMinHeight: CGFloat = 440
+
+struct SetCard: View {
+    let step: DeckStep
+    let session: ActiveSession
+    var b: PlanBlock { step.block }
+
+    var body: some View {
+        Card(raised: true) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                HStack(spacing: 8) {
+                    Overline(kind)
+                    if b.isEstimate { Overline("· est") }
+                    Spacer()
                 }
-        )
-        .contextMenu {
-            Button("Swap exercise", systemImage: "arrow.left.arrow.right") { onSwap() }
-            Button("Do later", systemImage: "arrow.down.to.line") { session.defer_(block) }
-            Button("Skip", systemImage: "forward.end") { session.skip(block) }
-            if done > 0 { Button("Undo last set", systemImage: "arrow.uturn.backward") { session.undoLast(block: block) } }
+                Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Theme.Spacing.l)
+                if let w = step.warmup {
+                    weight(w.weight)
+                    Text("Warm-up \(step.index + 1) of \(b.warmups.count) · \(w.reps) reps")
+                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                } else {
+                    if let w = b.weight { weight(w) } else {
+                        Text("Bodyweight").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                    }
+                    Text("Set \(step.index + 1) of \(b.sets) · \(repRange)")
+                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                }
+                Spacer(minLength: Theme.Spacing.l)
+                SetDots(done: session.workingSetsDone(b), total: b.sets)
+            }
+            .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
         }
-        .onAppear { reset() }
-        .onChange(of: block.exerciseKey) { _, _ in reset() }
+        .contentShape(Rectangle())
+    }
+
+    var kind: String {
+        if step.isWarmup { return "Warm-up" }
+        if b.band == .heavy { return "Heavy" }
+        if b.isSupersetted { return "Superset" }
+        return b.pattern.replacingOccurrences(of: "_", with: " ")
     }
 
     var repRange: String {
-        block.measure == .seconds ? "\(block.repLow)–\(block.repHigh)s" : "\(block.repLow)–\(block.repHigh)"
+        b.measure == .seconds ? "\(b.repLow)–\(b.repHigh) sec" : "\(b.repLow)–\(b.repHigh) reps"
     }
 
-    func reset() {
-        reps = block.measure == .seconds ? block.repHigh : block.repHigh
-        weight = block.weight ?? 0
-    }
-
-    var warmupsPending: Bool { block.band == .heavy && session.logs(for: block).filter(\.isWarmup).count < block.warmups.count }
-
-    @ViewBuilder var controls: some View {
-        if warmupsPending {
-            let i = session.logs(for: block).filter(\.isWarmup).count
-            let w = block.warmups[i]
-            HStack {
-                Text("Warm-up \(i + 1): \(w.weight.formatted()) × \(w.reps)").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
-                Spacer()
-                Button("Done") { session.log(block: block, reps: w.reps, weight: w.weight, effort: nil, isWarmup: true); Haptics.play(.setLogged) }
-                    .font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.brass)
-            }
-        } else {
-            VStack(spacing: Theme.Spacing.m) {
-                VStack(spacing: Theme.Spacing.s) {
-                    Adjuster("\(reps) \(block.measure == .seconds ? "sec" : "reps")", value: $reps.asDouble, in: 0...200, step: block.measure == .seconds ? 5 : 1)
-                    if block.weight != nil {
-                        Adjuster("\(weight.formatted()) lb", value: $weight, in: 0...1000, step: session.input.location.plateIncrement)
-                    }
-                }
-                HStack(spacing: Theme.Spacing.s) {
-                    ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
-                        Button(e.label) { log(effort: e) }
-                            .font(Theme.Fonts.caption).padding(.vertical, 12).frame(maxWidth: .infinity)
-                            .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                            .foregroundStyle(Theme.Colors.textPrimary).buttonStyle(PressStyle())
-                    }
-                }
-                PillButton("Log set \(done + 1)") { log(effort: nil) }
-            }
-        }
-    }
-
-    func log(effort: EffortRating?) {
-        session.log(block: block, reps: reps, weight: block.weight == nil ? nil : weight, effort: effort)
-        Haptics.play(session.isComplete(block) ? .exerciseDone : .setLogged)
-    }
-
-    var setDots: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<block.sets, id: \.self) { i in
-                Circle().fill(i < done ? Theme.Colors.brass : Theme.Colors.hairline).frame(width: 6, height: 6)
-            }
-            if done > block.sets { Text("+\(done - block.sets)").font(Theme.Fonts.overline).foregroundStyle(Theme.Colors.textTertiary) }
+    func weight(_ w: Double) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 8) {
+            Text(w.formatted(.number.precision(.fractionLength(0...1)))).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
+            Text("lb").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
         }
     }
 }
 
-struct RestBar: View {
-    let session: ActiveSession
+struct RateCard: View {
+    let step: DeckStep
+    let onRate: (EffortRating) -> Void
+
     var body: some View {
-        if let end = session.restEndsAt {
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                let remaining = max(0, end.timeIntervalSince(ctx.date))
-                HStack {
-                    Text(remaining == 0 ? "Go" : "\(Int(remaining.rounded(.up)))s").font(Theme.Fonts.numeral).foregroundStyle(remaining == 0 ? Theme.Colors.brass : Theme.Colors.textPrimary)
-                    Spacer()
-                    Button("Skip rest") { session.skipRest() }.font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+        Card(raised: true) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Overline("How was that set?")
+                Text(step.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                Spacer(minLength: Theme.Spacing.m)
+                ForEach([EffortRating.easy, .good, .hard], id: \.rawValue) { e in
+                    Button { onRate(e) } label: {
+                        HStack {
+                            Text(e.label).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                            Spacer()
+                            Text(note(e)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                        .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
+                        .frame(maxWidth: .infinity)
+                        .background(Theme.Colors.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                    }
+                    .buttonStyle(PressStyle())
                 }
-                .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                .overlay(alignment: .bottom) {
-                    GeometryReader { g in
-                        Rectangle().fill(Theme.Colors.brass).frame(width: g.size.width * (1 - remaining / max(1, session.restTotal)), height: 2)
-                    }.frame(height: 2)
-                }
-                .padding(Theme.Spacing.m)
-                .onChange(of: remaining == 0) { _, z in if z { Haptics.play(.warning) } }
+                Spacer(minLength: Theme.Spacing.m)
+                Button("Didn't finish the set") { onRate(.didNotFinish) }
+                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+                    .frame(maxWidth: .infinity)
             }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+        }
+        .contentShape(Rectangle())
+    }
+
+    func note(_ e: EffortRating) -> String {
+        switch e { case .easy: "weight goes up faster"; case .good: "on plan"; case .hard: "hold the weight"; case .didNotFinish: "" }
+    }
+}
+
+/// Countdown between sets. Auto-advances to the next card at zero; tap or swipe right to skip.
+struct RestCard: View {
+    let session: ActiveSession
+    let endsAt: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+            let remaining = max(0, endsAt.timeIntervalSince(ctx.date))
+            Card(raised: true) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    Overline("Rest")
+                    Spacer(minLength: Theme.Spacing.m)
+                    Text("\(Int(remaining.rounded(.up)))").font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Rectangle().fill(Theme.Colors.hairline)
+                            Rectangle().fill(Theme.Colors.brass).frame(width: g.size.width * (1 - remaining / max(1, session.restTotal)))
+                        }
+                    }
+                    .frame(height: 2)
+                    Spacer(minLength: Theme.Spacing.m)
+                    if let next = session.currentStep {
+                        Overline("Up next")
+                        Text(next.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                        Text(detail(next)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { session.skipRest() }
+            .gesture(DragGesture(minimumDistance: 24).onEnded { v in if v.translation.width > 80 { session.skipRest() } })
+            .onChange(of: remaining <= 0) { _, zero in
+                if zero { Haptics.play(.warning); withAnimation(Theme.Motion.spring) { session.skipRest() } }
+            }
+            .onAppear { if remaining <= 0 { session.skipRest() } }
+        }
+    }
+
+    func detail(_ s: DeckStep) -> String {
+        let b = s.block
+        if let w = s.warmup { return "Warm-up · \(w.weight.formatted()) lb × \(w.reps)" }
+        let range = b.measure == .seconds ? "\(b.repLow)–\(b.repHigh) sec" : "\(b.repLow)–\(b.repHigh) reps"
+        let load = b.weight.map { "\($0.formatted()) lb · " } ?? ""
+        return "\(load)set \(s.index + 1) of \(b.sets) · \(range)"
+    }
+}
+
+struct PeekCard: View {
+    let block: PlanBlock
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                Overline(block.isSupersetted ? "Superset" : "Next")
+                Text(block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+        }
+    }
+}
+
+struct SetDots: View {
+    let done: Int
+    let total: Int
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<max(total, 0), id: \.self) { i in
+                Circle().fill(i < done ? Theme.Colors.brass : Theme.Colors.hairline).frame(width: 6, height: 6)
+            }
+            if done > total { Text("+\(done - total)").font(Theme.Fonts.overline).foregroundStyle(Theme.Colors.textTertiary) }
         }
     }
 }

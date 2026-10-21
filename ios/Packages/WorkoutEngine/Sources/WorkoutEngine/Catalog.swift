@@ -2,14 +2,19 @@ import Foundation
 
 public enum DayType: String, Codable, CaseIterable, Sendable, Hashable {
     case push, pull, legs
+    /// Standalone program: repeats itself instead of rotating through push/pull/legs.
+    case fullBody = "full_body"
 
     public var next: DayType {
         switch self {
         case .push: return .pull
         case .pull: return .legs
         case .legs: return .push
+        case .fullBody: return .fullBody
         }
     }
+
+    public var label: String { self == .fullBody ? "Full body" : rawValue.capitalized }
 }
 
 public enum Band: String, Codable, Sendable, Hashable {

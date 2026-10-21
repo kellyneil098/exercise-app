@@ -59,7 +59,7 @@ share
 
 ### Shared structure, separate state
 
-All users run the **same** push/pull/legs slot templates, rep bands, progression rules, and heavy-rotation defaults. There is no per-user template system to build. What differs per user is *state*, all of which the schema scopes by `user_id`: working weights, split position, heavy-rotation position, default location, equipment overrides, and run plan.
+All users run the **same** push/pull/legs and full-body slot templates, rep bands, progression rules, and heavy-rotation defaults. There is no per-user template system to build. What differs per user is *state*, all of which the schema scopes by `user_id`: working weights, split position, heavy-rotation position, default location, equipment overrides, and run plan.
 
 ### Units
 
@@ -515,54 +515,28 @@ Runs render in the deck as a short card sequence: warm-up, main segment(s) with 
 
 ## 7. The deck UI
 
-The workout renders as a full-screen card deck, one card at a time. Card types:
+The workout is a **stack of cards, one at a time** (think Tinder, not a list). The user never sees more than the card in hand plus the edges of the next one or two behind it. Every card is one *step*: a warm-up set or a working set of one exercise, showing exactly three things — exercise name, weight, and `set n of m · rep range`.
 
-| Type | Content | Swipe right | Swipe left | Swipe down |
-|---|---|---|---|---|
-| `exercise_intro` | Exercise name, target sets×reps×weight, equipment, estimate flag | Begin | **Occupied → substitute or defer** | Skip exercise |
-| `warmup_set` | Reps, weight | Complete | — | Skip |
-| `working_set` | Set n of m, target reps, weight, editable actuals | Complete | — | Mark failed |
-| `rest` | Countdown, next-up preview | Skip rest, continue | — | — |
-| `exercise_rating` | Easy / Good effort / Did not finish | Tap to rate | — | Skip (= good effort) |
-| `run_segment` | Distance, target pace | Complete | — | Skip |
-| `session_complete` | Summary, PRs, actual vs. estimated time | Finish | — | — |
+| Card | Swipe right | Swipe left | Tap |
+|---|---|---|---|
+| `set` (warm-up or working) | **Done** → rest card | **Rate** this set | — |
+| `rate` | Back to the set card | — | Easy / Good / Hard, or "Didn't finish" |
+| `rest` | Skip rest | — | Skip rest |
 
-Every swipe also has a tap equivalent (a button row at the bottom of the card) — swipes are the fast path, not the only path.
+Swiping right logs the set as completed at the top of the rep range with no rating; the rest countdown starts and, at zero, the next card is already in hand. Swiping left shows the rating card; the rating implies the reps logged (easy/good = top of range, hard = bottom of range, didn't finish = short of target) so the **working weight adjusts itself** through §5 — the user never types a number mid-set. `hard` holds the load without counting as a failure.
 
-### Critical interaction: swipe-left-to-substitute
+Superset partners alternate with their host: host set → partner set (no rest) → rest → host set. Rest after a warm-up is 60 s regardless of band.
 
-**The swap action lives on the exercise card, not in the zoomed-out view.** The reason a user needs to reorder is that they walked over and the machine was taken — a five-second decision made standing in the middle of a gym floor. Requiring zoom-out → locate card → drag → resume is friction at exactly the wrong moment.
-
-Swiping left on `exercise_intro` opens a sheet with two options:
-
-1. **Swap** — a ranked list of alternatives with the same `movement_pattern` available at this location, each showing its prescribed weight (and the estimate flag if applicable). Dumbbell exercises excluded by the weight gate appear greyed with the reason (§3.1). Choosing one rebuilds the block in place.
-2. **Come back to it** — moves the exercise to the end of the remaining plan and advances to the next one.
+There are no buttons on the set card. The only chrome is the header (day, `n of m` done, and the overview button) and a one-line swipe hint.
 
 ### Zoomed-out deck view
 
-Pinch, or tap the header, to see the whole plan as a vertical list. Here the user can drag to reorder, remove exercises, add one from the pool, and see the running time estimate update. This view is for **pre-workout planning and mid-workout orientation** — not for the fast "machine is busy" path above.
+The overview is the management surface for the whole workout, reached from the header. It lists every block in deck order and is where everything that isn't "do the set" lives:
 
-### Superset card sequence
-
-When a core slot is supersetted into a host exercise (§3.6), the two exercises share one interleaved card run rather than appearing as separate blocks:
-
-```
-exercise_intro (host + core, shown as a pair)
-  host set 1
-  core set 1
-  short_rest            # host rest minus core set duration, floored at 30s
-  host set 2
-  core set 2
-  short_rest
-  host set 3
-  core set 3
-  exercise_rating (host)
-  exercise_rating (core)
-```
-
-The `rest` card between a host set and the following core set is **omitted entirely** — the core set *is* the rest. Only the tail rest before the next host set remains, and it's shortened accordingly.
-
-The zoomed-out view shows the pair as a single linked unit. Swiping left to substitute the host offers alternatives for the host only and keeps the core pairing intact; the user can unlink the pair from the zoomed-out view if they want them separate.
+- **Reorder** by long-press drag (the machine is taken, do this one later).
+- **Edit** a block: working weight (plate / dumbbell increments), number of sets (fewer than prescribed re-prescribes; more are padding and don't gate progression), rep range.
+- **Swap** the exercise (same slot, same superset link, weight re-estimated), **do later**, **skip**, **restore**, **undo last set**.
+- **End workout** — finish and save progress, or discard (discarded sessions soft-delete their set logs so charts never see them).
 
 ### Rest timer
 
@@ -592,7 +566,7 @@ The rules below are binding. The visual language itself (exact palette, type cho
 1. **One thing per screen.** A card shows the one number that matters right now — the weight, the reps, the countdown — at a size you can read from the floor with the phone on a bench. Secondary information is small, low-contrast, and never competes.
 2. **Typography does the work.** No icons where a word is clearer; no decoration. Hierarchy is created by size, weight and spacing, not by boxes and colours.
 3. **Dark by default, light as an option.** Gym lighting is harsh and the phone is often face-up on a bench; a near-black canvas with high-contrast type reads better and looks more expensive. Both modes must be fully designed; this is not "dark mode support."
-4. **Colour is rare and meaningful.** One accent colour, used for exactly three things: the primary action, the active state of the timer, and the user's own series in charts. The partner gets a second, equally-weighted hue in charts and nowhere else. Day types (push/pull/legs) get three muted tints used only in chart bars and the small day-type label. Everything else is a neutral ramp. No red/green for good/bad — use type and position.
+4. **Colour is rare and meaningful.** One accent colour, used for exactly three things: the primary action, the active state of the timer, and the user's own series in charts. The partner gets a second, equally-weighted hue in charts and nowhere else. Day types (push/pull/legs/full body) get four muted tints used only in chart bars and the small day-type label. Everything else is a neutral ramp. No red/green for good/bad — use type and position.
 5. **Motion is physical and brief.** Cards move the way paper moves: spring curves (`.spring(response: 0.35, dampingFraction: 0.85)`), interruptible, driven by the gesture's velocity. Nothing bounces for fun. Nothing animates that the user didn't touch, except the timer. Honour `Reduce Motion`.
 6. **Haptics are part of the design.** Set complete: `.light` impact. Exercise complete: `.medium`. Timer done: `.success` notification. Swipe threshold crossed: `.selection`. Nothing else vibrates.
 7. **Native where native is right.** Standard navigation, sheets, context menus, Dynamic Type, VoiceOver labels on every control, SF Symbols where an icon is unavoidable. Custom where the system control would look like a settings page: the deck, the timer, the weight stepper, the charts.
