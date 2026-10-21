@@ -9,7 +9,7 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import models
+from . import models, sync
 from .config import settings
 from .db import get_db
 
@@ -57,9 +57,16 @@ def consume_invite(db: DbSession, code: str | None, new_user: models.User) -> No
     inv.used_by = new_user.id
     inv.used_at = datetime.now(UTC)
     if inv.grant_view_to_inviter:
-        db.add(models.Share(owner_id=new_user.id, viewer_id=inv.created_by))
+        grant_share(db, owner_id=new_user.id, viewer_id=inv.created_by)
     if inv.grant_view_of_inviter:
-        db.add(models.Share(owner_id=inv.created_by, viewer_id=new_user.id))
+        grant_share(db, owner_id=inv.created_by, viewer_id=new_user.id)
+
+
+def grant_share(db: DbSession, owner_id: str, viewer_id: str) -> None:
+    """Create a directional share and re-sequence the owner's history so the viewer's next pull includes it."""
+    db.add(models.Share(owner_id=owner_id, viewer_id=viewer_id))
+    db.flush()
+    sync.resequence_owner(db, owner_id)
 
 
 def create_invite(db: DbSession, user: models.User, to_inviter: bool, of_inviter: bool) -> models.Invite:

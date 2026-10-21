@@ -10,10 +10,21 @@ final class ProgressionTests: XCTestCase {
     var plank: Exercise { Fixtures.catalog.exercises["plank"]! }
 
     func result(_ reps: [Int], low: Int = 8, high: Int = 12, band: Band = .medium, rating: EffortRating = .good,
-                completed: [Bool]? = nil, padding: Int = 0) -> ExerciseResult {
-        var sets = reps.enumerated().map { SetResult(value: $0.element, weight: 100, completed: completed?[$0.offset] ?? true) }
-        for _ in 0..<padding { sets.append(SetResult(value: high, weight: 100, isPadding: true)) }
-        return ExerciseResult(exerciseKey: "x", band: band, repLow: low, repHigh: high, prescribedSets: reps.count, sets: sets, rating: rating)
+                completed: [Bool]? = nil, padding: Int = 0, weight: Double? = nil, prescribed: Int? = nil) -> ExerciseResult {
+        var sets = reps.enumerated().map { SetResult(value: $0.element, weight: weight, completed: completed?[$0.offset] ?? true) }
+        for _ in 0..<padding { sets.append(SetResult(value: high, weight: weight, isPadding: true)) }
+        return ExerciseResult(exerciseKey: "x", band: band, repLow: low, repHigh: high, prescribedSets: prescribed ?? reps.count,
+                              sets: sets, rating: rating)
+    }
+
+    func testLoggedWeightOverridesStoredWeight() {
+        let o = p.apply(result([12, 12, 12, 12], weight: 120), to: state(100), exercise: bench, location: loc)
+        XCTAssertEqual(o.state.workingWeight, 125) // progressed from the 120 actually lifted, not the stored 100
+    }
+
+    func testIncompleteSessionHolds() {
+        let o = p.apply(result([12], prescribed: 4), to: state(100), exercise: bench, location: loc)
+        XCTAssertEqual(o.change, .hold); XCTAssertEqual(o.state.workingWeight, 100); XCTAssertEqual(o.state.consecutiveFailures, 0)
     }
 
     func state(_ w: Double, source: WeightSource = .measured, failures: Int = 0, pre: Double? = nil) -> ExerciseState {

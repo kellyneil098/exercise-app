@@ -174,7 +174,9 @@ final class AppModel {
         row.completedAt = Date()
         row.abandoned = abandoned
         try? store.save(row)
-        if !abandoned {
+        if abandoned {
+            for log in session.logs where !log.deleted { try? store.delete(log) }
+        } else {
             applyProgression(session)
             var split = splitState
             split.nextDayIndex += 1

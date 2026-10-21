@@ -50,7 +50,17 @@ final class ActiveSession: Identifiable {
 
     func isComplete(_ block: PlanBlock) -> Bool { skipped.contains(block.id) || workingSetsDone(block) >= block.sets }
 
-    var currentBlock: PlanBlock? { orderedBlocks.first { !isComplete($0) } }
+    /// Next set to perform. A superset partner alternates with its host (partner set during host rest).
+    var currentBlock: PlanBlock? {
+        for b in orderedBlocks where !isComplete(b) {
+            if let p = plan.supersetPartner(of: b), !isComplete(p), !deferred.contains(p.id),
+               workingSetsDone(p) < workingSetsDone(b) {
+                return p
+            }
+            return b
+        }
+        return nil
+    }
 
     var isFinished: Bool { currentBlock == nil }
 

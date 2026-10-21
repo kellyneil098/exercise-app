@@ -59,6 +59,14 @@ class Share(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class SyncCounter(Base):
+    """Single-row allocator for `Record.server_seq`; UPDATE ... RETURNING makes allocation atomic."""
+
+    __tablename__ = "sync_counter"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    value: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class Record(Base):
     """One synced row of any client table. The server stores, scopes and orders; it never interprets.
 

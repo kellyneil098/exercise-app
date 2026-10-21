@@ -101,3 +101,4 @@ class PullOut(BaseModel):
     records: list[RecordOut]
     cursor: int
     has_more: bool
+    visible_user_ids: list[str] = Field(default_factory=list)

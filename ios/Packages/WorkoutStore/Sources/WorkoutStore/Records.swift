@@ -257,13 +257,33 @@ public struct UserExercise: SyncedRecord {
 
 extension JSONEncoder {
     public static let store: JSONEncoder = {
-        let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.sortedKeys]; return e
+        let e = JSONEncoder(); e.outputFormatting = [.sortedKeys]
+        e.dateEncodingStrategy = .custom { date, enc in
+            var c = enc.singleValueContainer(); try c.encode(ISO8601Fractional.formatter.string(from: date))
+        }
+        return e
     }()
 }
 
 extension JSONDecoder {
     public static let store: JSONDecoder = {
-        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .custom { dec in
+            let s = try dec.singleValueContainer().decode(String.self)
+            if let date = ISO8601Fractional.formatter.date(from: s) ?? ISO8601Fractional.plain.date(from: s) { return date }
+            throw DecodingError.dataCorrupted(.init(codingPath: dec.codingPath, debugDescription: "bad date \(s)"))
+        }
+        return d
+    }()
+}
+
+/// Wire timestamps keep milliseconds so two edits within one second still order under LWW.
+enum ISO8601Fractional {
+    static let formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
+    }()
+    static let plain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; return f
     }()
 }
 

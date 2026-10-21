@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,4 +20,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def settings() -> Settings:
-    return Settings()
+    s = Settings()
+    if os.environ.get("FLY_APP_NAME") and s.database_url.startswith("sqlite"):
+        raise RuntimeError("DATABASE_URL must point at Postgres in production; refusing to start on ephemeral SQLite")
+    return s

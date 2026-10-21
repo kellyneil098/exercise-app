@@ -81,13 +81,15 @@ public struct Progression: Sendable {
         s.lastPerformedAt = now
         let inc = exercise.dumbbellBased ? config.dumbbellIncrement : location.plateIncrement
         let sets = result.workingSets
-        let allTop = !sets.isEmpty && sets.allSatisfy { $0.completed && $0.value >= result.repHigh }
+        let allPrescribedLogged = sets.count >= result.prescribedSets
+        let allTop = allPrescribedLogged && !sets.isEmpty && sets.allSatisfy { $0.completed && $0.value >= result.repHigh }
         let anyBelow = sets.contains { !$0.completed || $0.value < result.repLow }
 
         guard exercise.loadable else {
             return nonLoadable(result, s, allTop: allTop)
         }
-        let w = s.workingWeight ?? sets.compactMap(\.weight).max() ?? 0
+        // The load actually lifted (max across working sets) is the truth; stored weight is the fallback.
+        let w = sets.compactMap(\.weight).max() ?? s.workingWeight ?? 0
         s.workingWeight = w
 
         if result.rating == .didNotFinish {
@@ -108,6 +110,8 @@ public struct Progression: Sendable {
             }
             return ProgressionOutcome(state: s, change: .hold)
         }
+        // Session ended early: neither a success nor a failure.
+        guard allPrescribedLogged else { return ProgressionOutcome(state: s, change: .hold) }
 
         let step = self.step(for: exercise, band: result.band, location: location)
         if allTop {

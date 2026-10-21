@@ -23,8 +23,9 @@ def auth_apple(body: schemas.AppleLoginIn, db: DbSession = Depends(get_db)) -> s
     claims = auth.verify_apple_identity_token(body.identity_token)
     sub = claims["sub"]
     email = claims.get("email")
+    email_verified = claims.get("email_verified") in (True, "true")
     user = db.scalar(select(models.User).where(models.User.apple_sub == sub))
-    if user is None and email:
+    if user is None and email and email_verified:
         # Pre-provisioned by email (dev login or admin), now linking Apple identity.
         user = db.scalar(select(models.User).where(models.User.email == email))
         if user is not None:

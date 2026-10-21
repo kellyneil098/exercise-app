@@ -175,8 +175,23 @@ public final class WorkoutStore: Sendable {
         try db.read { db in try OutboxRow.order(Column("createdAt")).limit(limit).fetchAll(db) }
     }
 
-    func clearOutbox(ids: [String]) throws {
-        try db.write { db in _ = try OutboxRow.filter(ids.contains(Column("id"))).deleteAll(db) }
+    /// Removes only the exact snapshots that were sent; a newer local write that replaced one stays queued.
+    func clearOutbox(sent: [OutboxRow]) throws {
+        try db.write { db in
+            for row in sent {
+                _ = try OutboxRow.filter(Column("id") == row.id && Column("createdAt") == row.createdAt).deleteAll(db)
+            }
+        }
+    }
+
+    /// Drops rows owned by users we can no longer see (share revoked). Local-only; nothing is enqueued.
+    public func purgeRows(notOwnedBy visible: [String]) throws {
+        try db.write { db in
+            for t in Self.allTables {
+                try db.execute(sql: "DELETE FROM \(t.tableName) WHERE userId NOT IN (\(visible.map { _ in "?" }.joined(separator: ",")))",
+                               arguments: StatementArguments(visible))
+            }
+        }
     }
 
     public var pullCursor: Int {

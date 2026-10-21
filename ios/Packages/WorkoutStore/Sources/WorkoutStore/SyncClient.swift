@@ -120,6 +120,7 @@ struct PullResponse: Decodable {
     }
     var records: [Rec]
     var cursor: Int
+    var visible_user_ids: [String]?
     var has_more: Bool
 }
 
@@ -149,7 +150,7 @@ public struct SyncClient: Sendable {
                 .init(id: $0.id, table: $0.tableName, op: $0.op, payload: RawJSON(json: $0.payload), updated_at: $0.createdAt)
             })
             _ = try await api.post("/sync/push", body, as: PushResponse.self)
-            try store.clearOutbox(ids: rows.map(\.id))
+            try store.clearOutbox(sent: rows)
             total += rows.count
         }
     }
@@ -165,7 +166,10 @@ public struct SyncClient: Sendable {
             }
             total += page.records.count
             try store.setPullCursor(page.cursor)
-            if !page.has_more { return total }
+            if !page.has_more {
+                if let visible = page.visible_user_ids, !visible.isEmpty { try store.purgeRows(notOwnedBy: visible) }
+                return total
+            }
         }
     }
 }
