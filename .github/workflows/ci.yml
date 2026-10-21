@@ -1,0 +1,34 @@
+name: CI
+on:
+  push:
+    branches: [main, "devin/**"]
+  pull_request:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 seed/validate_seed.py
+      - name: seed copy in Swift package is in sync
+        run: diff -r seed/ ios/Packages/WorkoutEngine/Sources/WorkoutEngine/Seed/ --exclude=validate_seed.py
+
+  server:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: server } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra dev
+      - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
+      - run: .venv/bin/pytest -q
+
+  swift:
+    runs-on: macos-15
+    strategy:
+      matrix:
+        package: [WorkoutEngine, WorkoutStore]
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+        working-directory: ios/Packages/${{ matrix.package }}
