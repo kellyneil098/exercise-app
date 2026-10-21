@@ -32,3 +32,13 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift test
         working-directory: ios/Packages/${{ matrix.package }}
+
+  app:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: ios/WorkoutApp
+      - run: xcodebuild -project WorkoutApp.xcodeproj -scheme WorkoutApp -destination 'generic/platform=iOS Simulator' -quiet CODE_SIGNING_ALLOWED=NO build
+        working-directory: ios/WorkoutApp
