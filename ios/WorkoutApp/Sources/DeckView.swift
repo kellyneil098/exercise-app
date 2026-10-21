@@ -9,11 +9,6 @@ struct DeckView: View {
     @Bindable var session: ActiveSession
     @Environment(AppModel.self) private var model
     @State private var showOverview = false
-    @State private var rating = false
-    @State private var drag: CGSize = .zero
-
-    private enum Direction { case left, right }
-    private let threshold: CGFloat = 110
 
     var body: some View {
         Screen {
@@ -28,7 +23,6 @@ struct DeckView: View {
             }
         }
         .sheet(isPresented: $showOverview) { DeckOverview(session: session) }
-        .onChange(of: session.currentStep?.id) { _, _ in rating = false }
         #if os(iOS)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = model.settings?.keepScreenAwake ?? true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
@@ -53,42 +47,70 @@ struct DeckView: View {
 
     // MARK: Stack
 
+    /// Cards behind the top one are scaled about their bottom edge so a strip of each stays visible below it.
     var stack: some View {
         ZStack {
             ForEach(Array(session.upcoming(limit: 2).enumerated().reversed()), id: \.element.id) { i, b in
                 PeekCard(block: b)
-                    .scaleEffect(1 - CGFloat(i + 1) * 0.04)
-                    .offset(y: CGFloat(i + 1) * 14)
-                    .opacity(0.55 - Double(i) * 0.2)
+                    .scaleEffect(1 - CGFloat(i + 1) * 0.05, anchor: .bottom)
+                    .offset(y: CGFloat(i + 1) * 18)
+                    .opacity(0.7 - Double(i) * 0.25)
             }
-            topCard
+            if let end = session.restEndsAt {
+                RestCard(session: session, endsAt: end)
+                    .transition(.opacity)
+            } else if let step = session.currentStep {
+                // Keyed by step so each card owns its drag/rating state; the old card leaves instantly
+                // (it has already flown off-screen) instead of lingering through a fade.
+                StepCard(step: step, session: session)
+                    .id(step.id)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
+            }
         }
         .padding(.horizontal, Theme.Spacing.l)
+        .padding(.bottom, Theme.Spacing.s)
         .frame(maxHeight: .infinity)
         .animation(Theme.Motion.spring, value: session.currentStep?.id)
+        .animation(Theme.Motion.spring, value: session.restEndsAt)
     }
 
-    @ViewBuilder var topCard: some View {
-        if let end = session.restEndsAt {
-            RestCard(session: session, endsAt: end)
-                .transition(.opacity)
-        } else if let step = session.currentStep {
-            Group {
-                if rating {
-                    RateCard(step: step) { e in
-                        Haptics.play(.setLogged)
-                        fly(.left) { session.complete(effort: e) }
-                    }
-                } else {
-                    SetCard(step: step, session: session)
-                }
+    @ViewBuilder var hint: some View {
+        HStack {
+            if session.restEndsAt != nil {
+                Spacer(); Overline("Tap to skip rest"); Spacer()
+            } else {
+                Overline("← Rate"); Spacer(); Overline("Done →")
             }
-            .overlay(alignment: .top) { swipeLabel }
-            .offset(drag)
-            .rotationEffect(.degrees(Double(drag.width / 24)))
-            .gesture(dragGesture)
-            .id(step.id)
         }
+        .padding(.horizontal, Theme.Spacing.xl).padding(.vertical, Theme.Spacing.l)
+    }
+}
+
+/// The card in hand: a set card that flips to a rating card on swipe-left. Owns its own gesture state.
+struct StepCard: View {
+    let step: DeckStep
+    let session: ActiveSession
+    @State private var rating = false
+    @State private var drag: CGSize = .zero
+
+    private enum Direction { case left, right }
+    private let threshold: CGFloat = 110
+
+    var body: some View {
+        Group {
+            if rating {
+                RateCard(step: step) { e in
+                    Haptics.play(.setLogged)
+                    fly(.left) { session.complete(effort: e) }
+                }
+            } else {
+                SetCard(step: step, session: session)
+            }
+        }
+        .overlay(alignment: .top) { swipeLabel }
+        .offset(drag)
+        .rotationEffect(.degrees(Double(drag.width / 24)))
+        .gesture(dragGesture)
     }
 
     @ViewBuilder var swipeLabel: some View {
@@ -114,35 +136,22 @@ struct DeckView: View {
                     }
                 } else if x < -threshold, !rating {
                     Haptics.play(.swap)
-                    fly(.left) { rating = true }
+                    fly(.left) {
+                        var t = Transaction(); t.disablesAnimations = true
+                        withTransaction(t) { drag = .zero; rating = true }
+                    }
                 } else {
                     withAnimation(Theme.Motion.spring) { drag = .zero }
                 }
             }
     }
 
+    /// Throw the card off-screen, then run `action` (which usually replaces this card entirely).
     private func fly(_ dir: Direction, then action: @escaping () -> Void) {
         withAnimation(.easeOut(duration: 0.22)) {
             drag = CGSize(width: dir == .right ? 640 : -640, height: drag.height)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            var t = Transaction(); t.disablesAnimations = true
-            withTransaction(t) { drag = .zero }
-            withAnimation(Theme.Motion.spring) { action() }
-        }
-    }
-
-    @ViewBuilder var hint: some View {
-        HStack {
-            if session.restEndsAt != nil {
-                Spacer(); Overline("Tap to skip rest"); Spacer()
-            } else if rating {
-                Spacer(); Overline("Swipe right to go back"); Spacer()
-            } else {
-                Overline("← Rate"); Spacer(); Overline("Done →")
-            }
-        }
-        .padding(.horizontal, Theme.Spacing.xl).padding(.vertical, Theme.Spacing.l)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.23) { action() }
     }
 }
 
@@ -231,6 +240,7 @@ struct RateCard: View {
                 Button("Didn't finish the set") { onRate(.didNotFinish) }
                     .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                     .frame(maxWidth: .infinity)
+                Overline("Swipe right to go back").frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
         }

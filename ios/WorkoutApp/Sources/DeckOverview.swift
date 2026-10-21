@@ -31,11 +31,6 @@ struct DeckOverview: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(Theme.Colors.hairline)
                             .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l))
-                            .contextMenu {
-                                Button("Swap exercise", systemImage: "arrow.left.arrow.right") { swapTarget = b }
-                                Button("Do later", systemImage: "arrow.down.to.line") { session.defer_(b) }
-                                Button("Skip", systemImage: "forward.end") { session.skip(b) }
-                            }
                     }
                     .onMove { session.move(fromOffsets: $0, toOffset: $1) }
                 }
@@ -48,10 +43,12 @@ struct DeckOverview: View {
             }
         }
         .sheet(item: $swapTarget) { block in SwapSheet(session: session, block: block) }
-        .confirmationDialog("End this workout?", isPresented: $confirmEnd, titleVisibility: .visible) {
+        .alert("End this workout?", isPresented: $confirmEnd) {
             Button("Finish and save progress") { dismiss(); session.finish() }
             Button("Discard", role: .destructive) { dismiss(); session.abandon() }
             Button("Keep going", role: .cancel) {}
+        } message: {
+            Text("Finishing applies progression to what you logged. Discarding drops this session's sets.")
         }
         .presentationBackground(Theme.Colors.canvas)
     }
