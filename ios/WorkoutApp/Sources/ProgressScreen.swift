@@ -9,7 +9,7 @@ import WorkoutUI
 /// Partner data shows in the partner hue, side by side, never ranked.
 struct ProgressScreen: View {
     @Environment(AppModel.self) private var model
-    @State private var exerciseKey: String = "bench_press"
+    @State private var exerciseKey: String = "barbell_bench_press"
     @State private var partnerId: String?
     @State private var partners: [UserDTO] = []
 
@@ -79,7 +79,7 @@ struct ProgressScreen: View {
 
     var exerciseKeys: [String] {
         let mine = (try? model.store.db.read { try String.fetchAll($0, sql: "SELECT DISTINCT exerciseKey FROM set_log WHERE userId = ? ORDER BY exerciseKey", arguments: [model.userId]) }) ?? []
-        return mine.isEmpty ? ["bench_press", "back_squat", "deadlift"] : mine
+        return mine.isEmpty ? ["barbell_bench_press", "back_squat", "deadlift"] : mine
     }
 
     var weightChart: some View {

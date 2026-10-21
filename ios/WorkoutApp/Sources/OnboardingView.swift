@@ -54,7 +54,7 @@ struct OnboardingView: View {
         }
     }
 
-    var anchorKeys: [String] { ["bench_press", "back_squat", "deadlift", "overhead_press"].filter { model.catalog.exercises[$0] != nil } }
+    var anchorKeys: [String] { ["barbell_bench_press", "back_squat", "deadlift", "overhead_press"].filter { model.catalog.exercises[$0] != nil } }
 
     var lifting: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
