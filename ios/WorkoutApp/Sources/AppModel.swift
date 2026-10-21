@@ -70,12 +70,12 @@ final class AppModel {
 
     var settings: SettingsRow? {
         _ = dataVersion
-        try? store.db.read { try SettingsRow.filter(Column("userId") == userId && Column("deleted") == false).fetchOne($0) }
+        return try? store.db.read { try SettingsRow.filter(Column("userId") == userId && Column("deleted") == false).fetchOne($0) }
     }
 
     var locations: [Location] {
         _ = dataVersion
-        (try? store.db.read {
+        return (try? store.db.read {
             try Location.filter(Column("userId") == userId && Column("deleted") == false).order(Column("sortOrder")).fetchAll($0)
         }) ?? []
     }
