@@ -3,13 +3,19 @@ import WorkoutEngine
 import WorkoutStore
 import WorkoutUI
 
+/// What Home can start: a strength day or the week's running.
+enum HomeMode: Hashable {
+    case strength(DayType), running
+    static let all: [HomeMode] = DayType.allCases.map { .strength($0) } + [.running]
+    var label: String { switch self { case .strength(let d): d.label; case .running: "Running" } }
+}
+
 /// Cold open → workout in ≤3 taps: Start is the primary action, duration/location are one tap each.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
-    @State private var dayType: DayType = .push
+    @State private var mode: HomeMode = .strength(.push)
     @State private var duration: Int = 60
     @State private var location: Location?
-    @State private var showRun = false
     @State private var showProgress = false
     @State private var showSettings = false
 
@@ -25,59 +31,64 @@ struct HomeView: View {
                     }
                     .foregroundStyle(Theme.Colors.textSecondary)
 
-                    Text(dayType.label).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
+                    Text(mode.label).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
 
-                    HStack(spacing: Theme.Spacing.s) {
-                        ForEach(DayType.allCases, id: \.self) { d in
-                            Chip(d.label, selected: d == dayType) { withAnimation(Theme.Motion.quick) { dayType = d } }
-                        }
-                    }
-
-                    Card {
-                        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                            Overline("Time")
-                            HStack(spacing: Theme.Spacing.s) {
-                                ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
-                                    Chip("\(m)", selected: m == duration) { duration = m }
-                                }
-                            }
-                            Hairline()
-                            Overline("Where")
-                            HStack(spacing: Theme.Spacing.s) {
-                                ForEach(model.locations) { l in
-                                    Chip(l.name, selected: l.id == location?.id) { location = l }
-                                }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: Theme.Spacing.s) {
+                            ForEach(HomeMode.all, id: \.self) { m in
+                                Chip(m.label, selected: m == mode) { withAnimation(Theme.Motion.quick) { mode = m } }
                             }
                         }
                     }
+                    .scrollClipDisabled()
 
-                    if let location {
-                        PlanPreview(plan: model.preview(dayType: dayType, duration: duration, location: location))
-                    }
-
-                    PillButton("Start") {
-                        if let location { model.startSession(dayType: dayType, duration: duration, location: location) }
-                    }
-                    .disabled(location == nil)
-
-                    Button { showRun = true } label: {
-                        HStack { Text("Running").font(Theme.Fonts.body); Spacer(); Image(systemName: "chevron.right") }
-                            .foregroundStyle(Theme.Colors.textSecondary).padding(.vertical, 8)
+                    switch mode {
+                    case .strength(let dayType): strength(dayType)
+                    case .running: RunContent()
                     }
                 }
                 .padding(Theme.Spacing.l)
             }
         }
         .onAppear {
-            dayType = model.nextDayType
+            mode = .strength(model.nextDayType)
             let split = model.splitState
             duration = split.defaultDurationMin
+            model.ensureSeededLocations()
             location = model.locations.first { $0.id == split.defaultLocationId } ?? model.locations.first
             model.restoreActiveSession()
         }
-        .sheet(isPresented: $showRun) { RunView() }
         .sheet(isPresented: $showProgress) { ProgressScreen() }
         .sheet(isPresented: $showSettings) { SettingsView() }
+    }
+
+    @ViewBuilder func strength(_ dayType: DayType) -> some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Overline("Time")
+                HStack(spacing: Theme.Spacing.s) {
+                    ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
+                        Chip("\(m)", selected: m == duration) { duration = m }
+                    }
+                }
+                Hairline()
+                Overline("Where")
+                HStack(spacing: Theme.Spacing.s) {
+                    ForEach(model.locations) { l in
+                        Chip(l.name, selected: l.id == location?.id) { location = l }
+                    }
+                }
+            }
+        }
+
+        if let location {
+            PlanPreview(plan: model.preview(dayType: dayType, duration: duration, location: location))
+        }
+
+        PillButton("Start") {
+            if let location { model.startSession(dayType: dayType, duration: duration, location: location) }
+        }
+        .disabled(location == nil)
     }
 }
 

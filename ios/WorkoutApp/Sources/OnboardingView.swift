@@ -93,7 +93,7 @@ struct OnboardingView: View {
             let loc = Location(userId: uid, name: seed.name, dumbbellMaxWeight: seed.dumbbellMaxWeight,
                                dumbbellIncrement: 5, barbellIncrement: seed.plateIncrement, sortOrder: i)
             try? model.store.save(loc)
-            let equipment = seed.defaultAvailable ? model.catalog.equipmentTypes.map(\.key) : ["bodyweight", "dumbbells", "bench_adjustable", "bench_flat", "cable_machine", "treadmill"]
+            let equipment = seed.defaultAvailable ? model.catalog.equipmentTypes.map(\.key) : AppModel.homeGymEquipment
             try? model.store.save(equipment.map { LocationEquipment(userId: uid, locationId: loc.id, equipmentType: $0) })
         }
         for (key, w) in baselines where w > 0 {

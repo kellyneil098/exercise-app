@@ -4,42 +4,39 @@ import WorkoutEngine
 import WorkoutStore
 import WorkoutUI
 
-/// This week's runs as cards; logging a run writes a `RunRow`. Week rollover advances the plan (§6).
-struct RunView: View {
+/// This week's runs as cards, shown inline on Home when Running is selected; logging a run writes a `RunRow`.
+/// Week rollover advances the plan (§6).
+struct RunContent: View {
     @Environment(AppModel.self) private var model
     @State private var plan: RunPlanRow?
     @State private var runs: [RunRow] = []
     @State private var logging: RunRow?
 
     var body: some View {
-        Screen {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    Overline("This week")
-                    if let plan {
-                        let state = plan.engineState
-                        weekHeader(state)
-                        ForEach(runs) { run in
-                            RunCard(run: run, state: state, planned: plannedRun(run, state: state), onLog: { logging = run })
+        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            if let plan {
+                let state = plan.engineState
+                Card {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                        Overline("This week")
+                        HStack(alignment: .lastTextBaseline, spacing: 4) {
+                            Text(state.weeklyVolumeMi.formatted()).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                            Text("mi").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                            Spacer()
+                            Text("\(runs.filter { $0.completedAt != nil }.count) of \(runs.count) done").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                         }
-                    } else {
-                        Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        if state.isDeloadWeek { Text("Lighter week.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary) }
                     }
                 }
-                .padding(Theme.Spacing.l)
+                ForEach(runs) { run in
+                    RunCard(run: run, state: state, planned: plannedRun(run, state: state), onLog: { logging = run })
+                }
+            } else {
+                Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
             }
         }
-        .presentationBackground(Theme.Colors.canvas)
         .onAppear(perform: load)
         .sheet(item: $logging) { run in LogRunSheet(run: run) { load() } }
-    }
-
-    @ViewBuilder func weekHeader(_ state: RunPlanState) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: 4) {
-            Text(state.weeklyVolumeMi.formatted()).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-            Text("mi").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
-        }
-        if state.isDeloadWeek { Text("Lighter week.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary) }
     }
 
     func plannedRun(_ r: RunRow, state: RunPlanState) -> PlannedRun? {
@@ -90,7 +87,7 @@ struct RunCard: View {
 
 }
 
-extension RunView {
+extension RunContent {
     /// Ensure the plan row is on the current week, then ensure this week's runs exist.
     func load() {
         let uid = model.userId

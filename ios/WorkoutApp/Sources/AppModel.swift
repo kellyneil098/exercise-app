@@ -121,6 +121,28 @@ final class AppModel {
         }
     }
 
+    /// Every seeded location exists for this user so Home can offer all of them; installs that predate a seed
+    /// entry (or its current name) get it on first launch. Equipment defaults mirror onboarding.
+    func ensureSeededLocations() {
+        var existing = locations
+        for (i, seed) in catalog.seededLocations.enumerated() where !existing.contains(where: { $0.name == seed.name }) {
+            if seed.key == "building_gym", let j = existing.firstIndex(where: { $0.name == "Building Gym" }) {
+                existing[j].name = seed.name; existing[j].updatedAt = Date()
+                try? store.save(existing[j])
+                continue
+            }
+            let loc = Location(userId: userId, name: seed.name, dumbbellMaxWeight: seed.dumbbellMaxWeight,
+                               dumbbellIncrement: 5, barbellIncrement: seed.plateIncrement, sortOrder: i)
+            try? store.save(loc)
+            let equipment = seed.defaultAvailable ? catalog.equipmentTypes.map(\.key) : Self.homeGymEquipment
+            try? store.save(equipment.map { LocationEquipment(userId: userId, locationId: loc.id, equipmentType: $0) })
+            existing.append(loc)
+        }
+        dataVersion += 1
+    }
+
+    static let homeGymEquipment = ["bodyweight", "dumbbells", "bench_adjustable", "bench_flat", "cable_machine", "treadmill"]
+
     var nextDayType: DayType {
         _ = dataVersion
         let last = recentSessions(limit: 1).first

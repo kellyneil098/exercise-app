@@ -3,14 +3,20 @@ import WorkoutEngine
 import WorkoutStore
 import WorkoutUI
 
-/// The zoomed-out deck: the whole workout at once. Long-press-drag to reorder; tap a row to edit
-/// weight / sets / reps or swap, defer, skip, undo. Ending the workout lives here, out of the way.
+/// The zoomed-out deck: the whole workout at once. Drag to reorder, swipe a row away to delete, tap a row to
+/// edit weight / sets / reps or swap / delete / undo; `+` adds an exercise. Ending the workout lives here.
 struct DeckOverview: View {
     @Bindable var session: ActiveSession
     @Environment(\.dismiss) private var dismiss
     @State private var expanded: UUID?
-    @State private var swapTarget: PlanBlock?
+    @State private var picker: PickerMode?
     @State private var confirmEnd = false
+
+    enum PickerMode: Identifiable {
+        case add, swap(PlanBlock)
+        var id: String { switch self { case .add: "add"; case .swap(let b): b.id.uuidString } }
+        var block: PlanBlock? { if case .swap(let b) = self { b } else { nil } }
+    }
 
     var body: some View {
         Screen {
@@ -21,6 +27,10 @@ struct DeckOverview: View {
                         Text("\(session.remainingCount) left · ~\(remainingMinutes) min").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
                     }
                     Spacer()
+                    Button { picker = .add } label: { Image(systemName: "plus").font(.system(size: 20, weight: .medium)) }
+                        .foregroundStyle(Theme.Colors.brass)
+                        .accessibilityLabel("Add exercise")
+                        .padding(.trailing, Theme.Spacing.m)
                     Button("Done") { dismiss() }.font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.brass)
                 }
                 .padding(Theme.Spacing.l)
@@ -33,6 +43,10 @@ struct DeckOverview: View {
                             .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l))
                     }
                     .onMove { session.move(fromOffsets: $0, toOffset: $1) }
+                    .onDelete { offsets in
+                        let blocks = session.orderedBlocks
+                        for i in offsets { session.remove(blocks[i]) }
+                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -42,7 +56,7 @@ struct DeckOverview: View {
                     .padding(Theme.Spacing.l)
             }
         }
-        .sheet(item: $swapTarget) { block in SwapSheet(session: session, block: block) }
+        .sheet(item: $picker) { mode in ExercisePicker(session: session, replacing: mode.block) }
         .alert("End this workout?", isPresented: $confirmEnd) {
             Button("Finish and save progress") { dismiss(); session.finish() }
             Button("Discard", role: .destructive) { dismiss(); session.abandon() }
@@ -79,11 +93,7 @@ struct DeckOverview: View {
                 }
                 .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
                 Spacer()
-                if session.skipped.contains(b.id) {
-                    Overline("Skipped")
-                } else if session.deferred.contains(b.id) {
-                    Overline("Later")
-                } else if complete {
+                if complete {
                     Image(systemName: "checkmark").foregroundStyle(Theme.Colors.brass)
                 } else {
                     SetDots(done: done, total: b.sets)
@@ -117,16 +127,35 @@ struct DeckOverview: View {
                      value: Binding(get: { Double(b.repLow) }, set: { session.shiftReps(b, by: Int($0) - b.repLow) }),
                      in: 1...300, step: b.measure == .seconds ? 5 : 1)
             HStack(spacing: Theme.Spacing.s) {
-                Chip("Swap", selected: false) { swapTarget = b }
-                if session.skipped.contains(b.id) || session.deferred.contains(b.id) {
-                    Chip("Restore", selected: false) { session.unskip(b) }
-                } else {
-                    Chip("Later", selected: false) { session.defer_(b) }
-                    Chip("Skip", selected: false) { session.skip(b) }
-                }
-                if done > 0 { Chip("Undo set", selected: false) { session.undoLast(block: b) } }
+                IconControl("arrow.triangle.2.circlepath", label: "Swap") { picker = .swap(b) }
+                if done > 0 { IconControl("arrow.uturn.backward", label: "Undo last set") { session.undoLast(block: b) } }
                 Spacer()
+                IconControl("trash", label: "Delete", tint: Theme.Colors.destructive) {
+                    withAnimation(Theme.Motion.quick) { expanded = nil; session.remove(b) }
+                }
             }
         }
+    }
+}
+
+/// Icon-only control. A tap gesture on a shaped view rather than a `Button`, which can lose taps to a
+/// reorderable `List` row's own gestures.
+struct IconControl: View {
+    let icon: String
+    let label: String
+    var tint: Color = Theme.Colors.textPrimary
+    let action: () -> Void
+    init(_ icon: String, label: String, tint: Color = Theme.Colors.textPrimary, action: @escaping () -> Void) {
+        self.icon = icon; self.label = label; self.tint = tint; self.action = action
+    }
+    var body: some View {
+        Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint)
+            .frame(width: 48, height: 36)
+            .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(label)
     }
 }

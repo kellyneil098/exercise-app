@@ -33,7 +33,7 @@
   "locations": [
     {
       "key": "building_gym",
-      "name": "Building Gym",
+      "name": "The Victoria",
       "kind": "home_gym",
       "$comment": "Everything defaults to UNAVAILABLE. Check off what is actually there during onboarding, and set dumbbell_max_weight — that number materially changes what the generator prescribes.",
       "default_available": false,

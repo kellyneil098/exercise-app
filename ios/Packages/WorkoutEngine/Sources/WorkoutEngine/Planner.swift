@@ -234,12 +234,37 @@ public struct Planner: Sendable {
         p.blocks[idx] = nb
         return p
     }
+
+    /// A block for an exercise the user adds by hand (overview "+"). Uses the day's non-heavy template for
+    /// that pattern when there is one, else a generic medium slot; takes the next free slot number.
+    /// Candidates for any pattern, whether or not the day's template has a slot for it (overview picker).
+    public func candidates(pattern: String, in plan: Plan, input: PlannerInput, excluding: Set<String> = []) -> [Candidate] {
+        candidates(pattern: pattern, slot: template(for: pattern, plan: plan, input: input), input: input, excluding: excluding)
+    }
+
+    /// The day's non-heavy template for `pattern` when there is one, else a generic medium slot.
+    func template(for pattern: String, plan: Plan, input: PlannerInput) -> SlotTemplate {
+        resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first { $0.pattern == pattern && $0.band != .heavy }
+            ?? SlotTemplate(slot: 0, pattern: pattern, sets: 3, repLow: 8, repHigh: 12, restSeconds: 90,
+                            band: .medium, warmupSets: 0, superset: nil, omitIfSlot1Pattern: nil, altPatternIfSlot1Pattern: nil)
+    }
+
+    public func block(adding exercise: Exercise, to plan: Plan, input: PlannerInput) -> PlanBlock {
+        let slot = template(for: exercise.movementPattern, plan: plan, input: input)
+            .with(pattern: exercise.movementPattern, slot: (plan.blocks.map(\.slot).max() ?? 0) + 1)
+        let est = estimator.estimate(exercise, states: input.states, location: input.location)
+        let sets = prescribedSets(for: exercise, slot: slot, states: input.states)
+        let cost = timer.blockSeconds(exercise: exercise, slot: slot, sets: sets, supersetted: false)
+        var b = makeBlock(exercise, slot: slot, sets: sets, estimate: est, cost: cost, location: input.location)
+        b.isCustomAdded = true
+        return b
+    }
 }
 
 extension SlotTemplate {
-    func with(pattern: String) -> SlotTemplate {
+    func with(pattern: String, slot newSlot: Int? = nil) -> SlotTemplate {
         SlotTemplate(
-            slot: slot, pattern: pattern, sets: sets, repLow: repLow, repHigh: repHigh, restSeconds: restSeconds,
+            slot: newSlot ?? slot, pattern: pattern, sets: sets, repLow: repLow, repHigh: repHigh, restSeconds: restSeconds,
             band: band, warmupSets: warmupSets, superset: superset, omitIfSlot1Pattern: omitIfSlot1Pattern,
             altPatternIfSlot1Pattern: altPatternIfSlot1Pattern
         )

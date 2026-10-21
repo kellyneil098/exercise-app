@@ -25,9 +25,6 @@ final class ActiveSession: Identifiable {
     private(set) var input: PlannerInput
     private unowned let model: AppModel
     private(set) var logs: [SetLog]
-    /// Blocks the user deferred; they come back at the end.
-    private(set) var deferred: Set<UUID> = []
-    private(set) var skipped: Set<UUID> = []
     /// Manual deck order from the overview; empty = slot order.
     private(set) var order: [UUID]
     var restEndsAt: Date? {
@@ -47,7 +44,7 @@ final class ActiveSession: Identifiable {
 
     // MARK: Ordering
 
-    /// Slot order with supersetted blocks right after their host, overridden by any manual order; deferred blocks sink to the end.
+    /// Slot order with supersetted blocks right after their host, overridden by any manual order.
     var orderedBlocks: [PlanBlock] {
         var base: [PlanBlock] = []
         for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where !b.isSupersetted {
@@ -58,12 +55,11 @@ final class ActiveSession: Identifiable {
             let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
             base.sort { (rank[$0.id] ?? .max, $0.slot) < (rank[$1.id] ?? .max, $1.slot) }
         }
-        return base.filter { !deferred.contains($0.id) } + base.filter { deferred.contains($0.id) }
+        return base
     }
 
     func move(fromOffsets: IndexSet, toOffset: Int) {
         let current = orderedBlocks
-        for i in fromOffsets { deferred.remove(current[i].id) }
         var ids = current.map(\.id)
         ids.move(fromOffsets: fromOffsets, toOffset: toOffset)
         order = ids
@@ -76,13 +72,12 @@ final class ActiveSession: Identifiable {
 
     func workingSetsDone(_ block: PlanBlock) -> Int { logs(for: block).filter { !$0.isWarmup }.count }
 
-    func isComplete(_ block: PlanBlock) -> Bool { skipped.contains(block.id) || workingSetsDone(block) >= block.sets }
+    func isComplete(_ block: PlanBlock) -> Bool { workingSetsDone(block) >= block.sets }
 
     /// Next block to work. A superset partner alternates with its host (partner set during host rest).
     var currentBlock: PlanBlock? {
         for b in orderedBlocks where !isComplete(b) {
-            if let p = plan.supersetPartner(of: b), !isComplete(p), !deferred.contains(p.id),
-               workingSetsDone(p) < workingSetsDone(b) {
+            if let p = plan.supersetPartner(of: b), !isComplete(p), workingSetsDone(p) < workingSetsDone(b) {
                 return p
             }
             return b
@@ -105,7 +100,7 @@ final class ActiveSession: Identifiable {
 
     var isFinished: Bool { currentBlock == nil }
 
-    var completedCount: Int { plan.blocks.filter { !skipped.contains($0.id) && workingSetsDone($0) >= $0.sets }.count }
+    var completedCount: Int { plan.blocks.filter { isComplete($0) }.count }
 
     var remainingCount: Int { plan.blocks.filter { !isComplete($0) }.count }
 
@@ -159,9 +154,20 @@ final class ActiveSession: Identifiable {
 
     // MARK: Deck management (overview)
 
-    func defer_(_ block: PlanBlock) { deferred.insert(block.id); skipRest() }
-    func skip(_ block: PlanBlock) { skipped.insert(block.id); skipRest() }
-    func unskip(_ block: PlanBlock) { skipped.remove(block.id); deferred.remove(block.id) }
+    /// Delete: the block leaves the plan. Sets already logged stay in history; a superset partner becomes standalone.
+    func remove(_ block: PlanBlock) {
+        plan.blocks.removeAll { $0.id == block.id }
+        for i in plan.blocks.indices where plan.blocks[i].supersetHostID == block.id { plan.blocks[i].supersetHostID = nil }
+        order.removeAll { $0 == block.id }
+        skipRest()
+        persistPlan()
+    }
+
+    /// Adds an exercise at the end of the deck (next free slot, day's template for its pattern).
+    func add(_ exercise: Exercise) {
+        plan.blocks.append(model.planner.block(adding: exercise, to: plan, input: input))
+        persistPlan()
+    }
 
     func setWeight(_ block: PlanBlock, _ w: Double) {
         mutate(block) { $0.weight = max(0, w); $0.weightSource = .measured }
@@ -192,15 +198,28 @@ final class ActiveSession: Identifiable {
         try? model.store.save(row)
     }
 
-    /// Substitution: same slot, same superset relationship, weight re-estimated (§7.3).
-    func candidates(for block: PlanBlock) -> [Candidate] {
-        guard let slot = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot }) else { return [] }
-        let used = Set(plan.blocks.map(\.exerciseKey)).subtracting([block.exerciseKey])
-        return model.planner.candidates(pattern: block.pattern, slot: slot, input: input, excluding: used)
+    /// Picker rows. Suggested: when swapping, the block's own pattern; when adding, the day's patterns in slot order
+    /// (top few of each). `all` is the whole catalog, A–Z, with availability at this location.
+    func pickerSections(replacing block: PlanBlock?) -> (suggested: [Candidate], all: [Candidate]) {
+        let used = Set(plan.blocks.map(\.exerciseKey)).subtracting(block.map { [$0.exerciseKey] } ?? [])
+        let dayPatterns = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).map(\.pattern)
+        var suggested: [Candidate] = []
+        if let block {
+            suggested = model.planner.candidates(pattern: block.pattern, in: plan, input: input, excluding: used).filter(\.isAvailable)
+        } else {
+            for p in dayPatterns.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } } {
+                suggested += model.planner.candidates(pattern: p, in: plan, input: input, excluding: used).filter(\.isAvailable).prefix(2)
+            }
+        }
+        let all = model.catalog.patterns.keys.flatMap { model.planner.candidates(pattern: $0, in: plan, input: input, excluding: used) }
+            .sorted { $0.exercise.name < $1.exercise.name }
+        return (suggested, all)
     }
 
+    /// Substitution keeps the slot and superset relationship; the weight is re-estimated (§7.3). Any pattern is allowed.
     func swap(_ block: PlanBlock, to exercise: Exercise) {
         plan = model.planner.swap(block: block, to: exercise, in: plan, input: input)
+        if let i = plan.blocks.firstIndex(where: { $0.id == block.id }) { plan.blocks[i].pattern = exercise.movementPattern }
         persistPlan()
     }
 

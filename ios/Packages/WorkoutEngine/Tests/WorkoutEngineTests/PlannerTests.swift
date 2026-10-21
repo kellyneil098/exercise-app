@@ -180,4 +180,17 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(Rounding.down(0, to: 5), 0)
         XCTAssertEqual(Rounding.down(42.5, to: 5), 40)
     }
+
+    func testAddedBlockTakesNextSlotAndPatternTemplate() {
+        let planner = Planner(catalog: Fixtures.catalog)
+        let input = PlannerInput(dayType: .push, durationMinutes: 60, location: Fixtures.commercial, heavyRotation: Fixtures.rotation(.push), states: Fixtures.baseline)
+        let plan = planner.generate(input)
+        let curl = Fixtures.catalog.exercises["dumbbell_curl"]!
+        let b = planner.block(adding: curl, to: plan, input: input)
+        XCTAssertEqual(b.slot, (plan.blocks.map(\.slot).max() ?? 0) + 1)
+        XCTAssertEqual(b.pattern, "elbow_flexion")
+        XCTAssertTrue(b.isCustomAdded)
+        XCTAssertEqual(b.band, .medium)
+        XCTAssertNil(b.supersetHostID)
+    }
 }

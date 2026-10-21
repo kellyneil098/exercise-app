@@ -333,39 +333,87 @@ struct SetDots: View {
     }
 }
 
-struct SwapSheet: View {
+/// One picker for swap and add: a search field, the suggestions for this day/slot first, then the whole catalog.
+struct ExercisePicker: View {
     let session: ActiveSession
-    let block: PlanBlock
+    /// `nil` adds a new exercise to the deck.
+    let replacing: PlanBlock?
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    @State private var query = ""
 
     var body: some View {
+        let sections = session.pickerSections(replacing: replacing)
+        let suggested = filtered(sections.suggested)
+        let all = filtered(sections.all)
         Screen {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    Overline("Swap \(block.exerciseName)")
-                    ForEach(session.candidates(for: block), id: \.exercise.key) { c in
-                        Button {
-                            session.swap(block, to: c.exercise); Haptics.play(.swap); dismiss()
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(c.exercise.name).font(Theme.Fonts.body).foregroundStyle(c.isAvailable ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
-                                    if let why = reason(c.exclusion) { Text(why).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary) }
-                                }
-                                Spacer()
-                                if let e = c.estimate { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
-                            }
-                            .padding(.vertical, 12)
-                        }
-                        .disabled(!c.isAvailable)
-                        Hairline()
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Overline(replacing.map { "Swap \($0.exerciseName)" } ?? "Add exercise")
+                HStack(spacing: Theme.Spacing.s) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.Colors.textTertiary)
+                    TextField("Search exercises", text: $query)
+                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    if !query.isEmpty {
+                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                            .foregroundStyle(Theme.Colors.textTertiary).accessibilityLabel("Clear search")
                     }
                 }
-                .padding(Theme.Spacing.l)
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if !suggested.isEmpty {
+                            Overline("Suggested").padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.xs)
+                            ForEach(suggested, id: \.exercise.key) { row($0) }
+                        }
+                        Overline(suggested.isEmpty ? "Exercises" : "All exercises").padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xs)
+                        if all.isEmpty {
+                            Text("No matches").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary).padding(.vertical, 12)
+                        }
+                        ForEach(all, id: \.exercise.key) { row($0) }
+                    }
+                }
+                .scrollDismissesKeyboard(.immediately)
+            }
+            .padding(Theme.Spacing.l)
+        }
+        .presentationDetents([.large])
+        .presentationBackground(Theme.Colors.canvas)
+    }
+
+    func filtered(_ c: [Candidate]) -> [Candidate] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return c }
+        return c.filter { $0.exercise.name.localizedCaseInsensitiveContains(q) || patternLabel($0.exercise).localizedCaseInsensitiveContains(q) }
+    }
+
+    func patternLabel(_ e: Exercise) -> String {
+        e.movementPattern.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    func row(_ c: Candidate) -> some View {
+        Button {
+            if let replacing { session.swap(replacing, to: c.exercise) } else { session.add(c.exercise) }
+            Haptics.play(.swap); dismiss()
+        } label: {
+            VStack(spacing: 0) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(c.exercise.name).font(Theme.Fonts.body).foregroundStyle(c.isAvailable ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
+                        Text(reason(c.exclusion) ?? patternLabel(c.exercise)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                    Spacer()
+                    if let e = c.estimate, c.isAvailable { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
+                }
+                .padding(.vertical, 12)
+                Hairline()
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationBackground(Theme.Colors.canvas)
+        .buttonStyle(PressStyle())
+        .disabled(!c.isAvailable)
     }
 
     func reason(_ e: Exclusion?) -> String? {
