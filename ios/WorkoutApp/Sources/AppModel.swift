@@ -17,6 +17,9 @@ final class AppModel {
 
     var userId: String
     var activeSession: ActiveSession?
+    /// Bumped after every committed write; computed reads touch it so @Observable views refresh.
+    private(set) var dataVersion = 0
+    @ObservationIgnored private var observer: AnyDatabaseCancellable?
     var lastSyncError: String?
     var isSyncing = false
 
@@ -31,6 +34,9 @@ final class AppModel {
         self.rebaseliner = Rebaseliner(catalog: catalog)
         self.api = api
         self.userId = userId
+        observer = DatabaseRegionObservation(tracking: .fullDatabase).start(in: store.db, onError: { _ in }) { [weak self] _ in
+            Task { @MainActor in self?.dataVersion &+= 1 }
+        }
     }
 
     static func live() -> AppModel {
@@ -57,13 +63,18 @@ final class AppModel {
 
     // MARK: Reads
 
-    var isOnboarded: Bool { settings != nil && !locations.isEmpty }
+    var isOnboarded: Bool {
+        _ = dataVersion
+        return settings != nil && !locations.isEmpty
+    }
 
     var settings: SettingsRow? {
+        _ = dataVersion
         try? store.db.read { try SettingsRow.filter(Column("userId") == userId && Column("deleted") == false).fetchOne($0) }
     }
 
     var locations: [Location] {
+        _ = dataVersion
         (try? store.db.read {
             try Location.filter(Column("userId") == userId && Column("deleted") == false).order(Column("sortOrder")).fetchAll($0)
         }) ?? []
@@ -82,6 +93,7 @@ final class AppModel {
     }
 
     var splitState: SplitStateRow {
+        _ = dataVersion
         if let row = try? store.db.read({ try SplitStateRow.filter(Column("userId") == userId).fetchOne($0) }) { return row }
         var row = SplitStateRow(userId: userId)
         row.heavyRotations = Dictionary(uniqueKeysWithValues: catalog.heavyRotationDefaults.map { ($0.key, HeavyRotation(sequence: $0.value)) })
@@ -90,6 +102,7 @@ final class AppModel {
     }
 
     var exerciseStates: [String: ExerciseState] {
+        _ = dataVersion
         let rows = (try? store.db.read {
             try ExerciseStateRow.filter(Column("userId") == userId && Column("deleted") == false).fetchAll($0)
         }) ?? []
@@ -97,6 +110,7 @@ final class AppModel {
     }
 
     func recentSessions(limit: Int = 12) -> [RecentSession] {
+        _ = dataVersion
         let rows = (try? store.db.read {
             try SessionRow.filter(Column("userId") == userId && Column("deleted") == false && Column("completedAt") != nil)
                 .order(Column("startedAt").desc).limit(limit).fetchAll($0)
@@ -108,6 +122,7 @@ final class AppModel {
     }
 
     var nextDayType: DayType {
+        _ = dataVersion
         let last = recentSessions(limit: 1).first
         return SplitState(lastDayType: last?.dayType, lastCompletedAt: last?.performedAt).nextDayType
     }
