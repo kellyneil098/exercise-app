@@ -48,7 +48,7 @@ struct Pose {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func base(exerciseKey key: String, pattern: String) -> Pose {
         if key.contains("push_up") {
-            if key.contains("elevated") {   // feet on a block: body level/declined, hands still under shoulders
+            if key.contains("elevated") || key.contains("decline") {   // feet on a block: body level/declined, hands still under shoulders
                 return Pose(hip: CGPoint(x: 56, y: 38.6), torso: 175, upperArm: 90, forearm: 90, thigh: -5, shin: -5, props: [.footBlock], grounded: false)
             }
             return Pose(hip: CGPoint(x: 56, y: 46.5), torso: -156, upperArm: 90, forearm: 90, thigh: 24, shin: 24, grounded: false)
@@ -66,7 +66,7 @@ struct Pose {
             return Pose(hip: CGPoint(x: 50, y: 36), torso: -75, upperArm: 150, forearm: 90, thigh: 100, shin: 170, props: [.dipBars], grounded: false)
         }
         if key.contains("pull_up") || key.contains("chin_up") {
-            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -125, forearm: -55, thigh: 95, shin: 120, props: [.highBar], grounded: false, floor: false)
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -135, forearm: -45, thigh: 95, shin: 120, props: [.highBar], grounded: false, floor: false)
         }
         if key.contains("bulgarian") {      // rear foot up on a bench, front shin vertical, torso tall
             return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 90, forearm: 90, thigh: 0, shin: 90, thigh2: 135, shin2: 190, implement: .dumbbellVertical, props: [.rearBench])
@@ -81,7 +81,7 @@ struct Pose {
             return Pose(hip: CGPoint(x: 56, y: 52), torso: -165, upperArm: 90, forearm: 0, thigh: 15, shin: 15, grounded: false)
         }
         if key.contains("hanging") {
-            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -60, forearm: -120, thigh: 0, shin: 20, props: [.highBar], grounded: false, floor: false)
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -45, forearm: -135, thigh: 0, shin: 20, props: [.highBar], grounded: false, floor: false)
         }
         if key.contains("dead_bug") || key.contains("bird_dog") {
             return Pose(hip: CGPoint(x: 52, y: 52), torso: 180, upperArm: -90, forearm: -90, upperArm2: -170, forearm2: -170, thigh: 10, shin: 10, thigh2: -90, shin2: 0, grounded: false)
@@ -92,7 +92,7 @@ struct Pose {
         case "incline_press":
             return Pose(hip: CGPoint(x: 58, y: 42), torso: -145, upperArm: -75, forearm: -90, thigh: 60, shin: 90, implement: .barbell, props: [.inclineBench])
         case "vertical_press":
-            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -60, forearm: -120, thigh: 90, shin: 90, implement: .barbell)
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -45, forearm: -135, thigh: 90, shin: 90, implement: .barbell)
         case "chest_fly" where key.contains("cable"):   // standing, slight lean, arms sweeping together in front
             return Pose(hip: CGPoint(x: 46, y: 36), torso: -80, upperArm: -10, forearm: 0, thigh: 90, shin: 90, implement: .handle, props: [.cableFromBehind])
         case "chest_fly":
@@ -219,12 +219,12 @@ struct FigureShape: Shape {
                 line(&p, CGPoint(x: hip.x - 4, y: hip.y + 2.5), CGPoint(x: hip.x - 4, y: floorY))
             case .backrest:
                 line(&p, CGPoint(x: hip.x - 5, y: hip.y + 2.5), CGPoint(x: shoulder.x - 3, y: shoulder.y - 4))
-            case .cable:
-                line(&p, hand, CGPoint(x: hand.x + 2, y: 4))
-                line(&p, CGPoint(x: hand.x - 12, y: 4), CGPoint(x: hand.x + 16, y: 4))
+            case .cable:   // anchored forward of the figure so the line never crosses the head
+                line(&p, hand, CGPoint(x: hand.x + 10, y: 4))
+                line(&p, CGPoint(x: hand.x - 4, y: 4), CGPoint(x: hand.x + 24, y: 4))
             case .cableFromBehind:
-                line(&p, hand, CGPoint(x: hand.x - 30, y: 4))
-                line(&p, CGPoint(x: hand.x - 34, y: 4), CGPoint(x: hand.x - 26, y: 4))
+                line(&p, hand, CGPoint(x: hand.x - 22, y: 4))
+                line(&p, CGPoint(x: hand.x - 26, y: 4), CGPoint(x: hand.x - 18, y: 4))
             case .rearBench:
                 let f = legs[1].1
                 line(&p, CGPoint(x: f.x - 6, y: f.y + 1), CGPoint(x: f.x + 5, y: f.y + 1))
