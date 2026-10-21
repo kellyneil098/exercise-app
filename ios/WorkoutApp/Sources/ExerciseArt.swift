@@ -2,8 +2,10 @@ import SwiftUI
 import WorkoutEngine
 import WorkoutUI
 
-/// Minimal line-art pictogram of a movement: a stick figure plus the implement, one per movement pattern.
-/// Drawn in a 100×60 unit box and scaled to fit; stroked, never filled, so it stays quiet on the card.
+/// Minimal line-art pictogram of a movement, drawn from a small kinematic stick figure so limb
+/// proportions are consistent and the implement is always in the hands. Each pose is chosen to show
+/// correct form (neutral spine, bar over mid-foot, knees over toes, elbows tucked, etc.).
+/// Unit box 100×60, scaled to fit; stroked only.
 struct ExerciseArt: View {
     let exerciseKey: String
     let pattern: String
@@ -11,7 +13,7 @@ struct ExerciseArt: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
-            FigureShape(kind: FigureKind.for(exerciseKey: exerciseKey, pattern: pattern))
+            FigureShape(pose: Pose.for(exerciseKey: exerciseKey, pattern: pattern))
                 .stroke(Theme.Colors.brass, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
                 .padding(Theme.Spacing.m)
         }
@@ -20,209 +22,207 @@ struct ExerciseArt: View {
     }
 }
 
-enum FigureKind {
-    case benchPress, inclinePress, overheadPress, fly, lateralRaise, tricepsExtension, pushUp, dip
-    case pullUp, pulldown, row, rearDelt, curl
-    case squat, hinge, legExtension, legCurl, calf, lunge, hipThrust
-    case plank, hangingLegRaise, crunch, deadBug
+/// World angles in degrees: 0 = toward the front (+x), 90 = down, -90 = up, 180 = behind.
+struct Pose {
+    enum Implement { case none, barbell, dumbbell, dumbbellVertical, barbellOnHips }
+    enum Prop { case bench, inclineBench, seat, backrest, cable, highBar, dipBars, anklePad, calfBlock }
 
-    static func `for`(exerciseKey key: String, pattern: String) -> FigureKind {
-        if key.contains("push_up") { return .pushUp }
-        if key.contains("dip") { return .dip }
-        if key.contains("pull_up") || key.contains("chin_up") { return .pullUp }
-        if key.contains("pulldown") { return .pulldown }
-        if key.contains("lunge") || key.contains("split_squat") || key.contains("step_up") { return .lunge }
-        if key.contains("hip_thrust") { return .hipThrust }
-        if key.contains("plank") || key.contains("hollow") || key.contains("pallof") { return .plank }
-        if key.contains("hanging") { return .hangingLegRaise }
-        if key.contains("dead_bug") || key.contains("bird_dog") { return .deadBug }
+    var hip: CGPoint
+    var torso: CGFloat
+    var upperArm: CGFloat, forearm: CGFloat
+    var upperArm2: CGFloat? = nil, forearm2: CGFloat? = nil
+    var thigh: CGFloat, shin: CGFloat
+    var thigh2: CGFloat? = nil, shin2: CGFloat? = nil
+    var implement: Implement = .none
+    var props: [Prop] = []
+    /// Translate so the lowest foot rests on the floor line.
+    var grounded = true
+    var floor = true
+
+    static func `for`(exerciseKey key: String, pattern: String) -> Pose {
+        var p = base(exerciseKey: key, pattern: pattern)
+        if key.contains("dumbbell"), p.implement == .barbell { p.implement = .dumbbell }
+        return p
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    private static func base(exerciseKey key: String, pattern: String) -> Pose {
+        if key.contains("push_up") {
+            return Pose(hip: CGPoint(x: 56, y: 46.5), torso: -156, upperArm: 90, forearm: 90, thigh: 24, shin: 24, grounded: false)
+        }
+        if key.contains("dip") {
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -75, upperArm: 150, forearm: 90, thigh: 100, shin: 170, props: [.dipBars], grounded: false)
+        }
+        if key.contains("pull_up") || key.contains("chin_up") {
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -130, forearm: -50, thigh: 95, shin: 120, props: [.highBar], grounded: false, floor: false)
+        }
+        if key.contains("lunge") || key.contains("split_squat") || key.contains("step_up") {
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 90, forearm: 90, thigh: 0, shin: 90, thigh2: 125, shin2: 170, implement: .dumbbellVertical)
+        }
+        if key.contains("hip_thrust") {
+            return Pose(hip: CGPoint(x: 56, y: 40), torso: 180, upperArm: 0, forearm: 0, thigh: 0, shin: 90, implement: .barbellOnHips, props: [.bench])
+        }
+        if key.contains("plank") || key.contains("hollow") || key.contains("pallof") {
+            return Pose(hip: CGPoint(x: 56, y: 52), torso: -165, upperArm: 90, forearm: 0, thigh: 15, shin: 15, grounded: false)
+        }
+        if key.contains("hanging") {
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -90, forearm: -90, thigh: 0, shin: 20, props: [.highBar], grounded: false, floor: false)
+        }
+        if key.contains("dead_bug") || key.contains("bird_dog") {
+            return Pose(hip: CGPoint(x: 52, y: 52), torso: 180, upperArm: -90, forearm: -90, upperArm2: -170, forearm2: -170, thigh: 10, shin: 10, thigh2: -90, shin2: 0, grounded: false)
+        }
         switch pattern {
-        case "horizontal_press": return .benchPress
-        case "incline_press": return .inclinePress
-        case "vertical_press": return .overheadPress
-        case "chest_fly": return .fly
-        case "lateral_raise": return .lateralRaise
-        case "triceps_extension": return .tricepsExtension
-        case "vertical_pull": return .pulldown
-        case "horizontal_row": return .row
-        case "rear_delt": return .rearDelt
-        case "elbow_flexion": return .curl
-        case "squat": return .squat
-        case "hinge": return .hinge
-        case "quad_isolation": return .legExtension
-        case "hamstring_isolation": return .legCurl
-        case "calf": return .calf
-        default: return .crunch
+        case "horizontal_press":
+            return Pose(hip: CGPoint(x: 58, y: 40), torso: 180, upperArm: -70, forearm: -90, thigh: 60, shin: 90, implement: .barbell, props: [.bench])
+        case "incline_press":
+            return Pose(hip: CGPoint(x: 58, y: 42), torso: -145, upperArm: -75, forearm: -90, thigh: 60, shin: 90, implement: .barbell, props: [.inclineBench])
+        case "vertical_press":
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -90, forearm: -90, thigh: 90, shin: 90, implement: .barbell)
+        case "chest_fly":
+            return Pose(hip: CGPoint(x: 58, y: 40), torso: 180, upperArm: -40, forearm: -55, upperArm2: -140, forearm2: -125, thigh: 60, shin: 90, implement: .dumbbell, props: [.bench])
+        case "lateral_raise":
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 0, forearm: 5, upperArm2: 180, forearm2: 175, thigh: 90, shin: 90, implement: .dumbbellVertical)
+        case "triceps_extension":
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -90, forearm: 135, thigh: 90, shin: 90, implement: .dumbbell)
+        case "vertical_pull":
+            return Pose(hip: CGPoint(x: 46, y: 38), torso: -100, upperArm: 120, forearm: -30, thigh: 0, shin: 90, implement: .barbell, props: [.cable, .seat])
+        case "horizontal_row":
+            return Pose(hip: CGPoint(x: 44, y: 34), torso: -45, upperArm: 120, forearm: 30, thigh: 95, shin: 85, implement: .barbell)
+        case "rear_delt":
+            return Pose(hip: CGPoint(x: 44, y: 34), torso: -45, upperArm: -135, forearm: -120, thigh: 95, shin: 85, implement: .dumbbell)
+        case "elbow_flexion":
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 90, forearm: 0, thigh: 90, shin: 90, implement: .dumbbellVertical)
+        case "squat":
+            return Pose(hip: CGPoint(x: 44, y: 36), torso: -62, upperArm: -170, forearm: -10, thigh: 5, shin: 100, implement: .barbell)
+        case "hinge":
+            return Pose(hip: CGPoint(x: 40, y: 32), torso: -35, upperArm: 90, forearm: 90, thigh: 45, shin: 80, implement: .barbell)
+        case "quad_isolation":
+            return Pose(hip: CGPoint(x: 44, y: 36), torso: -90, upperArm: 90, forearm: 90, thigh: 0, shin: 0, props: [.seat, .backrest, .anklePad], grounded: false)
+        case "hamstring_isolation":
+            return Pose(hip: CGPoint(x: 54, y: 42), torso: 180, upperArm: 150, forearm: 90, thigh: 0, shin: -90, props: [.bench, .anklePad], grounded: false)
+        case "calf":
+            return Pose(hip: CGPoint(x: 46, y: 33), torso: -90, upperArm: -10, forearm: -10, thigh: 90, shin: 90, props: [.calfBlock])
+        default: // crunch
+            return Pose(hip: CGPoint(x: 50, y: 54), torso: -155, upperArm: -120, forearm: 160, thigh: -50, shin: 70, grounded: false)
         }
     }
 }
 
 struct FigureShape: Shape {
-    let kind: FigureKind
+    let pose: Pose
+
+    private let torsoLen: CGFloat = 16, neck: CGFloat = 2, headR: CGFloat = 3.5
+    private let upperArmLen: CGFloat = 8, forearmLen: CGFloat = 8, thighLen: CGFloat = 10, shinLen: CGFloat = 10
+    private let floorY: CGFloat = 56
 
     func path(in rect: CGRect) -> Path {
         var p = Path()
         draw(&p)
         let s = min(rect.width / 100, rect.height / 60)
-        let dx = rect.midX - 50 * s, dy = rect.midY - 30 * s
-        return p.applying(CGAffineTransform(a: s, b: 0, c: 0, d: s, tx: dx, ty: dy))
+        return p.applying(CGAffineTransform(a: s, b: 0, c: 0, d: s, tx: rect.midX - 50 * s, ty: rect.midY - 30 * s))
     }
 
-    // MARK: Primitives (unit space: x 0…100, y 0…60, y grows downward)
-
-    private func head(_ p: inout Path, _ x: CGFloat, _ y: CGFloat, r: CGFloat = 4) {
-        p.addEllipse(in: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r))
+    private func seg(_ from: CGPoint, _ angle: CGFloat, _ len: CGFloat) -> CGPoint {
+        let r = angle * .pi / 180
+        return CGPoint(x: from.x + len * cos(r), y: from.y + len * sin(r))
     }
 
-    private func line(_ p: inout Path, _ pts: [(CGFloat, CGFloat)]) {
-        guard let f = pts.first else { return }
-        p.move(to: CGPoint(x: f.0, y: f.1))
-        for q in pts.dropFirst() { p.addLine(to: CGPoint(x: q.0, y: q.1)) }
+    private func line(_ p: inout Path, _ a: CGPoint, _ b: CGPoint) { p.move(to: a); p.addLine(to: b) }
+    private func line(_ p: inout Path, _ a: CGPoint, dx: CGFloat, dy: CGFloat) { line(&p, a, CGPoint(x: a.x + dx, y: a.y + dy)) }
+
+    private func barbell(_ p: inout Path, at c: CGPoint, halfWidth: CGFloat = 16, plate: CGFloat = 5) {
+        line(&p, CGPoint(x: c.x - halfWidth, y: c.y), CGPoint(x: c.x + halfWidth, y: c.y))
+        for x in [c.x - halfWidth, c.x + halfWidth] { line(&p, CGPoint(x: x, y: c.y - plate), CGPoint(x: x, y: c.y + plate)) }
     }
 
-    /// Barbell: bar with a plate at each end.
-    private func bar(_ p: inout Path, from a: (CGFloat, CGFloat), to b: (CGFloat, CGFloat), plate: CGFloat = 5) {
-        line(&p, [a, b])
-        let horizontal = abs(a.1 - b.1) < 0.01
-        for e in [a, b] {
-            if horizontal { line(&p, [(e.0, e.1 - plate), (e.0, e.1 + plate)]) } else { line(&p, [(e.0 - plate, e.1), (e.0 + plate, e.1)]) }
-        }
-    }
-
-    private func dumbbell(_ p: inout Path, at c: (CGFloat, CGFloat), vertical: Bool = false) {
+    private func dumbbell(_ p: inout Path, at c: CGPoint, vertical: Bool) {
         if vertical {
-            line(&p, [(c.0, c.1 - 4), (c.0, c.1 + 4)]); line(&p, [(c.0 - 3, c.1 - 4), (c.0 + 3, c.1 - 4)]); line(&p, [(c.0 - 3, c.1 + 4), (c.0 + 3, c.1 + 4)])
+            line(&p, CGPoint(x: c.x, y: c.y - 3.5), CGPoint(x: c.x, y: c.y + 3.5))
+            for y in [c.y - 3.5, c.y + 3.5] { line(&p, CGPoint(x: c.x - 2.5, y: y), CGPoint(x: c.x + 2.5, y: y)) }
         } else {
-            line(&p, [(c.0 - 4, c.1), (c.0 + 4, c.1)]); line(&p, [(c.0 - 4, c.1 - 3), (c.0 - 4, c.1 + 3)]); line(&p, [(c.0 + 4, c.1 - 3), (c.0 + 4, c.1 + 3)])
+            line(&p, CGPoint(x: c.x - 3.5, y: c.y), CGPoint(x: c.x + 3.5, y: c.y))
+            for x in [c.x - 3.5, c.x + 3.5] { line(&p, CGPoint(x: x, y: c.y - 2.5), CGPoint(x: x, y: c.y + 2.5)) }
         }
     }
-
-    private func floor(_ p: inout Path) { line(&p, [(8, 56), (92, 56)]) }
-    private func bench(_ p: inout Path) { line(&p, [(28, 42), (76, 42)]); line(&p, [(34, 42), (34, 56)]); line(&p, [(70, 42), (70, 56)]) }
-
-    // MARK: Figures
 
     private func draw(_ p: inout Path) {
-        switch kind {
-        case .benchPress:
-            bench(&p); floor(&p)
-            head(&p, 32, 36)                                        // lying, head left
-            line(&p, [(36, 38), (62, 38)])                           // torso on bench
-            line(&p, [(62, 38), (72, 46), (72, 56)])                 // leg down
-            line(&p, [(62, 38), (80, 44), (82, 56)])
-            line(&p, [(46, 38), (46, 18)])                           // arms straight up
-            line(&p, [(50, 38), (50, 18)])
-            bar(&p, from: (30, 18), to: (66, 18))
-        case .inclinePress:
-            floor(&p); line(&p, [(30, 56), (30, 44), (56, 30)]); line(&p, [(56, 30), (56, 56)])   // incline bench
-            head(&p, 36, 32)
-            line(&p, [(40, 36), (58, 42)]); line(&p, [(58, 42), (72, 48), (74, 56)]); line(&p, [(58, 42), (64, 56)])
-            line(&p, [(47, 38), (54, 20)]); line(&p, [(51, 40), (58, 22)])
-            bar(&p, from: (40, 16), to: (72, 24))
-        case .overheadPress:
-            floor(&p)
-            head(&p, 50, 22)
-            line(&p, [(50, 26), (50, 42)]); line(&p, [(50, 42), (44, 56)]); line(&p, [(50, 42), (56, 56)])
-            line(&p, [(50, 30), (40, 20), (40, 10)]); line(&p, [(50, 30), (60, 20), (60, 10)])
-            bar(&p, from: (30, 10), to: (70, 10))
-        case .fly:
-            bench(&p); floor(&p)
-            head(&p, 32, 36); line(&p, [(36, 38), (62, 38)]); line(&p, [(62, 38), (72, 46), (72, 56)]); line(&p, [(62, 38), (80, 44), (82, 56)])
-            line(&p, [(48, 38), (36, 24), (30, 14)]); line(&p, [(48, 38), (60, 24), (66, 14)])
-            dumbbell(&p, at: (30, 12)); dumbbell(&p, at: (66, 12))
-        case .lateralRaise:
-            floor(&p)
-            head(&p, 50, 14); line(&p, [(50, 18), (50, 38)]); line(&p, [(50, 38), (44, 56)]); line(&p, [(50, 38), (56, 56)])
-            line(&p, [(50, 22), (30, 20)]); line(&p, [(50, 22), (70, 20)])
-            dumbbell(&p, at: (26, 20), vertical: true); dumbbell(&p, at: (74, 20), vertical: true)
-        case .tricepsExtension:
-            floor(&p)
-            head(&p, 50, 16); line(&p, [(50, 20), (50, 40)]); line(&p, [(50, 40), (44, 56)]); line(&p, [(50, 40), (56, 56)])
-            line(&p, [(50, 24), (58, 14), (54, 4)]); line(&p, [(50, 24), (56, 12), (52, 4)])
-            dumbbell(&p, at: (52, 3))
-        case .pushUp:
-            floor(&p)
-            head(&p, 24, 36); line(&p, [(28, 38), (80, 50)]); line(&p, [(80, 50), (90, 56)])
-            line(&p, [(36, 40), (34, 56)]); line(&p, [(40, 41), (38, 56)])
-        case .dip:
-            line(&p, [(26, 24), (26, 56)]); line(&p, [(74, 24), (74, 56)]); line(&p, [(18, 24), (34, 24)]); line(&p, [(66, 24), (82, 24)])
-            head(&p, 50, 16); line(&p, [(50, 20), (50, 38)]); line(&p, [(50, 38), (46, 48), (50, 56)]); line(&p, [(50, 38), (54, 48), (56, 56)])
-            line(&p, [(50, 24), (38, 30), (30, 24)]); line(&p, [(50, 24), (62, 30), (70, 24)])
-        case .pullUp:
-            bar(&p, from: (24, 8), to: (76, 8), plate: 0); line(&p, [(24, 8), (24, 16)]); line(&p, [(76, 8), (76, 16)])
-            head(&p, 50, 16); line(&p, [(50, 20), (50, 40)]); line(&p, [(50, 40), (46, 56)]); line(&p, [(50, 40), (54, 52)])
-            line(&p, [(50, 24), (38, 16), (38, 8)]); line(&p, [(50, 24), (62, 16), (62, 8)])
-        case .pulldown:
-            line(&p, [(34, 4), (66, 4)]); line(&p, [(42, 4), (46, 14)]); line(&p, [(58, 4), (54, 14)])
-            head(&p, 50, 20); line(&p, [(50, 24), (50, 42)]); line(&p, [(50, 42), (36, 44), (36, 56)]); line(&p, [(50, 42), (62, 44), (62, 56)])
-            line(&p, [(50, 28), (40, 20), (38, 10)]); line(&p, [(50, 28), (60, 20), (62, 10)])
-            line(&p, [(30, 10), (70, 10)])
-        case .row:
-            floor(&p)
-            head(&p, 76, 26); line(&p, [(72, 28), (44, 36)]); line(&p, [(44, 36), (40, 56)]); line(&p, [(44, 36), (50, 56)])
-            line(&p, [(62, 31), (62, 44)]); line(&p, [(66, 30), (66, 44)])
-            bar(&p, from: (50, 46), to: (80, 46), plate: 4)
-        case .rearDelt:
-            floor(&p)
-            head(&p, 76, 24); line(&p, [(72, 26), (44, 34)]); line(&p, [(44, 34), (40, 56)]); line(&p, [(44, 34), (50, 56)])
-            line(&p, [(62, 30), (56, 44)]); line(&p, [(62, 30), (70, 44)])
-            dumbbell(&p, at: (54, 46)); dumbbell(&p, at: (72, 46))
-        case .curl:
-            floor(&p)
-            head(&p, 50, 14); line(&p, [(50, 18), (50, 40)]); line(&p, [(50, 40), (44, 56)]); line(&p, [(50, 40), (56, 56)])
-            line(&p, [(50, 22), (42, 34), (40, 24)]); line(&p, [(50, 22), (58, 34), (60, 24)])
-            bar(&p, from: (34, 24), to: (66, 24), plate: 3)
-        case .squat:
-            floor(&p)
-            head(&p, 46, 14); line(&p, [(48, 18), (50, 34)]); line(&p, [(50, 34), (66, 36), (62, 56)]); line(&p, [(50, 34), (64, 38), (58, 56)])
-            line(&p, [(49, 22), (40, 22)]); line(&p, [(49, 22), (58, 22)])
-            bar(&p, from: (30, 20), to: (70, 20))
-        case .hinge:
-            floor(&p)
-            head(&p, 70, 20); line(&p, [(66, 22), (44, 30)]); line(&p, [(44, 30), (42, 56)]); line(&p, [(44, 30), (48, 56)])
-            line(&p, [(60, 25), (62, 46)]); line(&p, [(64, 24), (66, 46)])
-            bar(&p, from: (48, 48), to: (80, 48), plate: 7)
-        case .legExtension:
-            floor(&p)
-            line(&p, [(36, 36), (36, 56)]); line(&p, [(30, 36), (54, 36)])                       // seat
-            head(&p, 40, 12); line(&p, [(40, 16), (40, 36)]); line(&p, [(40, 36), (56, 36), (74, 32)])  // thigh + extended shin
-            line(&p, [(40, 20), (34, 30)])
-            dumbbell(&p, at: (76, 32), vertical: true)
-        case .legCurl:
-            bench(&p); floor(&p)
-            head(&p, 30, 36); line(&p, [(34, 38), (62, 38)]); line(&p, [(62, 38), (78, 40)]); line(&p, [(78, 40), (76, 24)])  // heel curled up
-            line(&p, [(40, 38), (36, 44)])
-            dumbbell(&p, at: (76, 22))
-        case .calf:
-            floor(&p)
-            head(&p, 50, 12); line(&p, [(50, 16), (50, 36)]); line(&p, [(50, 36), (46, 50), (46, 54)]); line(&p, [(50, 36), (54, 50), (54, 54)])
-            line(&p, [(42, 50), (46, 54)]); line(&p, [(50, 50), (54, 54)])                             // on toes
-            line(&p, [(50, 20), (40, 26)]); line(&p, [(50, 20), (60, 26)])
-            line(&p, [(50, 8), (80, 8)]); line(&p, [(80, 8), (80, 56)])                                   // support
-        case .lunge:
-            floor(&p)
-            head(&p, 46, 12); line(&p, [(46, 16), (46, 36)]); line(&p, [(46, 36), (60, 40), (60, 56)]); line(&p, [(46, 36), (36, 48), (28, 56)])
-            line(&p, [(46, 20), (40, 34)]); line(&p, [(46, 20), (52, 34)])
-            dumbbell(&p, at: (40, 36), vertical: true); dumbbell(&p, at: (52, 36), vertical: true)
-        case .hipThrust:
-            floor(&p); line(&p, [(20, 36), (20, 56)]); line(&p, [(20, 36), (36, 36)])
-            head(&p, 24, 30); line(&p, [(28, 32), (56, 30)]); line(&p, [(56, 30), (66, 42), (68, 56)]); line(&p, [(56, 30), (60, 44), (62, 56)])
-            bar(&p, from: (50, 22), to: (62, 22), plate: 0); line(&p, [(56, 22), (56, 30)])
-        case .plank:
-            floor(&p)
-            head(&p, 22, 32); line(&p, [(26, 34), (80, 44)]); line(&p, [(80, 44), (90, 56)])
-            line(&p, [(34, 36), (30, 56)]); line(&p, [(30, 56), (22, 56)])
-        case .hangingLegRaise:
-            line(&p, [(30, 6), (70, 6)])
-            head(&p, 50, 14); line(&p, [(50, 18), (50, 38)]); line(&p, [(50, 22), (40, 14), (40, 6)]); line(&p, [(50, 22), (60, 14), (60, 6)])
-            line(&p, [(50, 38), (68, 34)]); line(&p, [(50, 38), (68, 40)])                                // legs raised forward
-        case .crunch:
-            floor(&p)
-            head(&p, 32, 34); line(&p, [(36, 36), (60, 44)]); line(&p, [(60, 44), (68, 32), (78, 44)]); line(&p, [(78, 44), (80, 56)])
-            line(&p, [(42, 38), (34, 30)])
-        case .deadBug:
-            floor(&p)
-            head(&p, 24, 46); line(&p, [(28, 48), (62, 48)]); line(&p, [(44, 48), (42, 26)]); line(&p, [(62, 48), (64, 30), (80, 30)]); line(&p, [(62, 48), (74, 40)])
+        let P = pose
+        var hip = P.hip
+        var shoulder = seg(hip, P.torso, torsoLen)
+        var head = seg(shoulder, P.torso, neck + headR)
+        var arms = [(seg(shoulder, P.upperArm, upperArmLen), P.forearm)].map { ($0.0, seg($0.0, $0.1, forearmLen)) }
+        if let ua = P.upperArm2, let fa = P.forearm2 { let e = seg(shoulder, ua, upperArmLen); arms.append((e, seg(e, fa, forearmLen))) }
+        var legs = [(seg(hip, P.thigh, thighLen), P.shin)].map { ($0.0, seg($0.0, $0.1, shinLen), $0.1) }
+        if let th = P.thigh2, let sh = P.shin2 { let k = seg(hip, th, thighLen); legs.append((k, seg(k, sh, shinLen), sh)) }
+
+        if P.grounded {
+            let dy = floorY - (legs.map(\.1.y).max() ?? floorY)
+            func t(_ q: CGPoint) -> CGPoint { CGPoint(x: q.x, y: q.y + dy) }
+            hip = t(hip); shoulder = t(shoulder); head = t(head)
+            arms = arms.map { (t($0.0), t($0.1)) }
+            legs = legs.map { (t($0.0), t($0.1), $0.2) }
+        }
+
+        // Figure
+        line(&p, hip, shoulder)
+        p.addEllipse(in: CGRect(x: head.x - headR, y: head.y - headR, width: 2 * headR, height: 2 * headR))
+        for (elbow, hand) in arms { line(&p, shoulder, elbow); line(&p, elbow, hand) }
+        for (knee, foot, shinAngle) in legs {
+            line(&p, hip, knee); line(&p, knee, foot)
+            if abs(cos(shinAngle * .pi / 180)) < 0.5 { line(&p, foot, dx: 3.5, dy: 0) }
+        }
+        if P.floor { line(&p, CGPoint(x: 8, y: floorY), CGPoint(x: 92, y: floorY)) }
+
+        // Implement, always in the hands
+        let hand = arms[0].1
+        switch P.implement {
+        case .none: break
+        case .barbell: barbell(&p, at: hand)
+        case .barbellOnHips: barbell(&p, at: hip, halfWidth: 12)
+        case .dumbbell: for (_, h) in arms { dumbbell(&p, at: h, vertical: false) }
+        case .dumbbellVertical: for (_, h) in arms { dumbbell(&p, at: h, vertical: true) }
+        }
+
+        // Props
+        for prop in P.props {
+            switch prop {
+            case .bench:
+                let y = shoulder.y + 2.5
+                line(&p, CGPoint(x: shoulder.x - 10, y: y), CGPoint(x: hip.x + 4, y: y))
+                line(&p, CGPoint(x: shoulder.x - 6, y: y), CGPoint(x: shoulder.x - 6, y: floorY))
+                line(&p, CGPoint(x: hip.x, y: y), CGPoint(x: hip.x, y: floorY))
+            case .inclineBench:
+                let seat = CGPoint(x: hip.x + 2, y: hip.y + 2.5)
+                line(&p, seat, CGPoint(x: shoulder.x - 6, y: shoulder.y - 2))
+                line(&p, seat, CGPoint(x: seat.x, y: floorY))
+                line(&p, CGPoint(x: hip.x - 8, y: seat.y), seat)
+            case .seat:
+                line(&p, CGPoint(x: hip.x - 6, y: hip.y + 2.5), CGPoint(x: hip.x + 8, y: hip.y + 2.5))
+                line(&p, CGPoint(x: hip.x - 4, y: hip.y + 2.5), CGPoint(x: hip.x - 4, y: floorY))
+            case .backrest:
+                line(&p, CGPoint(x: hip.x - 5, y: hip.y + 2.5), CGPoint(x: shoulder.x - 3, y: shoulder.y - 4))
+            case .cable:
+                line(&p, hand, CGPoint(x: hand.x + 2, y: 4))
+                line(&p, CGPoint(x: hand.x - 12, y: 4), CGPoint(x: hand.x + 16, y: 4))
+            case .highBar:
+                line(&p, CGPoint(x: hand.x - 20, y: hand.y), CGPoint(x: hand.x + 20, y: hand.y))
+                for x in [hand.x - 20, hand.x + 20] { line(&p, CGPoint(x: x, y: hand.y), CGPoint(x: x, y: hand.y - 6)) }
+            case .dipBars:
+                line(&p, CGPoint(x: hand.x - 14, y: hand.y), CGPoint(x: hand.x + 14, y: hand.y))
+                for x in [hand.x - 10, hand.x + 10] { line(&p, CGPoint(x: x, y: hand.y), CGPoint(x: x, y: floorY)) }
+            case .anklePad:
+                let foot = legs[0].1
+                let seated = abs(cos(legs[0].2 * .pi / 180)) > 0.5
+                dumbbell(&p, at: CGPoint(x: foot.x, y: foot.y + (seated ? 2 : 0)), vertical: seated)
+            case .calfBlock:
+                let f = legs[0].1
+                line(&p, CGPoint(x: f.x + 2, y: f.y), CGPoint(x: f.x - 3, y: f.y - 3))       // raised heel
+                line(&p, CGPoint(x: f.x + 1, y: f.y), CGPoint(x: f.x + 5, y: f.y))
+                line(&p, CGPoint(x: f.x - 6, y: floorY), CGPoint(x: f.x + 8, y: floorY))      // block
+                line(&p, CGPoint(x: f.x + 8, y: floorY), CGPoint(x: f.x + 8, y: floorY - 4))
+                line(&p, CGPoint(x: f.x - 6, y: floorY - 4), CGPoint(x: f.x + 8, y: floorY - 4))
+                line(&p, CGPoint(x: hand.x + 1, y: hand.y - 12), CGPoint(x: hand.x + 1, y: floorY))   // support rail
+            }
         }
     }
 }

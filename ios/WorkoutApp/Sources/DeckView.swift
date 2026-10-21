@@ -268,14 +268,11 @@ struct RestCard: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                     Overline("Rest")
                     Spacer(minLength: Theme.Spacing.m)
-                    Text("\(Int(remaining.rounded(.up)))").font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Rectangle().fill(Theme.Colors.hairline)
-                            Rectangle().fill(Theme.Colors.brass).frame(width: g.size.width * (1 - remaining / max(1, session.restTotal)))
-                        }
+                    CountdownRing(progress: remaining / max(1, session.restTotal)) {
+                        Text(clock(remaining)).font(Theme.Fonts.display).monospacedDigit().foregroundStyle(Theme.Colors.textPrimary)
                     }
-                    .frame(height: 2)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
                     Spacer(minLength: Theme.Spacing.m)
                     if let next = session.currentStep {
                         Overline("Up next")
@@ -293,6 +290,11 @@ struct RestCard: View {
             }
             .onAppear { if remaining <= 0 { session.skipRest() } }
         }
+    }
+
+    func clock(_ t: TimeInterval) -> String {
+        let n = Int(t.rounded(.up))
+        return n >= 60 ? String(format: "%d:%02d", n / 60, n % 60) : "\(n)"
     }
 
     func detail(_ s: DeckStep) -> String {
@@ -387,5 +389,25 @@ struct FinishView: View {
             PillButton("Finish") { Haptics.play(.sessionDone); session.finish() }.padding(.horizontal, Theme.Spacing.l)
         }
         .padding(.bottom, Theme.Spacing.xxl)
+    }
+}
+
+/// Stopwatch-style ring: a hairline track with the remaining fraction drawn in brass, draining clockwise from 12 o'clock.
+struct CountdownRing<Label: View>: View {
+    let progress: Double
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Theme.Colors.hairline, lineWidth: 6)
+            Circle()
+                .trim(from: 0, to: max(0, min(1, progress)))
+                .stroke(Theme.Colors.brass, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.5), value: progress)
+            label()
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityLabel("Rest remaining")
     }
 }
