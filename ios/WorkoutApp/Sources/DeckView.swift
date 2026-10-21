@@ -167,14 +167,18 @@ struct SetCard: View {
     var body: some View {
         Card(raised: true) {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
+                    .frame(maxHeight: 150)
+                    .frame(maxWidth: .infinity)
                 HStack(spacing: 8) {
                     Overline(kind)
                     if b.isEstimate { Overline("· est") }
                     Spacer()
                 }
+                .padding(.top, Theme.Spacing.s)
                 Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Theme.Spacing.l)
+                Spacer(minLength: Theme.Spacing.m)
                 if let w = step.warmup {
                     weight(w.weight)
                     Text("Warm-up \(step.index + 1) of \(b.warmups.count) · \(w.reps) reps")
