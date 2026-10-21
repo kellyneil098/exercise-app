@@ -182,11 +182,15 @@ public struct Adjuster: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
         }
     }
+    /// Plain tap targets rather than `Button`s: inside a `List` row (with `.onMove`) sibling buttons
+    /// can lose taps to the row's own gestures; a tap gesture on a shaped view does not.
     func button(_ icon: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary).frame(width: 44, height: 36)
-        }
-        .buttonStyle(PressStyle())
+        Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.Colors.textPrimary)
+            .frame(width: 44, height: 36)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(icon == "minus" ? "Decrease" : "Increase")
     }
 }
 
