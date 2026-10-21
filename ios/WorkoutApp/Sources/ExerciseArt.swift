@@ -24,8 +24,8 @@ struct ExerciseArt: View {
 
 /// World angles in degrees: 0 = toward the front (+x), 90 = down, -90 = up, 180 = behind.
 struct Pose {
-    enum Implement { case none, barbell, dumbbell, dumbbellVertical, barbellOnHips }
-    enum Prop { case bench, inclineBench, seat, backrest, cable, highBar, dipBars, anklePad, calfBlock }
+    enum Implement { case none, barbell, dumbbell, dumbbellVertical, barbellOnHips, handle }
+    enum Prop { case bench, inclineBench, seat, backrest, cable, cableFromBehind, highBar, dipBars, anklePad, calfBlock, rearBench, footBlock, chestPad }
 
     var hip: CGPoint
     var torso: CGFloat
@@ -48,13 +48,28 @@ struct Pose {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func base(exerciseKey key: String, pattern: String) -> Pose {
         if key.contains("push_up") {
+            if key.contains("elevated") {   // feet on a block: body level/declined, hands still under shoulders
+                return Pose(hip: CGPoint(x: 56, y: 38.6), torso: 175, upperArm: 90, forearm: 90, thigh: -5, shin: -5, props: [.footBlock], grounded: false)
+            }
             return Pose(hip: CGPoint(x: 56, y: 46.5), torso: -156, upperArm: 90, forearm: 90, thigh: 24, shin: 24, grounded: false)
+        }
+        if key.contains("pushdown") {       // elbows pinned at the sides, forearms pressed down, cable overhead
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 90, forearm: 80, thigh: 90, shin: 90, implement: .handle, props: [.cable])
+        }
+        if key.contains("pec_deck") || key.contains("reverse_fly_machine") {   // seated facing the pad, arms swept back
+            return Pose(hip: CGPoint(x: 46, y: 38), torso: -90, upperArm: 175, forearm: 175, thigh: 0, shin: 90, implement: .handle, props: [.seat, .chestPad])
+        }
+        if key.contains("cable_crunch") {   // kneeling, rope held at the head, spine flexing toward the floor
+            return Pose(hip: CGPoint(x: 50, y: 40), torso: -50, upperArm: -140, forearm: -40, thigh: 90, shin: 180, props: [.cable])
         }
         if key.contains("dip") {
             return Pose(hip: CGPoint(x: 50, y: 36), torso: -75, upperArm: 150, forearm: 90, thigh: 100, shin: 170, props: [.dipBars], grounded: false)
         }
         if key.contains("pull_up") || key.contains("chin_up") {
-            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -130, forearm: -50, thigh: 95, shin: 120, props: [.highBar], grounded: false, floor: false)
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -125, forearm: -55, thigh: 95, shin: 120, props: [.highBar], grounded: false, floor: false)
+        }
+        if key.contains("bulgarian") {      // rear foot up on a bench, front shin vertical, torso tall
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 90, forearm: 90, thigh: 0, shin: 90, thigh2: 135, shin2: 190, implement: .dumbbellVertical, props: [.rearBench])
         }
         if key.contains("lunge") || key.contains("split_squat") || key.contains("step_up") {
             return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: 90, forearm: 90, thigh: 0, shin: 90, thigh2: 125, shin2: 170, implement: .dumbbellVertical)
@@ -66,7 +81,7 @@ struct Pose {
             return Pose(hip: CGPoint(x: 56, y: 52), torso: -165, upperArm: 90, forearm: 0, thigh: 15, shin: 15, grounded: false)
         }
         if key.contains("hanging") {
-            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -90, forearm: -90, thigh: 0, shin: 20, props: [.highBar], grounded: false, floor: false)
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -60, forearm: -120, thigh: 0, shin: 20, props: [.highBar], grounded: false, floor: false)
         }
         if key.contains("dead_bug") || key.contains("bird_dog") {
             return Pose(hip: CGPoint(x: 52, y: 52), torso: 180, upperArm: -90, forearm: -90, upperArm2: -170, forearm2: -170, thigh: 10, shin: 10, thigh2: -90, shin2: 0, grounded: false)
@@ -77,7 +92,9 @@ struct Pose {
         case "incline_press":
             return Pose(hip: CGPoint(x: 58, y: 42), torso: -145, upperArm: -75, forearm: -90, thigh: 60, shin: 90, implement: .barbell, props: [.inclineBench])
         case "vertical_press":
-            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -90, forearm: -90, thigh: 90, shin: 90, implement: .barbell)
+            return Pose(hip: CGPoint(x: 50, y: 36), torso: -90, upperArm: -60, forearm: -120, thigh: 90, shin: 90, implement: .barbell)
+        case "chest_fly" where key.contains("cable"):   // standing, slight lean, arms sweeping together in front
+            return Pose(hip: CGPoint(x: 46, y: 36), torso: -80, upperArm: -10, forearm: 0, thigh: 90, shin: 90, implement: .handle, props: [.cableFromBehind])
         case "chest_fly":
             return Pose(hip: CGPoint(x: 58, y: 40), torso: 180, upperArm: -40, forearm: -55, upperArm2: -140, forearm2: -125, thigh: 60, shin: 90, implement: .dumbbell, props: [.bench])
         case "lateral_raise":
@@ -95,7 +112,7 @@ struct Pose {
         case "squat":
             return Pose(hip: CGPoint(x: 44, y: 36), torso: -62, upperArm: -170, forearm: -10, thigh: 5, shin: 100, implement: .barbell)
         case "hinge":
-            return Pose(hip: CGPoint(x: 40, y: 32), torso: -35, upperArm: 90, forearm: 90, thigh: 45, shin: 80, implement: .barbell)
+            return Pose(hip: CGPoint(x: 40, y: 32), torso: -38, upperArm: 90, forearm: 90, thigh: 40, shin: 75, implement: .barbell)
         case "quad_isolation":
             return Pose(hip: CGPoint(x: 44, y: 36), torso: -90, upperArm: 90, forearm: 90, thigh: 0, shin: 0, props: [.seat, .backrest, .anklePad], grounded: false)
         case "hamstring_isolation":
@@ -181,6 +198,7 @@ struct FigureShape: Shape {
         case .barbellOnHips: barbell(&p, at: hip, halfWidth: 12)
         case .dumbbell: for (_, h) in arms { dumbbell(&p, at: h, vertical: false) }
         case .dumbbellVertical: for (_, h) in arms { dumbbell(&p, at: h, vertical: true) }
+        case .handle: line(&p, CGPoint(x: hand.x - 3, y: hand.y), CGPoint(x: hand.x + 3, y: hand.y))
         }
 
         // Props
@@ -204,6 +222,19 @@ struct FigureShape: Shape {
             case .cable:
                 line(&p, hand, CGPoint(x: hand.x + 2, y: 4))
                 line(&p, CGPoint(x: hand.x - 12, y: 4), CGPoint(x: hand.x + 16, y: 4))
+            case .cableFromBehind:
+                line(&p, hand, CGPoint(x: hand.x - 30, y: 4))
+                line(&p, CGPoint(x: hand.x - 34, y: 4), CGPoint(x: hand.x - 26, y: 4))
+            case .rearBench:
+                let f = legs[1].1
+                line(&p, CGPoint(x: f.x - 6, y: f.y + 1), CGPoint(x: f.x + 5, y: f.y + 1))
+                for x in [f.x - 4, f.x + 3] { line(&p, CGPoint(x: x, y: f.y + 1), CGPoint(x: x, y: floorY)) }
+            case .footBlock:
+                let f = legs[0].1
+                line(&p, CGPoint(x: f.x - 4, y: f.y + 1), CGPoint(x: f.x + 5, y: f.y + 1))
+                for x in [f.x - 4, f.x + 5] { line(&p, CGPoint(x: x, y: f.y + 1), CGPoint(x: x, y: floorY)) }
+            case .chestPad:
+                line(&p, CGPoint(x: shoulder.x + 3, y: shoulder.y - 5), CGPoint(x: shoulder.x + 3, y: hip.y + 2.5))
             case .highBar:
                 line(&p, CGPoint(x: hand.x - 20, y: hand.y), CGPoint(x: hand.x + 20, y: hand.y))
                 for x in [hand.x - 20, hand.x + 20] { line(&p, CGPoint(x: x, y: hand.y), CGPoint(x: x, y: hand.y - 6)) }
