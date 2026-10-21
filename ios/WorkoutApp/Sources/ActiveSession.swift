@@ -14,12 +14,17 @@ final class ActiveSession: Identifiable {
     /// Blocks the user deferred; they come back at the end.
     private(set) var deferred: Set<UUID> = []
     private(set) var skipped: Set<UUID> = []
-    var restEndsAt: Date?
+    var restEndsAt: Date? {
+        didSet { UserDefaults.standard.set(restEndsAt, forKey: "restEndsAt") }
+    }
     var restTotal: TimeInterval = 0
 
     var id: String { row.id }
 
     init(row: SessionRow, plan: Plan, input: PlannerInput, model: AppModel, existingLogs: [SetLog] = []) {
+        if let saved = UserDefaults.standard.object(forKey: "restEndsAt") as? Date, saved > Date(), !existingLogs.isEmpty {
+            restEndsAt = saved
+        }
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
     }
 
