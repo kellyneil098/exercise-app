@@ -20,3 +20,6 @@ __pycache__/
 server/.venv/
 server/*.db
 server/.env
+ios/Packages/*/.build/
+ios/Packages/*/.swiftpm/
+*.xcodeproj/xcuserdata/
