@@ -220,13 +220,16 @@ public struct Planner: Sendable {
 
     /// Rebuild a block in place with a substitute exercise (§7 swap). Keeps slot, sets, superset linkage.
     public func swap(block: PlanBlock, to exercise: Exercise, in plan: Plan, input: PlannerInput) -> Plan {
-        guard let idx = plan.blocks.firstIndex(where: { $0.id == block.id }),
-              let slot = resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot })
-                ?? catalog.slotTemplates[plan.dayType]?.first(where: { $0.slot == block.slot })
-        else { return plan }
+        guard let idx = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return plan }
+        // Blocks added by hand sit past the day's template, so fall back to the pattern's template at that slot number.
+        let base = resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot })
+            ?? catalog.slotTemplates[plan.dayType]?.first(where: { $0.slot == block.slot })
+            ?? template(for: exercise.movementPattern, plan: plan, input: input)
+        let slot = base.with(pattern: exercise.movementPattern, slot: block.slot)
         let est = estimator.estimate(exercise, states: input.states, location: input.location)
         let cost = timer.blockSeconds(exercise: exercise, slot: slot, sets: block.sets, supersetted: block.isSupersetted)
-        var nb = makeBlock(exercise, slot: slot.with(pattern: block.pattern), sets: block.sets, estimate: est, cost: cost, location: input.location)
+        var nb = makeBlock(exercise, slot: slot, sets: block.sets, estimate: est, cost: cost, location: input.location)
+        nb.isCustomAdded = block.isCustomAdded
         nb.id = block.id
         nb.supersetHostID = block.supersetHostID
         nb.prescribedSets = block.prescribedSets
@@ -235,8 +238,6 @@ public struct Planner: Sendable {
         return p
     }
 
-    /// A block for an exercise the user adds by hand (overview "+"). Uses the day's non-heavy template for
-    /// that pattern when there is one, else a generic medium slot; takes the next free slot number.
     /// Candidates for any pattern, whether or not the day's template has a slot for it (overview picker).
     public func candidates(pattern: String, in plan: Plan, input: PlannerInput, excluding: Set<String> = []) -> [Candidate] {
         candidates(pattern: pattern, slot: template(for: pattern, plan: plan, input: input), input: input, excluding: excluding)
@@ -249,6 +250,8 @@ public struct Planner: Sendable {
                             band: .medium, warmupSets: 0, superset: nil, omitIfSlot1Pattern: nil, altPatternIfSlot1Pattern: nil)
     }
 
+    /// A block for an exercise the user adds by hand (overview "+"): the day's non-heavy template for its
+    /// pattern when there is one, else a generic medium slot; takes the next free slot number.
     public func block(adding exercise: Exercise, to plan: Plan, input: PlannerInput) -> PlanBlock {
         let slot = template(for: exercise.movementPattern, plan: plan, input: input)
             .with(pattern: exercise.movementPattern, slot: (plan.blocks.map(\.slot).max() ?? 0) + 1)

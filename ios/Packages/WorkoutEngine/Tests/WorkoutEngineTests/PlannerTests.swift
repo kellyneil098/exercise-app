@@ -193,4 +193,17 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(b.band, .medium)
         XCTAssertNil(b.supersetHostID)
     }
+
+    func testSwapOfAddedBlockReplacesExercise() {
+        let planner = Planner(catalog: Fixtures.catalog)
+        let input = PlannerInput(dayType: .legs, durationMinutes: 30, location: Fixtures.building, heavyRotation: Fixtures.rotation(.legs), states: Fixtures.baseline)
+        var plan = planner.generate(input)
+        let added = planner.block(adding: Fixtures.catalog.exercises["dumbbell_curl"]!, to: plan, input: input)
+        plan.blocks.append(added)
+        let swapped = planner.swap(block: added, to: Fixtures.catalog.exercises["cable_curl"]!, in: plan, input: input)
+        let nb = swapped.blocks.first { $0.id == added.id }!
+        XCTAssertEqual(nb.exerciseKey, "cable_curl")
+        XCTAssertEqual(nb.slot, added.slot)
+        XCTAssertTrue(nb.isCustomAdded)
+    }
 }

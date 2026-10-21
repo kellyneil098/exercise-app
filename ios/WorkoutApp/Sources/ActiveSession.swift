@@ -219,7 +219,6 @@ final class ActiveSession: Identifiable {
     /// Substitution keeps the slot and superset relationship; the weight is re-estimated (§7.3). Any pattern is allowed.
     func swap(_ block: PlanBlock, to exercise: Exercise) {
         plan = model.planner.swap(block: block, to: exercise, in: plan, input: input)
-        if let i = plan.blocks.firstIndex(where: { $0.id == block.id }) { plan.blocks[i].pattern = exercise.movementPattern }
         persistPlan()
     }
 
