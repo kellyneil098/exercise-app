@@ -4,9 +4,9 @@ Revision ID: dbdde1c2d798
 Revises:
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "dbdde1c2d798"
 down_revision = None
