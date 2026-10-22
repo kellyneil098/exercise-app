@@ -248,10 +248,12 @@ public struct Planner: Sendable {
         return candidates(pattern: pattern, slot: slot, input: input, excluding: excluding)
     }
 
+    /// The template behind `block`: the day's slot with that number when it matches the block's band (a hand-added
+    /// block can share a slot number with the heavy slot without being heavy), else a generic medium slot.
     func swapTemplate(for block: PlanBlock, plan: Plan, input: PlannerInput, exercisePattern: String) -> SlotTemplate {
-        let base = resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot })
+        let sameSlot = resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot })
             ?? catalog.slotTemplates[plan.dayType]?.first(where: { $0.slot == block.slot })
-            ?? template(for: exercisePattern, plan: plan, input: input)
+        let base = (sameSlot?.band == block.band ? sameSlot : nil) ?? template(for: exercisePattern, plan: plan, input: input)
         return base.with(pattern: exercisePattern, slot: block.slot)
     }
 

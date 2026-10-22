@@ -206,4 +206,28 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(nb.slot, added.slot)
         XCTAssertTrue(nb.isCustomAdded)
     }
+
+    func testSwapOfMediumBlockInSlotOneAllowsBodyweight() {
+        let planner = Planner(catalog: Fixtures.catalog)
+        let input = PlannerInput(dayType: .push, durationMinutes: 60, location: Fixtures.commercial, heavyRotation: Fixtures.rotation(.push), states: Fixtures.baseline)
+        var plan = planner.generate(input)
+        plan.blocks.removeAll()
+        let added = planner.block(adding: Fixtures.catalog.exercises["dumbbell_bench_press"]!, to: plan, input: input)
+        plan.blocks.append(added)
+        XCTAssertEqual(added.band, .medium)
+        let pushUp = Fixtures.catalog.exercises["push_up"]!
+        let cands = planner.candidates(pattern: "horizontal_press", replacing: added, in: plan, input: input)
+        XCTAssertTrue(cands.first { $0.exercise.key == "push_up" }?.isAvailable ?? false)
+        XCTAssertEqual(planner.swap(block: added, to: pushUp, in: plan, input: input).blocks.first?.exerciseKey, "push_up")
+    }
+
+    func testHeavySlotRefusesBodyweightSwap() {
+        let planner = Planner(catalog: Fixtures.catalog)
+        let input = PlannerInput(dayType: .push, durationMinutes: 60, location: Fixtures.commercial, heavyRotation: Fixtures.rotation(.push), states: Fixtures.baseline)
+        let plan = planner.generate(input)
+        let heavy = plan.blocks.first { $0.band == .heavy }!
+        let pushUp = Fixtures.catalog.exercises["push_up"]!
+        XCTAssertFalse(planner.candidates(pattern: "horizontal_press", replacing: heavy, in: plan, input: input).first { $0.exercise.key == "push_up" }?.isAvailable ?? true)
+        XCTAssertEqual(planner.swap(block: heavy, to: pushUp, in: plan, input: input).blocks.first { $0.id == heavy.id }?.exerciseKey, heavy.exerciseKey)
+    }
 }

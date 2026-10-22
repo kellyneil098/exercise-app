@@ -168,7 +168,7 @@ final class AppModel {
         var existing = locations
         for (i, seed) in catalog.seededLocations.enumerated() where !existing.contains(where: { $0.seedKey == seed.key }) {
             // Rows from before `seedKey` existed are recognised by their seed name (incl. the old "Building Gym") and stamped.
-            let legacyNames = [seed.name] + (seed.key == "building_gym" ? ["Building Gym"] : [])
+            let legacyNames: [String] = [seed.name] + (seed.key == "building_gym" ? ["Building Gym"] : [])
             if let j = existing.firstIndex(where: { $0.seedKey == nil && legacyNames.contains($0.name) }) {
                 existing[j].seedKey = seed.key
                 if existing[j].name == "Building Gym" { existing[j].name = seed.name }
@@ -325,28 +325,39 @@ final class AppModel {
 
     /// First sign-in: re-key every local row from the provisional device id to the server user id, then sync.
     private func adopt(token: String, serverUserId: String) {
+        Task { @MainActor in await adoptAsync(token: token, serverUserId: serverUserId) }
+    }
+
+    private func adoptAsync(token: String, serverUserId: String) async {
+        let old = userId
+        // Only a never-signed-in local identity is folded into the account. If `old` was itself a server account,
+        // its history stays its own: anything it still has to upload goes out under its own token first, then
+        // its rows are purged from this device on the next pull.
+        let oldWasAnotherAccount = serverUserId != old && Keychain.get(Keychain.serverIssuedUserIdKey) == old
+        if oldWasAnotherAccount, Keychain.get(Keychain.tokenKey) != nil { await syncIfPossible() }
         Keychain.set(token, for: Keychain.tokenKey)
         if serverUserId != userId {
-            let old = userId
-            // Only a never-signed-in local identity is folded into the account. If `old` was itself a server
-            // account, its history stays its own: pending uploads are dropped and its rows are purged on the next pull.
-            let oldWasAnotherAccount = Keychain.get(Keychain.serverIssuedUserIdKey) == old
-            try? store.db.write { db in
-                if oldWasAnotherAccount {
-                    try db.execute(sql: "DELETE FROM outbox WHERE payload LIKE ?", arguments: ["%\"userId\":\"\(old)\"%"])
-                } else {
-                    for t in WorkoutStore.allTables {
-                        try db.execute(sql: "UPDATE \(t.tableName) SET userId = ? WHERE userId = ?", arguments: [serverUserId, old])
-                    }
-                    try db.execute(sql: "UPDATE outbox SET payload = replace(payload, ?, ?)", arguments: ["\"userId\":\"\(old)\"", "\"userId\":\"\(serverUserId)\""])
-                }
-            }
+            moveLocalRows(from: old, to: serverUserId, keepOldAccountRows: oldWasAnotherAccount)
             if oldWasAnotherAccount { try? store.setPullCursor(0) }   // re-pull this account's history from the start
             Keychain.set(serverUserId, for: Keychain.userIdKey)
             userId = serverUserId
         }
         Keychain.set(serverUserId, for: Keychain.serverIssuedUserIdKey)
-        Task { await syncIfPossible() }
+        await syncIfPossible()
+    }
+
+    /// Synchronous on purpose: inside an async context GRDB's `write` resolves to its async overload.
+    private func moveLocalRows(from old: String, to new: String, keepOldAccountRows: Bool) {
+        try? store.db.write { db in
+            if keepOldAccountRows {
+                try db.execute(sql: "DELETE FROM outbox WHERE payload LIKE ?", arguments: ["%\"userId\":\"\(old)\"%"])
+            } else {
+                for t in WorkoutStore.allTables {
+                    try db.execute(sql: "UPDATE \(t.tableName) SET userId = ? WHERE userId = ?", arguments: [new, old])
+                }
+                try db.execute(sql: "UPDATE outbox SET payload = replace(payload, ?, ?)", arguments: ["\"userId\":\"\(old)\"", "\"userId\":\"\(new)\""])
+            }
+        }
     }
 
     func signOut() {
