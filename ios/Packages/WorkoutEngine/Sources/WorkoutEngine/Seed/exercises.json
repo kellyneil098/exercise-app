@@ -1,0 +1,1000 @@
+{
+  "$comment": [
+    "Exercise catalog. movement_pattern determines both the slot it can fill and what it can be swapped for (§3.2, §3.4).",
+    "strength_cluster and day_type are DERIVED from movement_pattern via movement_patterns.json — do not duplicate them here.",
+    "measure: 'reps' (default) or 'seconds' for timed holds. loadable: false means weight never applies; progression is reps then sets (§5.2).",
+    "rep_seconds feeds the time estimate (§4.2). Timed exercises ignore it and use their rep range as seconds.",
+    "dumbbell_based: true exercises are gated by the location's dumbbell_max_weight (§3.1) — this is the rule that stops the app prescribing a lift you cannot load.",
+    "TUNE THIS FILE. Availability at your building gym and personal preference should drive edits, especially the rank_hint values."
+  ],
+  "exercises": [
+    {
+      "key": "barbell_bench_press",
+      "name": "Barbell Bench Press",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "barbell",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "dumbbell_bench_press",
+      "name": "Dumbbell Bench Press",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "dumbbells",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.5,
+      "dumbbell_based": true,
+      "rank_hint": 85
+    },
+    {
+      "key": "machine_chest_press",
+      "name": "Chest Press Machine",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "chest_press_machine"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 70
+    },
+    {
+      "key": "smith_bench_press",
+      "name": "Smith Machine Bench Press",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "smith_machine",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 55
+    },
+    {
+      "key": "weighted_dip",
+      "name": "Weighted Dip",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "dip_station"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 75,
+      "note": "Weight logged is added load, not bodyweight."
+    },
+    {
+      "key": "dumbbell_floor_press",
+      "name": "Dumbbell Floor Press",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 3.5,
+      "dumbbell_based": true,
+      "rank_hint": 45,
+      "note": "Fallback when no bench is available."
+    },
+    {
+      "key": "push_up",
+      "name": "Push-Up",
+      "movement_pattern": "horizontal_press",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "rep_seconds": 2.5,
+      "loadable": false,
+      "rank_hint": 20
+    },
+    {
+      "key": "overhead_press",
+      "name": "Barbell Overhead Press",
+      "movement_pattern": "vertical_press",
+      "required_equipment": [
+        "barbell",
+        "squat_rack"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "dumbbell_shoulder_press",
+      "name": "Dumbbell Shoulder Press",
+      "movement_pattern": "vertical_press",
+      "required_equipment": [
+        "dumbbells",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 85
+    },
+    {
+      "key": "machine_shoulder_press",
+      "name": "Shoulder Press Machine",
+      "movement_pattern": "vertical_press",
+      "required_equipment": [
+        "shoulder_press_machine"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 70
+    },
+    {
+      "key": "arnold_press",
+      "name": "Arnold Press",
+      "movement_pattern": "vertical_press",
+      "required_equipment": [
+        "dumbbells",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 3.5,
+      "dumbbell_based": true,
+      "rank_hint": 50
+    },
+    {
+      "key": "standing_dumbbell_press",
+      "name": "Standing Dumbbell Press",
+      "movement_pattern": "vertical_press",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 60,
+      "note": "No bench needed — good building-gym fallback."
+    },
+    {
+      "key": "incline_barbell_press",
+      "name": "Incline Barbell Press",
+      "movement_pattern": "incline_press",
+      "required_equipment": [
+        "barbell",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 90
+    },
+    {
+      "key": "incline_dumbbell_press",
+      "name": "Incline Dumbbell Press",
+      "movement_pattern": "incline_press",
+      "required_equipment": [
+        "dumbbells",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 100
+    },
+    {
+      "key": "incline_smith_press",
+      "name": "Incline Smith Press",
+      "movement_pattern": "incline_press",
+      "required_equipment": [
+        "smith_machine",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 55
+    },
+    {
+      "key": "decline_push_up",
+      "name": "Feet-Elevated Push-Up",
+      "movement_pattern": "incline_press",
+      "required_equipment": [
+        "bodyweight",
+        "bench_flat"
+      ],
+      "rep_seconds": 2.5,
+      "loadable": false,
+      "rank_hint": 20
+    },
+    {
+      "key": "dumbbell_fly",
+      "name": "Dumbbell Fly",
+      "movement_pattern": "chest_fly",
+      "required_equipment": [
+        "dumbbells",
+        "bench_flat"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 70
+    },
+    {
+      "key": "cable_fly",
+      "name": "Cable Fly",
+      "movement_pattern": "chest_fly",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 90
+    },
+    {
+      "key": "pec_deck_fly",
+      "name": "Pec Deck Fly",
+      "movement_pattern": "chest_fly",
+      "required_equipment": [
+        "pec_deck"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 80
+    },
+    {
+      "key": "dumbbell_lateral_raise",
+      "name": "Dumbbell Lateral Raise",
+      "movement_pattern": "lateral_raise",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 100
+    },
+    {
+      "key": "cable_lateral_raise",
+      "name": "Cable Lateral Raise",
+      "movement_pattern": "lateral_raise",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 85
+    },
+    {
+      "key": "lean_away_lateral_raise",
+      "name": "Lean-Away Cable Lateral Raise",
+      "movement_pattern": "lateral_raise",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 60
+    },
+    {
+      "key": "cable_pushdown",
+      "name": "Cable Triceps Pushdown",
+      "movement_pattern": "triceps_extension",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "overhead_cable_extension",
+      "name": "Overhead Cable Extension",
+      "movement_pattern": "triceps_extension",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 80
+    },
+    {
+      "key": "skullcrusher",
+      "name": "Skullcrusher",
+      "movement_pattern": "triceps_extension",
+      "required_equipment": [
+        "barbell",
+        "bench_flat"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 70
+    },
+    {
+      "key": "dumbbell_overhead_extension",
+      "name": "Dumbbell Overhead Extension",
+      "movement_pattern": "triceps_extension",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 75
+    },
+    {
+      "key": "close_grip_bench_press",
+      "name": "Close-Grip Bench Press",
+      "movement_pattern": "triceps_extension",
+      "required_equipment": [
+        "barbell",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 60
+    },
+    {
+      "key": "bench_dip",
+      "name": "Bench Dip",
+      "movement_pattern": "triceps_extension",
+      "required_equipment": [
+        "bodyweight",
+        "bench_flat"
+      ],
+      "rep_seconds": 2.5,
+      "loadable": false,
+      "rank_hint": 25
+    },
+    {
+      "key": "weighted_pull_up",
+      "name": "Weighted Pull-Up",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "pull_up_bar"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 100,
+      "note": "Weight logged is added load."
+    },
+    {
+      "key": "pull_up",
+      "name": "Pull-Up",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "pull_up_bar"
+      ],
+      "rep_seconds": 3.0,
+      "loadable": false,
+      "rank_hint": 80
+    },
+    {
+      "key": "chin_up",
+      "name": "Chin-Up",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "pull_up_bar"
+      ],
+      "rep_seconds": 3.0,
+      "loadable": false,
+      "rank_hint": 60
+    },
+    {
+      "key": "lat_pulldown",
+      "name": "Lat Pulldown",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "lat_pulldown"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 90
+    },
+    {
+      "key": "neutral_grip_pulldown",
+      "name": "Neutral-Grip Pulldown",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "lat_pulldown"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 70
+    },
+    {
+      "key": "barbell_row",
+      "name": "Barbell Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "pendlay_row",
+      "name": "Pendlay Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 65
+    },
+    {
+      "key": "t_bar_row",
+      "name": "T-Bar Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 75
+    },
+    {
+      "key": "chest_supported_row",
+      "name": "Chest-Supported Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "row_machine_chest_supported"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 85
+    },
+    {
+      "key": "seated_cable_row",
+      "name": "Seated Cable Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "seated_row_machine"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 90
+    },
+    {
+      "key": "single_arm_dumbbell_row",
+      "name": "Single-Arm Dumbbell Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "dumbbells",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 80,
+      "note": "Critical fallback — often the only rowing option at a small gym."
+    },
+    {
+      "key": "inverted_row",
+      "name": "Inverted Row",
+      "movement_pattern": "horizontal_row",
+      "required_equipment": [
+        "bodyweight",
+        "squat_rack"
+      ],
+      "rep_seconds": 2.5,
+      "loadable": false,
+      "rank_hint": 25
+    },
+    {
+      "key": "reverse_pec_deck",
+      "name": "Reverse Pec Deck",
+      "movement_pattern": "rear_delt",
+      "required_equipment": [
+        "pec_deck"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 90
+    },
+    {
+      "key": "dumbbell_rear_delt_fly",
+      "name": "Dumbbell Rear Delt Fly",
+      "movement_pattern": "rear_delt",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 85
+    },
+    {
+      "key": "cable_reverse_fly",
+      "name": "Cable Reverse Fly",
+      "movement_pattern": "rear_delt",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 80
+    },
+    {
+      "key": "face_pull",
+      "name": "Face Pull",
+      "movement_pattern": "rear_delt",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "barbell_curl",
+      "name": "Barbell Curl",
+      "movement_pattern": "elbow_flexion",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 85
+    },
+    {
+      "key": "dumbbell_curl",
+      "name": "Dumbbell Curl",
+      "movement_pattern": "elbow_flexion",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 100
+    },
+    {
+      "key": "hammer_curl",
+      "name": "Hammer Curl",
+      "movement_pattern": "elbow_flexion",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 90
+    },
+    {
+      "key": "cable_curl",
+      "name": "Cable Curl",
+      "movement_pattern": "elbow_flexion",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 80
+    },
+    {
+      "key": "preacher_curl",
+      "name": "Preacher Curl",
+      "movement_pattern": "elbow_flexion",
+      "required_equipment": [
+        "preacher_bench",
+        "barbell"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 60
+    },
+    {
+      "key": "incline_dumbbell_curl",
+      "name": "Incline Dumbbell Curl",
+      "movement_pattern": "elbow_flexion",
+      "required_equipment": [
+        "dumbbells",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 2.5,
+      "dumbbell_based": true,
+      "rank_hint": 70
+    },
+    {
+      "key": "back_squat",
+      "name": "Back Squat",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "barbell",
+        "squat_rack"
+      ],
+      "rep_seconds": 4.0,
+      "rank_hint": 100
+    },
+    {
+      "key": "front_squat",
+      "name": "Front Squat",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "barbell",
+        "squat_rack"
+      ],
+      "rep_seconds": 4.0,
+      "rank_hint": 70
+    },
+    {
+      "key": "hack_squat",
+      "name": "Hack Squat",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "hack_squat"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 85
+    },
+    {
+      "key": "leg_press",
+      "name": "Leg Press",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "leg_press"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 80
+    },
+    {
+      "key": "smith_squat",
+      "name": "Smith Machine Squat",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "smith_machine"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 55
+    },
+    {
+      "key": "goblet_squat",
+      "name": "Goblet Squat",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 3.5,
+      "dumbbell_based": true,
+      "rank_hint": 45,
+      "note": "Caps out fast — dumbbell_max_weight will disqualify this early."
+    },
+    {
+      "key": "bulgarian_split_squat",
+      "name": "Bulgarian Split Squat",
+      "movement_pattern": "squat",
+      "required_equipment": [
+        "dumbbells",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.5,
+      "dumbbell_based": true,
+      "rank_hint": 60
+    },
+    {
+      "key": "deadlift",
+      "name": "Conventional Deadlift",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 4.0,
+      "rank_hint": 100
+    },
+    {
+      "key": "trap_bar_deadlift",
+      "name": "Trap Bar Deadlift",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 4.0,
+      "rank_hint": 80
+    },
+    {
+      "key": "romanian_deadlift",
+      "name": "Romanian Deadlift",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "barbell"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 90
+    },
+    {
+      "key": "dumbbell_romanian_deadlift",
+      "name": "Dumbbell Romanian Deadlift",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 3.5,
+      "dumbbell_based": true,
+      "rank_hint": 70
+    },
+    {
+      "key": "barbell_hip_thrust",
+      "name": "Barbell Hip Thrust",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "barbell",
+        "hip_thrust_bench"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 60
+    },
+    {
+      "key": "good_morning",
+      "name": "Good Morning",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "barbell",
+        "squat_rack"
+      ],
+      "rep_seconds": 3.5,
+      "rank_hint": 40
+    },
+    {
+      "key": "kettlebell_swing",
+      "name": "Kettlebell Swing",
+      "movement_pattern": "hinge",
+      "required_equipment": [
+        "kettlebell"
+      ],
+      "rep_seconds": 2.0,
+      "rank_hint": 35
+    },
+    {
+      "key": "leg_extension",
+      "name": "Leg Extension",
+      "movement_pattern": "quad_isolation",
+      "required_equipment": [
+        "leg_extension"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "walking_lunge",
+      "name": "Walking Lunge",
+      "movement_pattern": "quad_isolation",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 80
+    },
+    {
+      "key": "step_up",
+      "name": "Dumbbell Step-Up",
+      "movement_pattern": "quad_isolation",
+      "required_equipment": [
+        "dumbbells",
+        "bench_flat"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 65
+    },
+    {
+      "key": "reverse_lunge",
+      "name": "Reverse Lunge",
+      "movement_pattern": "quad_isolation",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 70
+    },
+    {
+      "key": "lying_leg_curl",
+      "name": "Lying Leg Curl",
+      "movement_pattern": "hamstring_isolation",
+      "required_equipment": [
+        "leg_curl"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 100
+    },
+    {
+      "key": "seated_leg_curl",
+      "name": "Seated Leg Curl",
+      "movement_pattern": "hamstring_isolation",
+      "required_equipment": [
+        "leg_curl"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 95
+    },
+    {
+      "key": "cable_pull_through",
+      "name": "Cable Pull-Through",
+      "movement_pattern": "hamstring_isolation",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 70
+    },
+    {
+      "key": "nordic_curl",
+      "name": "Nordic Hamstring Curl",
+      "movement_pattern": "hamstring_isolation",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "rep_seconds": 4.0,
+      "loadable": false,
+      "rank_hint": 30
+    },
+    {
+      "key": "standing_calf_raise",
+      "name": "Standing Calf Raise",
+      "movement_pattern": "calf",
+      "required_equipment": [
+        "calf_raise_machine"
+      ],
+      "rep_seconds": 2.0,
+      "rank_hint": 100
+    },
+    {
+      "key": "seated_calf_raise",
+      "name": "Seated Calf Raise",
+      "movement_pattern": "calf",
+      "required_equipment": [
+        "calf_raise_machine"
+      ],
+      "rep_seconds": 2.0,
+      "rank_hint": 85
+    },
+    {
+      "key": "dumbbell_calf_raise",
+      "name": "Dumbbell Calf Raise",
+      "movement_pattern": "calf",
+      "required_equipment": [
+        "dumbbells"
+      ],
+      "rep_seconds": 2.0,
+      "dumbbell_based": true,
+      "rank_hint": 70
+    },
+    {
+      "key": "bodyweight_calf_raise",
+      "name": "Bodyweight Calf Raise",
+      "movement_pattern": "calf",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "rep_seconds": 2.0,
+      "loadable": false,
+      "rank_hint": 40
+    },
+    {
+      "key": "hanging_leg_raise",
+      "name": "Hanging Leg Raise",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "pull_up_bar"
+      ],
+      "rep_seconds": 3.0,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 100
+    },
+    {
+      "key": "cable_crunch",
+      "name": "Cable Crunch",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "supersettable": true,
+      "rank_hint": 95
+    },
+    {
+      "key": "ab_wheel_rollout",
+      "name": "Ab Wheel Rollout",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "ab_wheel"
+      ],
+      "rep_seconds": 3.5,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 85
+    },
+    {
+      "key": "decline_sit_up",
+      "name": "Decline Sit-Up",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "decline_bench"
+      ],
+      "rep_seconds": 2.5,
+      "supersettable": true,
+      "rank_hint": 75,
+      "note": "Loadable by holding a plate."
+    },
+    {
+      "key": "pallof_press",
+      "name": "Pallof Press",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 3.0,
+      "supersettable": true,
+      "rank_hint": 70
+    },
+    {
+      "key": "plank",
+      "name": "Plank",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "measure": "seconds",
+      "range_low": 45,
+      "range_high": 90,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 60
+    },
+    {
+      "key": "side_plank",
+      "name": "Side Plank",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "measure": "seconds",
+      "range_low": 30,
+      "range_high": 60,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 45
+    },
+    {
+      "key": "hollow_hold",
+      "name": "Hollow Body Hold",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "measure": "seconds",
+      "range_low": 30,
+      "range_high": 60,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 50
+    },
+    {
+      "key": "dead_bug",
+      "name": "Dead Bug",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "rep_seconds": 3.0,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 40
+    },
+    {
+      "key": "russian_twist",
+      "name": "Russian Twist",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "rep_seconds": 2.0,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 35
+    },
+    {
+      "key": "bird_dog",
+      "name": "Bird Dog",
+      "movement_pattern": "core",
+      "required_equipment": [
+        "bodyweight"
+      ],
+      "rep_seconds": 3.0,
+      "loadable": false,
+      "supersettable": true,
+      "rank_hint": 30
+    },
+    {
+      "key": "seated_dumbbell_press",
+      "name": "Seated Dumbbell Press",
+      "movement_pattern": "vertical_press",
+      "required_equipment": [
+        "dumbbells",
+        "bench_adjustable"
+      ],
+      "rep_seconds": 3.0,
+      "dumbbell_based": true,
+      "rank_hint": 75
+    },
+    {
+      "key": "kneeling_cable_pulldown",
+      "name": "Kneeling Cable Pulldown",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 3.0,
+      "rank_hint": 65,
+      "note": "Critical fallback — the only vertical pull available at a gym with a functional trainer but no pull-up bar or pulldown station."
+    },
+    {
+      "key": "straight_arm_pulldown",
+      "name": "Straight-Arm Pulldown",
+      "movement_pattern": "vertical_pull",
+      "required_equipment": [
+        "cable_machine"
+      ],
+      "rep_seconds": 2.5,
+      "rank_hint": 40
+    }
+  ]
+}

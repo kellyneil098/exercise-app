@@ -179,7 +179,7 @@ def main():
         gaps += check_coverage(mp, ex, all_equipment, 120, "Crunch Union Square (everything)")
     if args.gym in ("minimal", "both"):
         gaps += check_coverage(mp, ex, MINIMAL_GYM, MINIMAL_GYM_DUMBBELL_MAX,
-                               "Building Gym (assumed minimal)")
+                               "The Victoria (assumed minimal)")
 
     if gaps:
         print("\n--- SLOTS THAT CANNOT BE FILLED ---")

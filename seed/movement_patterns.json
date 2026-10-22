@@ -1,66 +1,402 @@
 {
   "$comment": "movement_pattern drives substitution (§3.2): two exercises sharing a pattern are valid swaps. strength_cluster drives rebaselining (§4.4): growth transfers only within a cluster. They are deliberately NOT the same axis — e.g. barbell_row and chest_supported_row share both, but weighted_pull_up and lat_pulldown share a pattern while sitting in the same cluster as barbell_row does not.",
-
   "movement_patterns": [
-    { "key": "horizontal_press",    "day_type": "push",  "cluster": "horizontal_press" },
-    { "key": "vertical_press",      "day_type": "push",  "cluster": "vertical_press" },
-    { "key": "incline_press",       "day_type": "push",  "cluster": "horizontal_press" },
-    { "key": "chest_fly",           "day_type": "push",  "cluster": "chest_isolation" },
-    { "key": "lateral_raise",       "day_type": "push",  "cluster": "lateral_delt" },
-    { "key": "triceps_extension",   "day_type": "push",  "cluster": "triceps" },
-
-    { "key": "vertical_pull",       "day_type": "pull",  "cluster": "vertical_pull" },
-    { "key": "horizontal_row",      "day_type": "pull",  "cluster": "row" },
-    { "key": "rear_delt",           "day_type": "pull",  "cluster": "rear_delt" },
-    { "key": "elbow_flexion",       "day_type": "pull",  "cluster": "elbow_flexion" },
-
-    { "key": "squat",               "day_type": "legs",  "cluster": "squat" },
-    { "key": "hinge",               "day_type": "legs",  "cluster": "hinge" },
-    { "key": "quad_isolation",      "day_type": "legs",  "cluster": "quad_isolation" },
-    { "key": "hamstring_isolation", "day_type": "legs",  "cluster": "hamstring_isolation" },
-    { "key": "calf",                "day_type": "legs",  "cluster": "calf" },
-
-    { "key": "core",                "day_type": "any",   "cluster": "core" }
+    {
+      "key": "horizontal_press",
+      "day_type": "push",
+      "cluster": "horizontal_press"
+    },
+    {
+      "key": "vertical_press",
+      "day_type": "push",
+      "cluster": "vertical_press"
+    },
+    {
+      "key": "incline_press",
+      "day_type": "push",
+      "cluster": "horizontal_press"
+    },
+    {
+      "key": "chest_fly",
+      "day_type": "push",
+      "cluster": "chest_isolation"
+    },
+    {
+      "key": "lateral_raise",
+      "day_type": "push",
+      "cluster": "lateral_delt"
+    },
+    {
+      "key": "triceps_extension",
+      "day_type": "push",
+      "cluster": "triceps"
+    },
+    {
+      "key": "vertical_pull",
+      "day_type": "pull",
+      "cluster": "vertical_pull"
+    },
+    {
+      "key": "horizontal_row",
+      "day_type": "pull",
+      "cluster": "row"
+    },
+    {
+      "key": "rear_delt",
+      "day_type": "pull",
+      "cluster": "rear_delt"
+    },
+    {
+      "key": "elbow_flexion",
+      "day_type": "pull",
+      "cluster": "elbow_flexion"
+    },
+    {
+      "key": "squat",
+      "day_type": "legs",
+      "cluster": "squat"
+    },
+    {
+      "key": "hinge",
+      "day_type": "legs",
+      "cluster": "hinge"
+    },
+    {
+      "key": "quad_isolation",
+      "day_type": "legs",
+      "cluster": "quad_isolation"
+    },
+    {
+      "key": "hamstring_isolation",
+      "day_type": "legs",
+      "cluster": "hamstring_isolation"
+    },
+    {
+      "key": "calf",
+      "day_type": "legs",
+      "cluster": "calf"
+    },
+    {
+      "key": "core",
+      "day_type": "any",
+      "cluster": "core"
+    }
   ],
-
-  "$comment_slots": "Slots are priority-ordered (§4.1). omit_if_slot1_pattern drops the slot when the heavy rotation already used that pattern. alt_pattern_if_slot1_pattern swaps the slot's pattern instead, so leg day always carries one squat and one hinge. Slot 7 only ever fits at 60/90 minutes. band=heavy slots require loadable exercises.",
-
+  "$comment_slots": "Slots are priority-ordered (§4.1). omit_if_slot1_pattern drops the slot when the heavy rotation already used that pattern. alt_pattern_if_slot1_pattern swaps the slot's pattern instead, so leg day always carries one squat and one hinge. Slot 7 only ever fits at 60/90 minutes. band=heavy slots require loadable exercises. full_body is a standalone program (it repeats rather than rotating into push/pull/legs): one press, one row/pull and one squat/hinge after the heavy slot, with the alt rules keeping each pair balanced against whatever the heavy rotation landed on.",
   "$comment_hinge": "hinge appears in the pull-day heavy rotation as well as on leg day (§3.4). The pattern's day_type is its home, not a restriction — the heavy rotation may pull it onto pull day.",
-
   "slot_templates": {
     "push": [
-      { "slot": 1, "pattern": "heavy_rotation",     "sets": 4, "rep_low": 5,  "rep_high": 8,  "rest_seconds": 180, "band": "heavy",  "warmup_sets": 2 },
-      { "slot": 2, "pattern": "vertical_press",     "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 120, "band": "medium", "warmup_sets": 0, "omit_if_slot1_pattern": "vertical_press" },
-      { "slot": 3, "pattern": "incline_press",      "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 90,  "band": "medium", "warmup_sets": 0 },
-      { "slot": 4, "pattern": "triceps_extension",  "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 75,  "band": "medium", "warmup_sets": 0 },
-      { "slot": 5, "pattern": "lateral_raise",      "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0 },
-      { "slot": 6, "pattern": "core",               "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0, "superset": true },
-      { "slot": 7, "pattern": "chest_fly",          "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0 }
+      {
+        "slot": 1,
+        "pattern": "heavy_rotation",
+        "sets": 4,
+        "rep_low": 5,
+        "rep_high": 8,
+        "rest_seconds": 180,
+        "band": "heavy",
+        "warmup_sets": 2
+      },
+      {
+        "slot": 2,
+        "pattern": "vertical_press",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 120,
+        "band": "medium",
+        "warmup_sets": 0,
+        "omit_if_slot1_pattern": "vertical_press"
+      },
+      {
+        "slot": 3,
+        "pattern": "incline_press",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 90,
+        "band": "medium",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 4,
+        "pattern": "triceps_extension",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 75,
+        "band": "medium",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 5,
+        "pattern": "lateral_raise",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 6,
+        "pattern": "core",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0,
+        "superset": true
+      },
+      {
+        "slot": 7,
+        "pattern": "chest_fly",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0
+      }
     ],
     "pull": [
-      { "slot": 1, "pattern": "heavy_rotation",     "sets": 4, "rep_low": 5,  "rep_high": 8,  "rest_seconds": 180, "band": "heavy",  "warmup_sets": 2 },
-      { "slot": 2, "pattern": "vertical_pull",      "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 120, "band": "medium", "warmup_sets": 0 },
-      { "slot": 3, "pattern": "horizontal_row",     "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 90,  "band": "medium", "warmup_sets": 0, "omit_if_slot1_pattern": "horizontal_row" },
-      { "slot": 4, "pattern": "elbow_flexion",      "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 75,  "band": "medium", "warmup_sets": 0 },
-      { "slot": 5, "pattern": "rear_delt",          "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0 },
-      { "slot": 6, "pattern": "core",               "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0, "superset": true }
+      {
+        "slot": 1,
+        "pattern": "heavy_rotation",
+        "sets": 4,
+        "rep_low": 5,
+        "rep_high": 8,
+        "rest_seconds": 180,
+        "band": "heavy",
+        "warmup_sets": 2
+      },
+      {
+        "slot": 2,
+        "pattern": "vertical_pull",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 120,
+        "band": "medium",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 3,
+        "pattern": "horizontal_row",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 90,
+        "band": "medium",
+        "warmup_sets": 0,
+        "omit_if_slot1_pattern": "horizontal_row"
+      },
+      {
+        "slot": 4,
+        "pattern": "elbow_flexion",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 75,
+        "band": "medium",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 5,
+        "pattern": "rear_delt",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 6,
+        "pattern": "core",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0,
+        "superset": true
+      }
     ],
     "legs": [
-      { "slot": 1, "pattern": "heavy_rotation",     "sets": 4, "rep_low": 5,  "rep_high": 8,  "rest_seconds": 180, "band": "heavy",  "warmup_sets": 2 },
-      { "slot": 2, "pattern": "hinge",              "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 120, "band": "medium", "warmup_sets": 0, "alt_pattern_if_slot1_pattern": { "hinge": "squat" } },
-      { "slot": 3, "pattern": "quad_isolation",     "sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 90,  "band": "medium", "warmup_sets": 0 },
-      { "slot": 4, "pattern": "hamstring_isolation","sets": 3, "rep_low": 8,  "rep_high": 12, "rest_seconds": 90,  "band": "medium", "warmup_sets": 0 },
-      { "slot": 5, "pattern": "calf",               "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0 },
-      { "slot": 6, "pattern": "core",               "sets": 3, "rep_low": 15, "rep_high": 20, "rest_seconds": 60,  "band": "volume", "warmup_sets": 0, "superset": true }
+      {
+        "slot": 1,
+        "pattern": "heavy_rotation",
+        "sets": 4,
+        "rep_low": 5,
+        "rep_high": 8,
+        "rest_seconds": 180,
+        "band": "heavy",
+        "warmup_sets": 2
+      },
+      {
+        "slot": 2,
+        "pattern": "hinge",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 120,
+        "band": "medium",
+        "warmup_sets": 0,
+        "alt_pattern_if_slot1_pattern": {
+          "hinge": "squat"
+        }
+      },
+      {
+        "slot": 3,
+        "pattern": "quad_isolation",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 90,
+        "band": "medium",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 4,
+        "pattern": "hamstring_isolation",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 90,
+        "band": "medium",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 5,
+        "pattern": "calf",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 6,
+        "pattern": "core",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0,
+        "superset": true
+      }
+    ],
+    "full_body": [
+      {
+        "slot": 1,
+        "pattern": "heavy_rotation",
+        "sets": 4,
+        "rep_low": 5,
+        "rep_high": 8,
+        "rest_seconds": 180,
+        "band": "heavy",
+        "warmup_sets": 2
+      },
+      {
+        "slot": 2,
+        "pattern": "horizontal_press",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 120,
+        "band": "medium",
+        "warmup_sets": 0,
+        "alt_pattern_if_slot1_pattern": {
+          "horizontal_press": "vertical_press"
+        }
+      },
+      {
+        "slot": 3,
+        "pattern": "horizontal_row",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 120,
+        "band": "medium",
+        "warmup_sets": 0,
+        "alt_pattern_if_slot1_pattern": {
+          "horizontal_row": "vertical_pull"
+        }
+      },
+      {
+        "slot": 4,
+        "pattern": "squat",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 120,
+        "band": "medium",
+        "warmup_sets": 0,
+        "alt_pattern_if_slot1_pattern": {
+          "squat": "hinge",
+          "hinge": "squat"
+        }
+      },
+      {
+        "slot": 5,
+        "pattern": "core",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0,
+        "superset": true
+      },
+      {
+        "slot": 6,
+        "pattern": "lateral_raise",
+        "sets": 3,
+        "rep_low": 15,
+        "rep_high": 20,
+        "rest_seconds": 60,
+        "band": "volume",
+        "warmup_sets": 0
+      },
+      {
+        "slot": 7,
+        "pattern": "elbow_flexion",
+        "sets": 3,
+        "rep_low": 8,
+        "rep_high": 12,
+        "rest_seconds": 75,
+        "band": "medium",
+        "warmup_sets": 0
+      }
     ]
   },
-
   "heavy_rotation_defaults": {
-    "push": ["horizontal_press", "horizontal_press", "vertical_press"],
-    "pull": ["horizontal_row", "hinge"],
-    "legs": ["squat", "squat", "squat", "hinge"]
+    "push": [
+      "horizontal_press",
+      "horizontal_press",
+      "vertical_press"
+    ],
+    "pull": [
+      "horizontal_row",
+      "hinge"
+    ],
+    "legs": [
+      "squat",
+      "squat",
+      "squat",
+      "hinge"
+    ],
+    "full_body": [
+      "squat",
+      "horizontal_press",
+      "horizontal_row",
+      "hinge",
+      "vertical_press"
+    ]
   },
-
   "progression_steps_lb": {
     "heavy_upper": 5,
     "heavy_lower": 10,
@@ -70,43 +406,42 @@
     "volume_fallback": 5,
     "$comment": "volume_fallback applies when the location does not stock 2.5 lb increments — a coarse step beats stalling the exercise."
   },
-
   "ratio_table": {
     "$comment": "Cold-start estimates ONLY, for exercises never performed (§4.3). NOT used for rebaselining, which transfers relative growth instead (§4.4). Values are 'to' as a multiple of 'from'. Dumbbell targets are PER HAND.",
     "barbell_bench_press": {
       "dumbbell_bench_press": 0.42,
-      "machine_chest_press": 0.90,
+      "machine_chest_press": 0.9,
       "incline_barbell_press": 0.82,
       "incline_dumbbell_press": 0.36,
       "weighted_dip_added_load": 0.25
     },
     "overhead_press": {
-      "dumbbell_shoulder_press": 0.40,
+      "dumbbell_shoulder_press": 0.4,
       "machine_shoulder_press": 0.95,
       "seated_dumbbell_press": 0.38
     },
     "back_squat": {
-      "leg_press": 1.80,
-      "hack_squat": 1.10,
-      "front_squat": 0.80,
-      "goblet_squat": 0.30,
+      "leg_press": 1.8,
+      "hack_squat": 1.1,
+      "front_squat": 0.8,
+      "goblet_squat": 0.3,
       "bulgarian_split_squat": 0.25
     },
     "deadlift": {
       "romanian_deadlift": 0.65,
-      "dumbbell_romanian_deadlift": 0.30,
+      "dumbbell_romanian_deadlift": 0.3,
       "trap_bar_deadlift": 1.05,
-      "barbell_hip_thrust": 0.90
+      "barbell_hip_thrust": 0.9
     },
     "barbell_row": {
       "chest_supported_row": 0.85,
-      "seated_cable_row": 0.90,
+      "seated_cable_row": 0.9,
       "single_arm_dumbbell_row": 0.35,
       "t_bar_row": 0.95
     },
     "lat_pulldown": {
-      "weighted_pull_up_added_load": 0.30,
-      "straight_arm_pulldown": 0.40
+      "weighted_pull_up_added_load": 0.3,
+      "straight_arm_pulldown": 0.4
     }
   }
 }

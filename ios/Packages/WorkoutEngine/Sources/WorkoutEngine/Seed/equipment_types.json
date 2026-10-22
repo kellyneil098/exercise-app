@@ -1,0 +1,53 @@
+{
+  "$comment": "Equipment vocabulary. Every exercise.required_equipment entry must be a key from this file. Keep keys stable — they are foreign keys in location_equipment.",
+  "equipment_types": [
+    { "key": "bodyweight",             "label": "Bodyweight only",            "note": "Always available everywhere. Never gates an exercise." },
+    { "key": "barbell",                "label": "Barbell + plates",           "note": "Assumes a standard 45 lb bar." },
+    { "key": "squat_rack",             "label": "Squat rack or power rack",   "note": "Required for any barbell lift unracked from shoulder height." },
+    { "key": "bench_flat",             "label": "Flat bench",                 "note": null },
+    { "key": "bench_adjustable",       "label": "Adjustable/incline bench",   "note": "Implies bench_flat is also available." },
+    { "key": "dumbbells",              "label": "Dumbbells",                  "note": "Set dumbbell_max_weight on location_equipment. This gates exercises per §3.1." },
+    { "key": "kettlebell",             "label": "Kettlebells",                "note": null },
+    { "key": "cable_machine",          "label": "Cable machine / functional trainer", "note": "Adjustable-height pulley." },
+    { "key": "lat_pulldown",           "label": "Lat pulldown station",       "note": null },
+    { "key": "seated_row_machine",     "label": "Seated cable row",           "note": null },
+    { "key": "chest_press_machine",    "label": "Chest press machine",        "note": null },
+    { "key": "shoulder_press_machine", "label": "Shoulder press machine",     "note": null },
+    { "key": "pec_deck",               "label": "Pec deck / rear delt fly machine", "note": "Most units do both directions." },
+    { "key": "row_machine_chest_supported", "label": "Chest-supported row machine", "note": null },
+    { "key": "smith_machine",          "label": "Smith machine",              "note": null },
+    { "key": "leg_press",              "label": "Leg press",                  "note": null },
+    { "key": "hack_squat",             "label": "Hack squat machine",         "note": null },
+    { "key": "leg_extension",          "label": "Leg extension machine",      "note": null },
+    { "key": "leg_curl",               "label": "Leg curl machine",           "note": "Seated or lying." },
+    { "key": "calf_raise_machine",     "label": "Calf raise machine",         "note": null },
+    { "key": "hip_thrust_bench",       "label": "Bench or pad for hip thrusts", "note": null },
+    { "key": "pull_up_bar",            "label": "Pull-up bar",                "note": null },
+    { "key": "dip_station",            "label": "Dip bars / assisted dip machine", "note": null },
+    { "key": "preacher_bench",         "label": "Preacher curl bench",        "note": null },
+    { "key": "ab_wheel",               "label": "Ab wheel",                   "note": null },
+    { "key": "decline_bench",          "label": "Decline / sit-up bench",     "note": null },
+    { "key": "treadmill",              "label": "Treadmill",                  "note": "Running only. Not used by the strength generator." }
+  ],
+
+  "locations": [
+    {
+      "key": "building_gym",
+      "name": "The Victoria",
+      "kind": "home_gym",
+      "$comment": "Everything defaults to UNAVAILABLE. Check off what is actually there during onboarding, and set dumbbell_max_weight — that number materially changes what the generator prescribes.",
+      "default_available": false,
+      "dumbbell_max_weight": null,
+      "plate_increment": 5
+    },
+    {
+      "key": "crunch_union_square",
+      "name": "Crunch Union Square",
+      "kind": "commercial",
+      "$comment": "Everything defaults to AVAILABLE. Uncheck anything missing as you discover it.",
+      "default_available": true,
+      "dumbbell_max_weight": 120,
+      "plate_increment": 2.5
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+name: TestFlight
+# Archives the app and uploads it to App Store Connect (internal TestFlight). Needs these repo secrets:
+#   APP_STORE_CONNECT_KEY_ID           App Store Connect API key ID
+#   APP_STORE_CONNECT_ISSUER_ID        App Store Connect issuer ID
+#   APP_STORE_CONNECT_KEY_P8           contents of the AuthKey_<KEY_ID>.p8 file
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  APPLE_TEAM_ID: V74SR2AB3N   # not a secret: the Team ID ships inside every signed bundle
+
+jobs:
+  upload:
+    runs-on: macos-15
+    defaults: { run: { working-directory: ios/WorkoutApp } }
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: App Store Connect API key
+        run: |
+          # Re-wrap the PEM so the secret works whether it was pasted with or without line breaks.
+          mkdir -p ~/private_keys
+          python3 - <<'PY' > ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+          import os, re
+          b = re.sub(r"[^A-Za-z0-9+/=]", "", re.sub(r"-----(BEGIN|END) PRIVATE KEY-----", "", os.environ["APP_STORE_CONNECT_KEY_P8"]))
+          print("-----BEGIN PRIVATE KEY-----\n" + "\n".join(b[i:i+64] for i in range(0, len(b), 64)) + "\n-----END PRIVATE KEY-----")
+          PY
+        env:
+          APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      - name: Archive
+        # Unsigned archive; the export step signs with an App Store distribution profile. (A signed archive would
+        # need a development profile, which Apple refuses to issue for a team with no registered devices.)
+        run: |
+          xcodebuild -project WorkoutApp.xcodeproj -scheme WorkoutApp -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/WorkoutApp.xcarchive -quiet archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Upload to TestFlight
+        run: |
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/WorkoutApp.xcarchive -exportPath build/export \
+            -exportOptionsPlist build/ExportOptions.plist -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

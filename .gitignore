@@ -17,3 +17,11 @@ __pycache__/
 
 # env
 .env
+server/.venv/
+server/*.db
+server/.env
+ios/Packages/*/.build/
+ios/Packages/*/.swiftpm/
+*.xcodeproj/xcuserdata/
+ios/WorkoutApp/WorkoutApp.xcodeproj/
+ios/WorkoutApp/build/
