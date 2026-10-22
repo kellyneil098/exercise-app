@@ -334,7 +334,15 @@ final class AppModel {
         // its history stays its own: anything it still has to upload goes out under its own token first, then
         // its rows are purged from this device on the next pull.
         let oldWasAnotherAccount = serverUserId != old && Keychain.get(Keychain.serverIssuedUserIdKey) == old
-        if oldWasAnotherAccount, Keychain.get(Keychain.tokenKey) != nil { await syncIfPossible() }
+        if oldWasAnotherAccount {
+            if Keychain.get(Keychain.tokenKey) != nil { await syncIfPossible() }
+            let pending = pendingUploads(for: old)
+            if pending > 0 {
+                // Never switch while the previous account still has unsent sets: they'd be unrecoverable once its rows are purged.
+                lastSyncError = "\(pending) change\(pending == 1 ? "" : "s") from the previous account haven't uploaded yet. Get online and sign in again."
+                return
+            }
+        }
         Keychain.set(token, for: Keychain.tokenKey)
         if serverUserId != userId {
             moveLocalRows(from: old, to: serverUserId, keepOldAccountRows: oldWasAnotherAccount)
@@ -344,6 +352,10 @@ final class AppModel {
         }
         Keychain.set(serverUserId, for: Keychain.serverIssuedUserIdKey)
         await syncIfPossible()
+    }
+
+    private func pendingUploads(for user: String) -> Int {
+        (try? store.db.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM outbox WHERE payload LIKE ?", arguments: ["%\"userId\":\"\(user)\"%"]) }) ?? 0
     }
 
     /// Synchronous on purpose: inside an async context GRDB's `write` resolves to its async overload.
