@@ -208,7 +208,7 @@ struct PlanPreview: View {
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(b.isSupersetted ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
-                                    .lineLimit(1).minimumScaleFactor(0.8)
+                                    .lineLimit(2).minimumScaleFactor(0.85)
                                 Text(b.band == .heavy ? "Heavy" : b.isSupersetted ? "Superset" : b.pattern.replacingOccurrences(of: "_", with: " ").capitalized)
                                     .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                             }
