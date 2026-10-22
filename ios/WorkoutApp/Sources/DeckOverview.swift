@@ -45,8 +45,8 @@ struct DeckOverview: View {
                 .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
 
                 List {
-                    ForEach(session.activeBlocks) { b in
-                        row(b)
+                    ForEach(Array(session.activeBlocks.enumerated()), id: \.element.id) { i, b in
+                        row(b, index: i)
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(Theme.Colors.hairline)
                             .listRowInsets(rowInsets)
@@ -110,7 +110,7 @@ struct DeckOverview: View {
 
     // MARK: Row
 
-    func row(_ b: PlanBlock) -> some View {
+    func row(_ b: PlanBlock, index: Int) -> some View {
         let done = session.workingSetsDone(b)
         let isCurrent = session.currentBlock?.id == b.id
         let complete = session.isComplete(b)
@@ -123,7 +123,7 @@ struct DeckOverview: View {
                     } else if isCurrent {
                         IconTile("play.fill", tint: tint, size: 40)
                     } else {
-                        IconTile(b.isSupersetted ? "link" : (b.band == .heavy ? "flame" : "circle"), tint: tint, size: 40)
+                        IconTile(b.isSupersetted ? "link" : "\(min(index + 1, 50)).circle", tint: tint, size: 40)
                             .opacity(0.7)
                     }
                 }
@@ -132,15 +132,12 @@ struct DeckOverview: View {
                     if b.band == .heavy || b.isSupersetted {
                         Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
                     }
-                    Text(b.exerciseName).font(Theme.Fonts.bodyMedium)
+                    Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(1).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent ? Theme.Colors.brass : Theme.Colors.textPrimary)
                     Text(summary(b, done: done)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: Theme.Spacing.xs) {
-                    Text("\(done)/\(b.sets)").font(Theme.Fonts.captionBold).foregroundStyle(complete ? Theme.Colors.brass : Theme.Colors.textTertiary)
-                    SetDots(done: done, total: b.sets)
-                }
+                Spacer(minLength: Theme.Spacing.s)
+                SetDots(done: done, total: b.sets)
                 Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
                     .rotationEffect(.degrees(expanded == b.id ? 180 : 0))
             }
