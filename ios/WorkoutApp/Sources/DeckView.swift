@@ -393,6 +393,9 @@ struct RestCard: View {
             }
             Spacer()
         }
+        // The controls row is a no-skip zone: taps between the buttons must not reach the card's tap-to-skip.
+        .contentShape(Rectangle())
+        .onTapGesture {}
     }
 
     func clock(_ t: TimeInterval) -> String {

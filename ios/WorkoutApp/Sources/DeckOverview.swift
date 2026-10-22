@@ -179,8 +179,10 @@ struct DeckOverview: View {
                      in: 1...300, step: b.measure == .seconds ? 5 : 1)
             HStack(spacing: Theme.Spacing.s) {
                 IconControl("arrow.triangle.2.circlepath", label: "Swap") { picker = .swap(b) }
-                IconControl("forward.end", label: "Skip") {
-                    withAnimation(Theme.Motion.quick) { expanded = nil; session.skip(b) }
+                if !session.isComplete(b) {
+                    IconControl("forward.end", label: "Skip") {
+                        withAnimation(Theme.Motion.quick) { expanded = nil; session.skip(b) }
+                    }
                 }
                 if done > 0 { IconControl("arrow.uturn.backward", label: "Undo last set") { session.undoLast(block: b) } }
                 Spacer()

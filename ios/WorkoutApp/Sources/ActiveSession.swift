@@ -133,8 +133,8 @@ final class ActiveSession: Identifiable {
 
     var completedCount: Int { plan.blocks.filter { isComplete($0) }.count }
 
-    /// Blocks in play — the `m` of "n of m" — excludes what was skipped.
-    var deckCount: Int { plan.blocks.count - skipped.count }
+    /// Blocks in play — the `m` of "n of m" — excludes what was skipped (a finished block still counts).
+    var deckCount: Int { plan.blocks.filter { isComplete($0) || !skipped.contains($0.id) }.count }
 
     var remainingCount: Int { plan.blocks.filter { isActive($0) }.count }
 
@@ -229,7 +229,7 @@ final class ActiveSession: Identifiable {
     /// Swipe-left: the block leaves the stack for this session. Sets already logged stay; restorable from the overview.
     func skip(_ block: PlanBlock) {
         skipped.insert(block.id)
-        skipRest()
+        if currentBlock == nil { skipRest() }   // a running rest stays; only an emptied deck ends it
     }
 
     /// Puts a skipped block back into the deck, at the end of what's left.
