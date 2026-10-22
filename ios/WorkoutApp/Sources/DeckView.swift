@@ -30,20 +30,32 @@ struct DeckView: View {
         #endif
     }
 
+    /// Day, exercises done, elapsed time, and a momentum bar: how far through the workout you are.
     var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                DayTag(session.plan.dayType)
-                Text("\(session.completedCount) of \(session.deckCount)").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    DayTag(session.plan.dayType)
+                    HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
+                        Text("\(session.completedCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                            .contentTransition(.numericText())
+                        Text("of \(session.deckCount)").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
+                Spacer()
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    HStack(spacing: Theme.Spacing.xs) {
+                        Image(systemName: "timer").font(.system(size: 12, weight: .bold))
+                        Text(formatElapsed(ctx.date.timeIntervalSince(session.row.startedAt))).font(Theme.Fonts.captionBold)
+                    }
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .padding(.trailing, Theme.Spacing.sm)
+                }
+                IconButton("rectangle.stack", label: "Deck overview") { showOverview = true }
             }
-            Spacer()
-            Button { showOverview = true } label: {
-                Image(systemName: "rectangle.stack").font(.system(size: 20, weight: .regular))
-            }
-            .foregroundStyle(Theme.Colors.textSecondary)
-            .accessibilityLabel("Deck overview")
+            ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
         }
-        .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
+        .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.m)
     }
 
     // MARK: Stack
@@ -75,15 +87,31 @@ struct DeckView: View {
         .animation(Theme.Motion.spring, value: session.restEndsAt)
     }
 
+    /// Gesture legend, colour-matched to the swipe cues the card shows mid-drag.
     @ViewBuilder var hint: some View {
-        HStack {
+        HStack(spacing: Theme.Spacing.s) {
             if session.restEndsAt != nil {
-                Spacer(); Overline("Tap to skip rest"); Spacer()
+                Spacer(); cue("hand.tap", "Tap to skip rest", Theme.Colors.textSecondary); Spacer()
             } else {
-                Overline("← Skip"); Spacer(); Overline("↑ Rate"); Spacer(); Overline("Done →")
+                cue("arrow.left", "Skip", Theme.Colors.swipeSkip)
+                Spacer()
+                cue("arrow.up", "Rate", Theme.Colors.swipeRate)
+                Spacer()
+                cue("arrow.right", "Done", Theme.Colors.swipeDone)
             }
         }
-        .padding(.horizontal, Theme.Spacing.xl).padding(.vertical, Theme.Spacing.l)
+        .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
+    }
+
+    func cue(_ icon: String, _ text: String, _ tint: Color) -> some View {
+        HStack(spacing: Theme.Spacing.s) {
+            Image(systemName: icon).font(.system(size: 12, weight: .bold))
+            Text(text).font(Theme.Fonts.captionBold)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, Theme.Spacing.sm).frame(height: 32)
+        .background(tint.opacity(0.1), in: Capsule())
+        .overlay(Capsule().strokeBorder(tint.opacity(0.2), lineWidth: 1))
     }
 }
 
@@ -261,10 +289,16 @@ struct SetCard: View {
                 ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
                     .frame(maxHeight: 150)
                     .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                            .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    )
                 VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                     HStack(spacing: Theme.Spacing.s) {
-                        Overline(kind)
-                        if b.isEstimate { Overline("· est") }
+                        Text(kind.uppercased()).font(Theme.Fonts.overline).tracking(1.2).foregroundStyle(tint)
+                            .padding(.horizontal, Theme.Spacing.s).frame(height: 24)
+                            .background(tint.opacity(0.12), in: Capsule())
+                        if b.isEstimate { Overline("estimate") }
                     }
                     Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -278,19 +312,22 @@ struct SetCard: View {
                             .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                     } else {
                         if let w = b.weight { weight(w) } else {
-                            Text("Bodyweight").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                            Text("Bodyweight").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary).glow(tint, radius: 40, opacity: 0.22)
                         }
                         Text("Set \(step.index + 1) of \(b.sets) · \(repRange)")
                             .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                     }
                 }
                 Spacer(minLength: Theme.Spacing.l)
-                SetDots(done: session.workingSetsDone(b), total: b.sets)
+                Segments(done: session.workingSetsDone(b), total: b.sets)
             }
             .cardBody()
         }
         .contentShape(Rectangle())
     }
+
+    /// Heavy lifts are brass; everything else takes the day's tint.
+    var tint: Color { b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(session.plan.dayType) }
 
     var kind: String {
         if step.isWarmup { return "Warm-up" }
@@ -304,9 +341,11 @@ struct SetCard: View {
     }
 
     func weight(_ w: Double) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: 8) {
-            Text(w.formatted(.number.precision(.fractionLength(0...1)))).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-            Text("lb").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+        HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.s) {
+            Text(w.formatted(.number.precision(.fractionLength(0...1)))).font(Theme.Fonts.display).heroTracking()
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .glow(tint, radius: 40, opacity: 0.22)
+            Text("lb").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
         }
     }
 }
@@ -326,14 +365,19 @@ struct RateCard: View {
                 VStack(spacing: Theme.Spacing.s) {
                     ForEach([EffortRating.easy, .good, .hard], id: \.rawValue) { e in
                         Button { onRate(e) } label: {
-                            HStack {
-                                Text(e.label).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                            HStack(spacing: Theme.Spacing.m) {
+                                IconTile(symbol(e), tint: tint(e), size: 44)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(e.label).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                                    Text(note(e)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                                }
                                 Spacer()
-                                Text(note(e)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                                Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
                             }
-                            .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
+                            .padding(Theme.Spacing.m)
                             .frame(maxWidth: .infinity)
                             .background(Theme.Colors.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).strokeBorder(Theme.Colors.brassBorder, lineWidth: 1))
                         }
                         .buttonStyle(PressStyle())
                     }
@@ -349,6 +393,14 @@ struct RateCard: View {
             .cardBody()
         }
         .contentShape(Rectangle())
+    }
+
+    func symbol(_ e: EffortRating) -> String {
+        switch e { case .easy: "wind"; case .good: "checkmark"; case .hard: "flame"; case .didNotFinish: "xmark" }
+    }
+
+    func tint(_ e: EffortRating) -> Color {
+        switch e { case .easy: Theme.Colors.pull; case .good: Theme.Colors.brass; case .hard: Theme.Colors.push; case .didNotFinish: Theme.Colors.textTertiary }
     }
 
     func note(_ e: EffortRating) -> String {
@@ -373,12 +425,14 @@ struct RestCard: View {
                     Overline(paused ? "Rest · paused" : "Rest")
                     Spacer(minLength: Theme.Spacing.m)
                     CountdownRing(progress: remaining / max(1, session.restTotal), dimmed: paused) {
-                        Text(clock(remaining)).font(Theme.Fonts.display).monospacedDigit()
+                        Text(clock(remaining)).font(Theme.Fonts.display).heroTracking()
                             .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
                             .contentTransition(.numericText(countsDown: true))
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 200)
+                    .glow(Theme.Colors.brass, radius: 56, opacity: paused ? 0.08 : 0.28)
+                    .animation(Theme.Motion.spring, value: paused)
                     controls(paused: paused)
                         .padding(.top, Theme.Spacing.l)
                     Spacer(minLength: Theme.Spacing.m)
@@ -454,8 +508,8 @@ struct TimerControl<Content: View>: View {
             content()
                 .foregroundStyle(prominent ? Theme.Colors.brass : Theme.Colors.textPrimary)
                 .frame(width: prominent ? 64 : 52, height: prominent ? 64 : 52)
-                .background(prominent ? Theme.Colors.brassDim : Theme.Colors.card, in: Circle())
-                .overlay(Circle().strokeBorder(prominent ? Theme.Colors.brass.opacity(0.4) : Theme.Colors.hairline, lineWidth: 1))
+                .background(prominent ? Theme.Colors.brassDim : Theme.Colors.surface, in: Circle())
+                .overlay(Circle().strokeBorder(prominent ? Theme.Colors.brass.opacity(0.4) : Theme.Colors.brassBorder, lineWidth: 1))
                 .contentShape(Circle())
         }
         .buttonStyle(PressStyle())
@@ -477,16 +531,12 @@ struct PeekCard: View {
     }
 }
 
+/// Compact set progress for list rows: a short run of segments.
 struct SetDots: View {
     let done: Int
     let total: Int
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<max(total, 0), id: \.self) { i in
-                Circle().fill(i < done ? Theme.Colors.brass : Theme.Colors.hairline).frame(width: 6, height: 6)
-            }
-            if done > total { Text("+\(done - total)").font(Theme.Fonts.overline).foregroundStyle(Theme.Colors.textTertiary) }
-        }
+        Segments(done: done, total: total).frame(width: CGFloat(min(max(total, 1), 6)) * 14)
     }
 }
 
@@ -609,17 +659,54 @@ struct ExercisePicker: View {
     }
 }
 
+/// The end of the workout is the moment that gets remembered: a glowing check, the session in numbers,
+/// one line of calm affirmation, and Finish in the thumb zone.
 struct FinishView: View {
     let session: ActiveSession
+    @Environment(AppModel.self) private var model
+    @State private var shown = false
+
+    var sets: [SetLog] { session.logs.filter { !$0.isWarmup } }
+    var volume: Double { sets.reduce(0) { $0 + Double($1.repsDone) * ($1.weight ?? 0) } }
+    var minutes: Int { Int(Date.now.timeIntervalSince(session.row.startedAt) / 60) }
+    var name: String { model.settings?.displayName.split(separator: " ").first.map(String.init) ?? "" }
+
     var body: some View {
-        VStack(spacing: Theme.Spacing.xl) {
+        VStack(spacing: Theme.Spacing.l) {
             Spacer()
-            Text("\(session.completedCount)").font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-            Text(session.completedCount == 1 ? "exercise done" : "exercises done").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+            Image(systemName: "checkmark").font(.system(size: 40, weight: .bold)).foregroundStyle(Theme.Colors.canvas)
+                .frame(width: 96, height: 96)
+                .background(LinearGradient(colors: [Theme.Colors.brass, Theme.Colors.brassDeep], startPoint: .top, endPoint: .bottom), in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.4), lineWidth: 1))
+                .glow(Theme.Colors.brass, radius: 64, opacity: 0.45)
+                .scaleEffect(shown ? 1 : 0.6)
+                .opacity(shown ? 1 : 0)
+            VStack(spacing: Theme.Spacing.s) {
+                Text(name.isEmpty ? "Session complete." : "Strong session, \(name).").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("\(session.plan.dayType.label) day · \(session.row.startedAt.formatted(.dateTime.weekday(.wide)))")
+                    .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 12)
+            Card {
+                HStack(alignment: .top) {
+                    Stat("\(session.completedCount)", label: session.completedCount == 1 ? "exercise" : "exercises", tint: Theme.Colors.brass)
+                    Spacer()
+                    Stat("\(sets.count)", label: "sets")
+                    Spacer()
+                    Stat(volume >= 1000 ? String(format: "%.1fk", volume / 1000) : volume.formatted(), unit: "lb", label: "volume")
+                    Spacer()
+                    Stat("\(minutes)", unit: "min", label: "time")
+                }
+            }
+            .padding(.horizontal, Theme.Spacing.l)
+            .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 24)
             Spacer()
-            PillButton("Finish") { Haptics.play(.sessionDone); session.finish() }.padding(.horizontal, Theme.Spacing.l)
+            Text("Progression is applied to everything you logged.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+            PillButton("Finish", icon: "checkmark") { Haptics.play(.sessionDone); session.finish() }.padding(.horizontal, Theme.Spacing.l)
         }
-        .padding(.bottom, Theme.Spacing.xxl)
+        .padding(.bottom, Theme.Spacing.l)
+        .onAppear { withAnimation(Theme.Motion.celebrate) { shown = true } }
     }
 }
 
@@ -631,10 +718,11 @@ struct CountdownRing<Label: View>: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(Theme.Colors.hairline, lineWidth: 6)
+            Circle().stroke(Theme.Colors.surface, lineWidth: 8)
             Circle()
                 .trim(from: 0, to: max(0, min(1, progress)))
-                .stroke(dimmed ? Theme.Colors.textTertiary : Theme.Colors.brass, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(dimmed ? Theme.Colors.textTertiary : Theme.Colors.brass, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .shadow(color: dimmed ? .clear : Theme.Colors.brass.opacity(0.6), radius: 8)
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 0.5), value: progress)
             label()

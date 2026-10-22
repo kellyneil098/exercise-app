@@ -51,15 +51,18 @@ struct ActiveRunView: View {
     var body: some View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                HStack {
-                    Overline(run.runType.capitalized)
+                HStack(spacing: Theme.Spacing.m) {
+                    IconTile("figure.run", tint: Theme.Colors.pull, size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Overline(finishing ? "Finishing" : paused ? "Paused" : "Running")
+                        Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                    }
                     Spacer()
-                    Button { confirmDiscard = true } label: { Image(systemName: "xmark") }
-                        .foregroundStyle(Theme.Colors.textSecondary).accessibilityLabel("Discard run")
+                    IconButton("xmark", label: "Discard run", tint: Theme.Colors.textSecondary) { confirmDiscard = true }
                 }
                 if finishing { finish } else { live }
             }
-            .padding(Theme.Spacing.l)
+            .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.l)
         }
         .onAppear { ActiveRunClock.start(run.id); paused = ActiveRunClock.isPaused }
         #if os(iOS)
@@ -78,30 +81,47 @@ struct ActiveRunView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 let t = ActiveRunClock.elapsed(at: ctx.date)
-                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    Text(formatElapsed(t)).font(Theme.Fonts.display).foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
+                let target = run.targetDistanceMi * run.targetPaceSecPerMi
+                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                    Text(formatElapsed(t)).font(Theme.Fonts.display).heroTracking()
+                        .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
                         .contentTransition(.numericText())
-                    Text("\(run.targetDistanceMi.formatted()) mi @ \(formatPace(run.targetPaceSecPerMi)) · ~\(formatElapsed(run.targetDistanceMi * run.targetPaceSecPerMi))")
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        .glow(Theme.Colors.pull, radius: 48, opacity: paused ? 0.08 : 0.3)
+                        .padding(.top, Theme.Spacing.l)
+                    ProgressBar(target > 0 ? t / target : 0, tint: Theme.Colors.pull)
+                    HStack(alignment: .top) {
+                        Stat(run.targetDistanceMi.formatted(), unit: "mi", label: "target")
+                        Spacer()
+                        Stat(formatPace(run.targetPaceSecPerMi), unit: "/mi", label: "pace")
+                        Spacer()
+                        Stat(formatElapsed(target), label: "expected")
+                    }
                 }
             }
             if let planned, let state {
                 Card {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                        Overline("Segments")
-                        ForEach(Array(model.runPlanner.segments(for: planned, state: state).enumerated()), id: \.offset) { _, seg in
-                            Text(segmentText(seg)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                        HStack(spacing: Theme.Spacing.sm) {
+                            IconTile("list.bullet", tint: Theme.Colors.pull, size: 32)
+                            Overline("Segments", tint: Theme.Colors.textSecondary)
+                        }
+                        ForEach(Array(model.runPlanner.segments(for: planned, state: state).enumerated()), id: \.offset) { i, seg in
+                            HStack(spacing: Theme.Spacing.m) {
+                                Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.pull)
+                                    .frame(width: 24, height: 24).background(Theme.Colors.pull.opacity(0.12), in: Circle())
+                                Text(segmentText(seg)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                            }
                         }
                     }
                 }
             }
             Spacer()
             HStack(spacing: Theme.Spacing.s) {
-                PillButton(paused ? "Resume" : "Pause", style: .quiet) {
+                PillButton(paused ? "Resume" : "Pause", icon: paused ? "play.fill" : "pause.fill", style: .quiet) {
                     if paused { ActiveRunClock.resume() } else { ActiveRunClock.pause() }
                     paused.toggle(); Haptics.play(.setLogged)
                 }
-                PillButton("Finish") {
+                PillButton("Finish", icon: "flag.checkered") {
                     if !paused { ActiveRunClock.pause(); paused = true }
                     distance = run.targetDistanceMi
                     withAnimation(Theme.Motion.quick) { finishing = true }
@@ -115,10 +135,21 @@ struct ActiveRunView: View {
     var finish: some View {
         let seconds = Int(ActiveRunClock.elapsed().rounded())
         return VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            Text(formatElapsed(TimeInterval(seconds))).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-            Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
-            if distance > 0, seconds > 0 {
-                Text(formatPace(Double(seconds) / distance) + " /mi").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.brass)
+            Text(formatElapsed(TimeInterval(seconds))).font(Theme.Fonts.display).heroTracking().foregroundStyle(Theme.Colors.textPrimary)
+                .glow(Theme.Colors.brass, radius: 48, opacity: 0.25)
+                .padding(.top, Theme.Spacing.l)
+            Card {
+                VStack(spacing: Theme.Spacing.m) {
+                    Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
+                    if distance > 0, seconds > 0 {
+                        Hairline()
+                        HStack {
+                            Stat(formatPace(Double(seconds) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.brass)
+                            Spacer()
+                            Stat(formatPace(run.targetPaceSecPerMi), unit: "/mi", label: "target")
+                        }
+                    }
+                }
             }
             HStack(spacing: Theme.Spacing.s) {
                 ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
@@ -127,8 +158,8 @@ struct ActiveRunView: View {
             }
             Spacer()
             HStack(spacing: Theme.Spacing.s) {
-                PillButton("Back", style: .quiet) { withAnimation(Theme.Motion.quick) { finishing = false } }
-                PillButton("Save") {
+                PillButton("Back", icon: "arrow.left", style: .quiet) { withAnimation(Theme.Motion.quick) { finishing = false } }
+                PillButton("Save run", icon: "checkmark") {
                     var r = run
                     r.distanceMi = distance; r.durationSec = seconds; r.effort = effort.rawValue; r.completedAt = Date()
                     try? model.store.save(r)
