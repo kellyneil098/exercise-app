@@ -7,7 +7,7 @@ import WorkoutUI
 enum HomeMode: Hashable {
     case strength(DayType), running
     static let all: [HomeMode] = DayType.allCases.map { .strength($0) } + [.running]
-    var label: String { switch self { case .strength(let d): d.label; case .running: "Running" } }
+    var label: String { switch self { case .strength(let d): d.label; case .running: "Run" } }
 }
 
 /// Cold open → workout in ≤3 taps: Start is the primary action, duration/location are one tap each.

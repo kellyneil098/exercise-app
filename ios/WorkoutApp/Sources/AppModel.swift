@@ -8,11 +8,13 @@ import WorkoutStore
 @Observable @MainActor
 final class AppModel {
     let store: WorkoutStore
-    let catalog: Catalog
-    let planner: Planner
-    let progression: Progression
+    /// Seed catalog merged with the user's custom exercises; the engines are rebuilt whenever that set changes.
+    private(set) var catalog: Catalog
+    private(set) var planner: Planner
+    private(set) var progression: Progression
     let runPlanner = RunPlanner()
-    let rebaseliner: Rebaseliner
+    private(set) var rebaseliner: Rebaseliner
+    private let seedCatalog: Catalog
     let api: APIClient
 
     var userId: String
@@ -28,15 +30,54 @@ final class AppModel {
 
     init(store: WorkoutStore, catalog: Catalog, api: APIClient, userId: String) {
         self.store = store
+        self.seedCatalog = catalog
         self.catalog = catalog
         self.planner = Planner(catalog: catalog)
         self.progression = Progression(catalog: catalog)
         self.rebaseliner = Rebaseliner(catalog: catalog)
         self.api = api
         self.userId = userId
+        reloadCatalogIfNeeded()
         observer = DatabaseRegionObservation(tracking: .fullDatabase).start(in: store.db, onError: { _ in }) { [weak self] _ in
-            Task { @MainActor in self?.dataVersion &+= 1 }
+            Task { @MainActor in self?.dataVersion &+= 1; self?.reloadCatalogIfNeeded() }
         }
+    }
+
+    // MARK: Custom exercises
+
+    var customExercises: [UserExercise] {
+        _ = dataVersion
+        return (try? store.db.read {
+            try UserExercise.filter(Column("userId") == userId && Column("deleted") == false).order(Column("name")).fetchAll($0)
+        }) ?? []
+    }
+
+    /// Rebuilds catalog + engines when the custom set differs from what they were built with (cheap otherwise).
+    func reloadCatalogIfNeeded() {
+        let rows = customExercises
+        let custom = rows.map { r in
+            Exercise(key: r.key, name: r.name, movementPattern: r.pattern, requiredEquipment: r.equipment,
+                     loadable: r.loadable, dumbbellBased: r.dumbbellBased, isCustom: true)
+        }
+        let current = catalog.exercises.values.filter(\.isCustom)
+        guard Set(current.map { "\($0.key)|\($0.name)|\($0.movementPattern)|\($0.requiredEquipment)|\($0.loadable)|\($0.dumbbellBased)" })
+            != Set(custom.map { "\($0.key)|\($0.name)|\($0.movementPattern)|\($0.requiredEquipment)|\($0.loadable)|\($0.dumbbellBased)" }) else { return }
+        catalog = seedCatalog.adding(custom: custom)
+        planner = Planner(catalog: catalog)
+        progression = Progression(catalog: catalog)
+        rebaseliner = Rebaseliner(catalog: catalog)
+    }
+
+    /// Saves a user-defined exercise and returns it as part of the (reloaded) catalog.
+    func createExercise(name: String, pattern: String, equipment: [String], loadable: Bool, dumbbellBased: Bool) -> Exercise? {
+        let slug = name.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "_", options: .regularExpression).trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        let key = "custom_\(slug.isEmpty ? "exercise" : slug)_\(UUIDv7.generate().suffix(6))"
+        let row = UserExercise(userId: userId, key: key, name: name.trimmingCharacters(in: .whitespaces), pattern: pattern,
+                               equipment: equipment.isEmpty ? ["bodyweight"] : equipment, loadable: loadable, dumbbellBased: dumbbellBased)
+        try? store.save(row)
+        dataVersion &+= 1
+        reloadCatalogIfNeeded()
+        return catalog.exercises[key]
     }
 
     static func live() -> AppModel {

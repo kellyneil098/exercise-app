@@ -16,18 +16,22 @@ struct OnboardingView: View {
 
     var body: some View {
         Screen {
-            VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                Overline("Step \(step + 1) of 3")
-                switch step {
-                case 0: nameAndGyms
-                case 1: lifting
-                default: running
+            // Scrolls (rather than squeezing) when the keyboard is up, so the heading and Continue stay reachable.
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                    Overline("Step \(step + 1) of 3")
+                    switch step {
+                    case 0: nameAndGyms
+                    case 1: lifting
+                    default: running
+                    }
+                    PillButton(step == 2 ? "Begin" : "Continue") { next() }
+                        .disabled(step == 0 && (name.isEmpty || selectedSeeds.isEmpty))
+                        .padding(.top, Theme.Spacing.l)
                 }
-                Spacer()
-                PillButton(step == 2 ? "Begin" : "Continue") { next() }
-                    .disabled(step == 0 && (name.isEmpty || selectedSeeds.isEmpty))
+                .padding(Theme.Spacing.l)
             }
-            .padding(Theme.Spacing.l)
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 
@@ -35,7 +39,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
             Text("Hello.").font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
             TextField("Your name", text: $name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                .textInputAutocapitalization(.words)
+                .textInputAutocapitalization(.words).submitLabel(.done)
             Hairline()
             Overline("Where do you train?")
             ForEach(model.catalog.seededLocations, id: \.key) { loc in

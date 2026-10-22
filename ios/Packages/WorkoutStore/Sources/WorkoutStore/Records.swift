@@ -253,6 +253,8 @@ public struct UserExercise: SyncedRecord {
         equipmentJSON = (try? String(decoding: JSONEncoder.store.encode(equipment), as: UTF8.self)) ?? "[]"
         self.loadable = loadable; self.dumbbellBased = dumbbellBased; self.updatedAt = updatedAt
     }
+
+    public var equipment: [String] { (try? JSONDecoder().decode([String].self, from: Data(equipmentJSON.utf8))) ?? [] }
 }
 
 extension JSONEncoder {

@@ -11,6 +11,7 @@ struct RunContent: View {
     @State private var plan: RunPlanRow?
     @State private var runs: [RunRow] = []
     @State private var logging: RunRow?
+    @State private var starting: RunRow?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
@@ -29,7 +30,7 @@ struct RunContent: View {
                     }
                 }
                 ForEach(runs) { run in
-                    RunCard(run: run, state: state, planned: plannedRun(run, state: state), onLog: { logging = run })
+                    RunCard(run: run, state: state, planned: plannedRun(run, state: state), onStart: { starting = run }, onLog: { logging = run })
                 }
             } else {
                 Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
@@ -37,6 +38,13 @@ struct RunContent: View {
         }
         .onAppear(perform: load)
         .sheet(item: $logging) { run in LogRunSheet(run: run) { load() } }
+        .fullScreenCover(item: $starting) { run in
+            ActiveRunView(run: run, state: plan?.engineState, planned: plan.flatMap { plannedRun(run, state: $0.engineState) }) { load() }
+        }
+        .onAppear {
+            // Resume a run that was in progress when the app was killed.
+            if starting == nil, let id = ActiveRunClock.resumableRunID(), let run = runs.first(where: { $0.id == id && $0.completedAt == nil }) { starting = run }
+        }
     }
 
     func plannedRun(_ r: RunRow, state: RunPlanState) -> PlannedRun? {
@@ -48,6 +56,7 @@ struct RunCard: View {
     let run: RunRow
     let state: RunPlanState
     let planned: PlannedRun?
+    let onStart: () -> Void
     let onLog: () -> Void
     @Environment(AppModel.self) private var model
 
@@ -69,7 +78,17 @@ struct RunCard: View {
                                         }
                                     }
                                     if run.completedAt == nil {
-                                        PillButton("Log run", style: .quiet) { onLog() }
+                                        HStack(spacing: Theme.Spacing.s) {
+                                            PillButton("Start", action: onStart)
+                                            Button(action: onLog) {
+                                                Image(systemName: "square.and.pencil").font(.system(size: 17, weight: .medium))
+                                                    .frame(width: 56, height: 54)
+                                                    .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                                                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+                                            }
+                                            .foregroundStyle(Theme.Colors.textPrimary).buttonStyle(PressStyle())
+                                            .accessibilityLabel("Log run manually")
+                                        }
                                     } else if let d = run.distanceMi, let p = run.paceSecPerMi {
                                         Text("\(d.formatted()) mi at \(formatPace(p))").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                                     }

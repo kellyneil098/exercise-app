@@ -341,6 +341,7 @@ struct ExercisePicker: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State private var query = ""
+    @State private var creating = false
 
     var body: some View {
         let sections = session.pickerSections(replacing: replacing)
@@ -374,6 +375,7 @@ struct ExercisePicker: View {
                             Text("No matches").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary).padding(.vertical, 12)
                         }
                         ForEach(all, id: \.exercise.key) { row($0) }
+                        newExerciseRow
                     }
                 }
                 .scrollDismissesKeyboard(.immediately)
@@ -382,6 +384,32 @@ struct ExercisePicker: View {
         }
         .presentationDetents([.large])
         .presentationBackground(Theme.Colors.canvas)
+        .sheet(isPresented: $creating) {
+            NewExerciseSheet(initialName: query) { exercise in pick(exercise) }
+        }
+    }
+
+    /// Always at the end of the list, so a failed search leads straight to creating the exercise.
+    var newExerciseRow: some View {
+        Button { creating = true } label: {
+            HStack(spacing: Theme.Spacing.m) {
+                Image(systemName: "plus.circle").font(.system(size: 20, weight: .regular)).foregroundStyle(Theme.Colors.brass)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(query.trimmingCharacters(in: .whitespaces).isEmpty ? "New exercise" : "New exercise “\(query.trimmingCharacters(in: .whitespaces))”")
+                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
+                    Text("Yours, synced, picked like any other").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityLabel("New exercise")
+    }
+
+    func pick(_ exercise: Exercise) {
+        if let replacing { session.swap(replacing, to: exercise) } else { session.add(exercise) }
+        Haptics.play(.swap); dismiss()
     }
 
     func filtered(_ c: [Candidate]) -> [Candidate] {
@@ -395,10 +423,7 @@ struct ExercisePicker: View {
     }
 
     func row(_ c: Candidate) -> some View {
-        Button {
-            if let replacing { session.swap(replacing, to: c.exercise) } else { session.add(c.exercise) }
-            Haptics.play(.swap); dismiss()
-        } label: {
+        Button { pick(c.exercise) } label: {
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
