@@ -36,9 +36,10 @@ struct SettingsView: View {
     @ViewBuilder var account: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             Overline("Account")
+            // Shown signed in or out: a refused account switch (unsent changes from the previous account) reports here.
+            if let e = model.lastSyncError { Text(e).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.destructive) }
             if model.isSignedIn {
                 Text("Synced").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
-                if let e = model.lastSyncError { Text(e).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.destructive) }
                 if let shares {
                     ForEach(shares.iCanView, id: \.id) { Text("You can see \($0.displayName)").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
                     ForEach(shares.canViewMe, id: \.id) { Text("\($0.displayName) can see you").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
