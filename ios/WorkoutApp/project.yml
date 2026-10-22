@@ -36,13 +36,15 @@ targets:
     info:
       path: Resources/Info.plist
       properties:
-        CFBundleDisplayName: Workout
+        CFBundleDisplayName: "Neil's Workout"   # App Store rejects "Workout" (90129: name already taken)
+        CFBundleName: "Neil's Workout"
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIRequiresFullScreen: true   # portrait-only: opt out of iPad multitasking (App Store check 90474)
+        ITSAppUsesNonExemptEncryption: false   # HTTPS only (exempt) — skips the export-compliance prompt on every TestFlight build
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
