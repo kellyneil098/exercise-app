@@ -42,12 +42,14 @@ targets:
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIRequiresFullScreen: true   # portrait-only: opt out of iPad multitasking (App Store check 90474)
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
         API_BASE_URL: $(API_BASE_URL)
     settings:
       base:
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only (spec §1); xcodegen's target default is "1,2"
         PRODUCT_BUNDLE_IDENTIFIER: com.kellyneil.workout
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
