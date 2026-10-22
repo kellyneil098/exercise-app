@@ -23,13 +23,14 @@ struct HomeView: View {
         Screen {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    HStack {
+                    HStack(spacing: Theme.Spacing.m) {
                         Overline(Date.now.formatted(.dateTime.weekday(.wide).month().day()))
                         Spacer()
-                        Button { showProgress = true } label: { Image(systemName: "chart.xyaxis.line") }
-                        Button { showSettings = true } label: { Image(systemName: "person") }
+                        headerButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
+                        headerButton("person", label: "Profile") { showSettings = true }
                     }
                     .foregroundStyle(Theme.Colors.textSecondary)
+                    .padding(.trailing, -Theme.Spacing.s)
 
                     Text(mode.label).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
 
@@ -60,6 +61,17 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showProgress) { ProgressScreen() }
         .sheet(isPresented: $showSettings) { SettingsView() }
+    }
+
+    /// Full 44-pt targets with a gap between them, so analytics and profile can't be mis-tapped for each other.
+    func headerButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 18, weight: .regular))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder func strength(_ dayType: DayType) -> some View {

@@ -20,6 +20,10 @@ public enum Theme {
         public static let fullBody = Color(hex: 0x9A8AA3)
         public static let run = Color(hex: 0xA39A6E)
         public static let destructive = Color(hex: 0xB5635E)
+        /// Swipe cues on the set card (§7): the one place the app uses green / red / blue.
+        public static let swipeDone = Color(hex: 0x5FAE7A)
+        public static let swipeSkip = Color(hex: 0xC9625C)
+        public static let swipeRate = Color(hex: 0x5F8FD6)
 
         public static func day(_ d: DayType) -> Color {
             switch d { case .push: push; case .pull: pull; case .legs: legs; case .fullBody: fullBody }

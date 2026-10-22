@@ -3,8 +3,9 @@ import WorkoutEngine
 import WorkoutStore
 import WorkoutUI
 
-/// The minimal workout view: one card at a time. Swipe right = set done (→ rest → next card),
-/// swipe left = rate the set (weight adjusts itself from the rating). Everything else lives in `DeckOverview`.
+/// The minimal workout view: one card at a time. Swipe right = set done (→ rest → next card), swipe left = skip
+/// the exercise (restorable from the overview), swipe up = rate the set (weight adjusts itself from the rating).
+/// Everything else lives in `DeckOverview`.
 struct DeckView: View {
     @Bindable var session: ActiveSession
     @Environment(AppModel.self) private var model
@@ -33,7 +34,7 @@ struct DeckView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 DayTag(session.plan.dayType)
-                Text("\(session.completedCount) of \(session.plan.blocks.count)").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                Text("\(session.completedCount) of \(session.deckCount)").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
             }
             Spacer()
             Button { showOverview = true } label: {
@@ -79,21 +80,25 @@ struct DeckView: View {
             if session.restEndsAt != nil {
                 Spacer(); Overline("Tap to skip rest"); Spacer()
             } else {
-                Overline("← Rate"); Spacer(); Overline("Done →")
+                Overline("← Skip"); Spacer(); Overline("↑ Rate"); Spacer(); Overline("Done →")
             }
         }
         .padding(.horizontal, Theme.Spacing.xl).padding(.vertical, Theme.Spacing.l)
     }
 }
 
-/// The card in hand: a set card that flips to a rating card on swipe-left. Owns its own gesture state.
+/// The card in hand: a set card that flips to a rating card on swipe-up. Owns its own gesture state.
+/// Right = done, left = skip, up = rate; the card tints and stamps the pending action as the drag grows (Tinder-style).
 struct StepCard: View {
     let step: DeckStep
     let session: ActiveSession
     @State private var rating = false
     @State private var drag: CGSize = .zero
+    @State private var axis: Axis?
+    @State private var armed = false
 
-    private enum Direction { case left, right }
+    private enum Direction { case left, right, up }
+    private enum SwipeAction { case done, skip, rate, back }
     private let threshold: CGFloat = 110
 
     var body: some View {
@@ -101,42 +106,112 @@ struct StepCard: View {
             if rating {
                 RateCard(step: step) { e in
                     Haptics.play(.setLogged)
-                    fly(.left) { session.complete(effort: e) }
+                    fly(.up) { session.complete(effort: e) }
                 }
             } else {
                 SetCard(step: step, session: session)
             }
         }
-        .overlay(alignment: .top) { swipeLabel }
+        .overlay { tint }
+        .overlay { stamp }
         .offset(drag)
         .rotationEffect(.degrees(Double(drag.width / 24)))
         .gesture(dragGesture)
     }
 
-    @ViewBuilder var swipeLabel: some View {
-        let strength = min(1, abs(drag.width) / threshold)
-        if drag.width > 30 {
-            Overline(rating ? "Back" : "Done").foregroundStyle(Theme.Colors.brass).opacity(strength).padding(.top, Theme.Spacing.m)
-        } else if drag.width < -30, !rating {
-            Overline("Rate").foregroundStyle(Theme.Colors.textSecondary).opacity(strength).padding(.top, Theme.Spacing.m)
+    /// What letting go now would do, and how committed the drag is (0…1 at the threshold).
+    private var pending: (action: SwipeAction, strength: Double)? {
+        guard let axis else { return nil }
+        if axis == .horizontal, drag.width > 20 {
+            return (rating ? .back : .done, min(1, Double((drag.width - 20) / (threshold - 20))))
+        }
+        if axis == .horizontal, drag.width < -20, !rating {
+            return (.skip, min(1, Double((-drag.width - 20) / (threshold - 20))))
+        }
+        if axis == .vertical, drag.height < -20, !rating {
+            return (.rate, min(1, Double((-drag.height - 20) / (threshold - 20))))
+        }
+        return nil
+    }
+
+    private func color(_ a: SwipeAction) -> Color {
+        switch a {
+        case .done: Theme.Colors.swipeDone
+        case .skip: Theme.Colors.swipeSkip
+        case .rate: Theme.Colors.swipeRate
+        case .back: Theme.Colors.brass
+        }
+    }
+
+    private func label(_ a: SwipeAction) -> String {
+        switch a { case .done: "Done"; case .skip: "Skip"; case .rate: "Rate"; case .back: "Back" }
+    }
+
+    /// Wash over the card in the action's colour, deepening toward the threshold.
+    @ViewBuilder private var tint: some View {
+        if let p = pending {
+            let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+            shape.fill(color(p.action).opacity(0.08 + 0.14 * p.strength))
+                .overlay(shape.strokeBorder(color(p.action).opacity(0.35 + 0.65 * p.strength), lineWidth: 1.5))
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// The stamp: done sits top-left (the card is moving right), skip top-right, rate top-centre.
+    @ViewBuilder private var stamp: some View {
+        if let p = pending {
+            let c = color(p.action)
+            let alignment: Alignment = switch p.action { case .done, .back: .topLeading; case .skip: .topTrailing; case .rate: .top }
+            let tilt: Double = switch p.action { case .done, .back: -12; case .skip: 12; case .rate: 0 }
+            Text(label(p.action).uppercased())
+                .font(.system(size: 24, weight: .bold)).tracking(3)
+                .foregroundStyle(c)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(c, lineWidth: 3))
+                .rotationEffect(.degrees(tilt))
+                .scaleEffect(0.85 + 0.15 * p.strength)
+                .opacity(0.45 + 0.55 * p.strength)
+                .padding(Theme.Spacing.l)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+                .allowsHitTesting(false)
         }
     }
 
     var dragGesture: some Gesture {
         DragGesture(minimumDistance: 12)
-            .onChanged { v in drag = CGSize(width: v.translation.width, height: v.translation.height * 0.15) }
+            .onChanged { v in
+                let w = v.translation.width, h = v.translation.height
+                if axis == nil { axis = abs(w) >= abs(h) ? .horizontal : .vertical }
+                if axis == .horizontal {
+                    drag = CGSize(width: w, height: h * 0.15)
+                } else {
+                    // Up moves freely (that's the gesture); down only rubber-bands.
+                    drag = CGSize(width: w * 0.15, height: h < 0 ? h : h * 0.25)
+                }
+                let crossed = (pending?.strength ?? 0) >= 1
+                if crossed != armed {
+                    armed = crossed
+                    if crossed { Haptics.play(.swap) }
+                }
+            }
             .onEnded { v in
+                let endedAxis = axis
+                axis = nil; armed = false
                 let x = v.translation.width + (v.predictedEndTranslation.width - v.translation.width) * 0.3
-                if x > threshold {
+                let y = v.translation.height + (v.predictedEndTranslation.height - v.translation.height) * 0.3
+                if endedAxis == .horizontal, x > threshold {
                     if rating {
                         withAnimation(Theme.Motion.spring) { drag = .zero; rating = false }
                     } else {
                         Haptics.play(.setLogged)
                         fly(.right) { session.complete(effort: nil) }
                     }
-                } else if x < -threshold, !rating {
+                } else if endedAxis == .horizontal, x < -threshold, !rating {
+                    Haptics.play(.exerciseDone)
+                    fly(.left) { session.skip(step.block) }
+                } else if endedAxis == .vertical, y < -threshold, !rating {
                     Haptics.play(.swap)
-                    fly(.left) {
+                    fly(.up) {
                         var t = Transaction(); t.disablesAnimations = true
                         withTransaction(t) { drag = .zero; rating = true }
                     }
@@ -149,7 +224,11 @@ struct StepCard: View {
     /// Throw the card off-screen, then run `action` (which usually replaces this card entirely).
     private func fly(_ dir: Direction, then action: @escaping () -> Void) {
         withAnimation(.easeOut(duration: 0.22)) {
-            drag = CGSize(width: dir == .right ? 640 : -640, height: drag.height)
+            drag = switch dir {
+            case .right: CGSize(width: 640, height: drag.height)
+            case .left: CGSize(width: -640, height: drag.height)
+            case .up: CGSize(width: drag.width, height: -900)
+            }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.23) { action() }
     }
@@ -257,22 +336,27 @@ struct RateCard: View {
 }
 
 /// Countdown between sets. Auto-advances to the next card at zero; tap or swipe right to skip.
+/// Pause / −10 / +10 sit under the ring; the remaining time still derives from a stored end date (§7.4).
 struct RestCard: View {
     let session: ActiveSession
     let endsAt: Date
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
-            let remaining = max(0, endsAt.timeIntervalSince(ctx.date))
+            let remaining = session.restRemaining(at: ctx.date)
+            let paused = session.isRestPaused
             Card(raised: true) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    Overline("Rest")
-                    Spacer(minLength: Theme.Spacing.m)
-                    CountdownRing(progress: remaining / max(1, session.restTotal)) {
-                        Text(clock(remaining)).font(Theme.Fonts.display).monospacedDigit().foregroundStyle(Theme.Colors.textPrimary)
+                    Overline(paused ? "Rest · paused" : "Rest")
+                    CountdownRing(progress: remaining / max(1, session.restTotal), dimmed: paused) {
+                        Text(clock(remaining)).font(Theme.Fonts.display).monospacedDigit()
+                            .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
+                            .contentTransition(.numericText(countsDown: true))
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 220)
+                    .frame(height: 200)
+                    .padding(.top, Theme.Spacing.xs)
+                    controls(paused: paused)
                     Spacer(minLength: Theme.Spacing.m)
                     if let next = session.currentStep {
                         Overline("Up next")
@@ -292,6 +376,28 @@ struct RestCard: View {
         }
     }
 
+    func controls(paused: Bool) -> some View {
+        HStack(spacing: Theme.Spacing.l) {
+            Spacer()
+            TimerControl(label: "Ten seconds less") { session.adjustRest(by: -10) } content: {
+                Text("−10").font(Theme.Fonts.caption).monospacedDigit()
+            }
+            TimerControl(label: paused ? "Resume rest" : "Pause rest", prominent: true) {
+                if paused { session.resumeRest() } else { session.pauseRest() }
+            } content: {
+                Image(systemName: paused ? "play.fill" : "pause.fill").font(.system(size: 20, weight: .semibold))
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            TimerControl(label: "Ten seconds more") { session.adjustRest(by: 10) } content: {
+                Text("+10").font(Theme.Fonts.caption).monospacedDigit()
+            }
+            Spacer()
+        }
+        // The controls row is a no-skip zone: taps between the buttons must not reach the card's tap-to-skip.
+        .contentShape(Rectangle())
+        .onTapGesture {}
+    }
+
     func clock(_ t: TimeInterval) -> String {
         let n = Int(t.rounded(.up))
         return n >= 60 ? String(format: "%d:%02d", n / 60, n % 60) : "\(n)"
@@ -303,6 +409,31 @@ struct RestCard: View {
         let range = b.measure == .seconds ? "\(b.repLow)–\(b.repHigh) sec" : "\(b.repLow)–\(b.repHigh) reps"
         let load = b.weight.map { "\($0.formatted()) lb · " } ?? ""
         return "\(load)set \(s.index + 1) of \(b.sets) · \(range)"
+    }
+}
+
+/// Round control under the rest ring. `prominent` is the pause/play button: larger, brass-washed.
+struct TimerControl<Content: View>: View {
+    let label: String
+    var prominent = false
+    let action: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    init(label: String, prominent: Bool = false, action: @escaping () -> Void, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label; self.prominent = prominent; self.action = action; self.content = content
+    }
+
+    var body: some View {
+        Button(action: action) {
+            content()
+                .foregroundStyle(prominent ? Theme.Colors.brass : Theme.Colors.textPrimary)
+                .frame(width: prominent ? 64 : 52, height: prominent ? 64 : 52)
+                .background(prominent ? Theme.Colors.brassDim : Theme.Colors.card, in: Circle())
+                .overlay(Circle().strokeBorder(prominent ? Theme.Colors.brass.opacity(0.4) : Theme.Colors.hairline, lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityLabel(label)
     }
 }
 
@@ -469,6 +600,7 @@ struct FinishView: View {
 /// Stopwatch-style ring: a hairline track with the remaining fraction drawn in brass, draining clockwise from 12 o'clock.
 struct CountdownRing<Label: View>: View {
     let progress: Double
+    var dimmed = false
     @ViewBuilder let label: () -> Label
 
     var body: some View {
@@ -476,7 +608,7 @@ struct CountdownRing<Label: View>: View {
             Circle().stroke(Theme.Colors.hairline, lineWidth: 6)
             Circle()
                 .trim(from: 0, to: max(0, min(1, progress)))
-                .stroke(Theme.Colors.brass, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(dimmed ? Theme.Colors.textTertiary : Theme.Colors.brass, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 0.5), value: progress)
             label()

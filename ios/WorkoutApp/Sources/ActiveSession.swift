@@ -27,19 +27,32 @@ final class ActiveSession: Identifiable {
     private(set) var logs: [SetLog]
     /// Manual deck order from the overview; empty = slot order.
     private(set) var order: [UUID]
+    /// Blocks swiped away (left) for this session. They leave the stack but stay restorable from the overview.
+    private(set) var skipped: Set<UUID> {
+        didSet { UserDefaults.standard.set(skipped.map(\.uuidString), forKey: "deckSkipped-\(row.id)") }
+    }
     var restEndsAt: Date? {
         didSet { UserDefaults.standard.set(restEndsAt, forKey: "restEndsAt") }
+    }
+    /// Seconds left when the timer was paused; `nil` while it runs.
+    private(set) var restPausedRemaining: TimeInterval? {
+        didSet { UserDefaults.standard.set(restPausedRemaining, forKey: "restPausedRemaining") }
     }
     var restTotal: TimeInterval = 0
 
     var id: String { row.id }
 
     init(row: SessionRow, plan: Plan, input: PlannerInput, model: AppModel, existingLogs: [SetLog] = []) {
-        if let saved = UserDefaults.standard.object(forKey: "restEndsAt") as? Date, saved > Date(), !existingLogs.isEmpty {
+        if !existingLogs.isEmpty, let paused = UserDefaults.standard.object(forKey: "restPausedRemaining") as? TimeInterval, paused > 0 {
+            restPausedRemaining = paused
+            restEndsAt = Date().addingTimeInterval(paused)
+            restTotal = paused
+        } else if let saved = UserDefaults.standard.object(forKey: "restEndsAt") as? Date, saved > Date(), !existingLogs.isEmpty {
             restEndsAt = saved
         }
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
         order = (UserDefaults.standard.array(forKey: "deckOrder-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
+        skipped = Set((UserDefaults.standard.array(forKey: "deckSkipped-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? [])
     }
 
     // MARK: Ordering
@@ -65,10 +78,18 @@ final class ActiveSession: Identifiable {
         return base
     }
 
+    /// Deck order minus skipped blocks — what the overview lists and reorders.
+    var activeBlocks: [PlanBlock] { orderedBlocks.filter { !skipped.contains($0.id) } }
+
+    var skippedBlocks: [PlanBlock] { orderedBlocks.filter { skipped.contains($0.id) } }
+
+    func isSkipped(_ block: PlanBlock) -> Bool { skipped.contains(block.id) }
+
+    /// Reorders within the active deck; skipped blocks keep their place behind it.
     func move(fromOffsets: IndexSet, toOffset: Int) {
-        let current = orderedBlocks
-        var ids = current.map(\.id)
+        var ids = activeBlocks.map(\.id)
         ids.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        ids += skippedBlocks.map(\.id)
         order = ids
         UserDefaults.standard.set(ids.map(\.uuidString), forKey: "deckOrder-\(row.id)")
     }
@@ -81,10 +102,13 @@ final class ActiveSession: Identifiable {
 
     func isComplete(_ block: PlanBlock) -> Bool { workingSetsDone(block) >= block.sets }
 
+    /// Still has sets to do and hasn't been swiped away.
+    func isActive(_ block: PlanBlock) -> Bool { !isComplete(block) && !skipped.contains(block.id) }
+
     /// Next block to work. A superset partner alternates with its host (partner set during host rest).
     var currentBlock: PlanBlock? {
-        for b in orderedBlocks where !isComplete(b) {
-            if let p = plan.supersetPartner(of: b), !isComplete(p), workingSetsDone(p) < workingSetsDone(b) {
+        for b in orderedBlocks where isActive(b) {
+            if let p = plan.supersetPartner(of: b), isActive(p), workingSetsDone(p) < workingSetsDone(b) {
                 return p
             }
             return b
@@ -102,14 +126,17 @@ final class ActiveSession: Identifiable {
     /// Blocks queued behind the current one — what peeks out of the stack.
     func upcoming(limit: Int) -> [PlanBlock] {
         guard let cur = currentBlock else { return [] }
-        return Array(orderedBlocks.filter { $0.id != cur.id && !isComplete($0) }.prefix(limit))
+        return Array(orderedBlocks.filter { $0.id != cur.id && isActive($0) }.prefix(limit))
     }
 
     var isFinished: Bool { currentBlock == nil }
 
     var completedCount: Int { plan.blocks.filter { isComplete($0) }.count }
 
-    var remainingCount: Int { plan.blocks.filter { !isComplete($0) }.count }
+    /// Blocks in play — the `m` of "n of m" — excludes what was skipped (a finished block still counts).
+    var deckCount: Int { plan.blocks.filter { isComplete($0) || !skipped.contains($0.id) }.count }
+
+    var remainingCount: Int { plan.blocks.filter { isActive($0) }.count }
 
     // MARK: Logging
 
@@ -152,12 +179,68 @@ final class ActiveSession: Identifiable {
     }
 
     func startRest(seconds: Int) {
+        restPausedRemaining = nil
         restTotal = TimeInterval(seconds)
         restEndsAt = Date().addingTimeInterval(restTotal)
         RestNotifier.schedule(at: restEndsAt!)
     }
 
-    func skipRest() { restEndsAt = nil; RestNotifier.cancel() }
+    func skipRest() { restEndsAt = nil; restPausedRemaining = nil; RestNotifier.cancel() }
+
+    // MARK: Rest timer controls
+
+    var isRestPaused: Bool { restPausedRemaining != nil }
+
+    /// Seconds left on the rest card at `date`; frozen while paused.
+    func restRemaining(at date: Date) -> TimeInterval {
+        if let paused = restPausedRemaining { return paused }
+        return max(0, restEndsAt?.timeIntervalSince(date) ?? 0)
+    }
+
+    func pauseRest() {
+        guard let end = restEndsAt, restPausedRemaining == nil else { return }
+        restPausedRemaining = max(0, end.timeIntervalSinceNow)
+        RestNotifier.cancel()
+    }
+
+    func resumeRest() {
+        guard let remaining = restPausedRemaining else { return }
+        restPausedRemaining = nil
+        restEndsAt = Date().addingTimeInterval(remaining)
+        RestNotifier.schedule(at: restEndsAt!)
+    }
+
+    /// ±10 s. Going below zero ends the rest; going past the original length stretches the ring to match.
+    func adjustRest(by seconds: TimeInterval) {
+        guard restEndsAt != nil else { return }
+        let remaining = restRemaining(at: Date()) + seconds
+        guard remaining > 0 else { skipRest(); return }
+        restTotal = max(restTotal, remaining)
+        if restPausedRemaining != nil {
+            restPausedRemaining = remaining
+        } else {
+            restEndsAt = Date().addingTimeInterval(remaining)
+            RestNotifier.schedule(at: restEndsAt!)
+        }
+    }
+
+    // MARK: Skipping
+
+    /// Swipe-left: the block leaves the stack for this session. Sets already logged stay; restorable from the overview.
+    func skip(_ block: PlanBlock) {
+        skipped.insert(block.id)
+        if currentBlock == nil { skipRest() }   // a running rest stays; only an emptied deck ends it
+    }
+
+    /// Puts a skipped block back into the deck, at the end of what's left.
+    func restore(_ block: PlanBlock) {
+        skipped.remove(block.id)
+        var ids = activeBlocks.map(\.id).filter { $0 != block.id }
+        ids.append(block.id)
+        ids += skippedBlocks.map(\.id)
+        order = ids
+        UserDefaults.standard.set(ids.map(\.uuidString), forKey: "deckOrder-\(row.id)")
+    }
 
     // MARK: Deck management (overview)
 
@@ -166,6 +249,7 @@ final class ActiveSession: Identifiable {
         plan.blocks.removeAll { $0.id == block.id }
         for i in plan.blocks.indices where plan.blocks[i].supersetHostID == block.id { plan.blocks[i].supersetHostID = nil }
         order.removeAll { $0 == block.id }
+        skipped.remove(block.id)
         skipRest()
         persistPlan()
     }
