@@ -374,6 +374,7 @@ final class AppModel {
 
     func signOut() {
         Keychain.remove(Keychain.tokenKey)
+        lastSyncError = nil
     }
 
     func createInvite(viewMe: Bool, viewThem: Bool) async throws -> InviteDTO {
