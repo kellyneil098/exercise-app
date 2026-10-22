@@ -221,11 +221,9 @@ public struct Planner: Sendable {
     /// Rebuild a block in place with a substitute exercise (§7 swap). Keeps slot, sets, superset linkage.
     public func swap(block: PlanBlock, to exercise: Exercise, in plan: Plan, input: PlannerInput) -> Plan {
         guard let idx = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return plan }
-        // Blocks added by hand sit past the day's template, so fall back to the pattern's template at that slot number.
-        let base = resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot })
-            ?? catalog.slotTemplates[plan.dayType]?.first(where: { $0.slot == block.slot })
-            ?? template(for: exercise.movementPattern, plan: plan, input: input)
-        let slot = base.with(pattern: exercise.movementPattern, slot: block.slot)
+        let slot = swapTemplate(for: block, plan: plan, input: input, exercisePattern: exercise.movementPattern)
+        // The heavy slot must be loadable (§4.1); refuse rather than silently build an unloadable heavy block.
+        guard !(slot.band == .heavy && !exercise.loadable) else { return plan }
         let est = estimator.estimate(exercise, states: input.states, location: input.location)
         let cost = timer.blockSeconds(exercise: exercise, slot: slot, sets: block.sets, supersetted: block.isSupersetted)
         var nb = makeBlock(exercise, slot: slot, sets: block.sets, estimate: est, cost: cost, location: input.location)
@@ -241,6 +239,20 @@ public struct Planner: Sendable {
     /// Candidates for any pattern, whether or not the day's template has a slot for it (overview picker).
     public func candidates(pattern: String, in plan: Plan, input: PlannerInput, excluding: Set<String> = []) -> [Candidate] {
         candidates(pattern: pattern, slot: template(for: pattern, plan: plan, input: input), input: input, excluding: excluding)
+    }
+
+    /// Candidates to replace `block`, judged against the block's own slot (so a heavy slot still refuses
+    /// exercises that can't be loaded).
+    public func candidates(pattern: String, replacing block: PlanBlock, in plan: Plan, input: PlannerInput, excluding: Set<String> = []) -> [Candidate] {
+        let slot = swapTemplate(for: block, plan: plan, input: input, exercisePattern: pattern)
+        return candidates(pattern: pattern, slot: slot, input: input, excluding: excluding)
+    }
+
+    func swapTemplate(for block: PlanBlock, plan: Plan, input: PlannerInput, exercisePattern: String) -> SlotTemplate {
+        let base = resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).first(where: { $0.slot == block.slot })
+            ?? catalog.slotTemplates[plan.dayType]?.first(where: { $0.slot == block.slot })
+            ?? template(for: exercisePattern, plan: plan, input: input)
+        return base.with(pattern: exercisePattern, slot: block.slot)
     }
 
     /// The day's non-heavy template for `pattern` when there is one, else a generic medium slot.

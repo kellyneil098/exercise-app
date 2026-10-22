@@ -132,6 +132,9 @@ public final class WorkoutStore: Sendable {
                 t.column("value", .text).notNull()
             }
         }
+        m.registerMigration("v2-location-seedKey") { db in
+            try db.alter(table: "location") { $0.add(column: "seedKey", .text) }
+        }
         return m
     }
 
@@ -198,7 +201,7 @@ public final class WorkoutStore: Sendable {
         get { (try? db.read { try SyncMeta.fetchOne($0, key: "pull_cursor")?.value }).flatMap { Int($0) } ?? 0 }
     }
 
-    func setPullCursor(_ c: Int) throws {
+    public func setPullCursor(_ c: Int) throws {
         try db.write { try SyncMeta(key: "pull_cursor", value: String(c)).save($0) }
     }
 

@@ -54,6 +54,13 @@ final class ActiveSession: Identifiable {
         if !order.isEmpty {
             let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
             base.sort { (rank[$0.id] ?? .max, $0.slot) < (rank[$1.id] ?? .max, $1.slot) }
+            // A partner always sits right behind its host so the pair keeps alternating, wherever it was dragged.
+            var glued: [PlanBlock] = []
+            for b in base where !b.isSupersetted {
+                glued.append(b)
+                if let partner = plan.supersetPartner(of: b) { glued.append(partner) }
+            }
+            return glued
         }
         return base
     }
@@ -205,13 +212,16 @@ final class ActiveSession: Identifiable {
         let dayPatterns = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).map(\.pattern)
         var suggested: [Candidate] = []
         if let block {
-            suggested = model.planner.candidates(pattern: block.pattern, in: plan, input: input, excluding: used).filter(\.isAvailable)
+            suggested = model.planner.candidates(pattern: block.pattern, replacing: block, in: plan, input: input, excluding: used).filter(\.isAvailable)
         } else {
             for p in dayPatterns.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } } {
                 suggested += model.planner.candidates(pattern: p, in: plan, input: input, excluding: used).filter(\.isAvailable).prefix(2)
             }
         }
-        let all = model.catalog.patterns.keys.flatMap { model.planner.candidates(pattern: $0, in: plan, input: input, excluding: used) }
+        let all = model.catalog.patterns.keys.flatMap { p in
+            block.map { model.planner.candidates(pattern: p, replacing: $0, in: plan, input: input, excluding: used) }
+                ?? model.planner.candidates(pattern: p, in: plan, input: input, excluding: used)
+        }
             .sorted { $0.exercise.name < $1.exercise.name }
         return (suggested, all)
     }

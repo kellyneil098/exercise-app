@@ -40,8 +40,12 @@ def push(db: DbSession, user: models.User, records: list[schemas.RecordIn]) -> s
     existing = {r.id: r for r in db.scalars(select(models.Record).where(models.Record.id.in_(ids)))} if ids else {}
     pending: list[tuple[schemas.RecordIn, models.Record | None, datetime]] = []
     for r in records:
-        if r.table not in schemas.SYNC_TABLES or r.payload.get("userId", user.id) != user.id:
-            continue  # unknown table, or payload claims another owner
+        if (
+            r.table not in schemas.SYNC_TABLES
+            or r.payload.get("userId", user.id) != user.id
+            or r.payload.get("id", r.id) != r.id
+        ):
+            continue  # unknown table, or payload claims another owner / identity than the envelope
         updated_at = r.updated_at if r.updated_at.tzinfo else r.updated_at.replace(tzinfo=UTC)
         cur = existing.get(r.id)
         if cur is not None:

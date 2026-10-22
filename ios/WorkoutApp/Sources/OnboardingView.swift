@@ -94,7 +94,7 @@ struct OnboardingView: View {
         try? model.store.save(SettingsRow(userId: uid, displayName: name))
         for (i, key) in selectedSeeds.sorted().enumerated() {
             guard let seed = model.catalog.seededLocations.first(where: { $0.key == key }) else { continue }
-            let loc = Location(userId: uid, name: seed.name, dumbbellMaxWeight: seed.dumbbellMaxWeight,
+            let loc = Location(userId: uid, name: seed.name, seedKey: seed.key, dumbbellMaxWeight: seed.dumbbellMaxWeight,
                                dumbbellIncrement: 5, barbellIncrement: seed.plateIncrement, sortOrder: i)
             try? model.store.save(loc)
             let equipment = seed.defaultAvailable ? model.catalog.equipmentTypes.map(\.key) : AppModel.homeGymEquipment

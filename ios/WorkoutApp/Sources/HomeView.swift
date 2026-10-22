@@ -51,7 +51,7 @@ struct HomeView: View {
             }
         }
         .onAppear {
-            mode = .strength(model.nextDayType)
+            mode = ActiveRunClock.resumableRunID() != nil ? .running : .strength(model.nextDayType)
             let split = model.splitState
             duration = split.defaultDurationMin
             model.ensureSeededLocations()

@@ -30,4 +30,6 @@ public enum Keychain {
 
     public static let tokenKey = "api_token"
     public static let userIdKey = "user_id"
+    /// The last user id handed out by the server on this device; a local id that never signed in has none.
+    public static let serverIssuedUserIdKey = "server_issued_user_id"
 }

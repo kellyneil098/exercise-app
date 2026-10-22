@@ -41,3 +41,15 @@ def test_new_share_exposes_existing_history(client):
         client.get("/me", headers=nat).json()["id"],
         client.get("/me", headers=neil).json()["id"],
     }
+
+
+def test_payload_id_mismatch_ignored(client):
+    neil, _ = login(client, "neil@example.com")
+    out = client.post(
+        "/sync/push",
+        headers=neil,
+        json={"records": [rec("row-1", payload={"id": "row-2", "name": "x"}), rec("row-3", payload={"name": "y"})]},
+    ).json()
+    assert out["accepted"] == 1 and out["ignored"] == 1
+    rows = client.get("/sync/pull?since=0", headers=neil).json()["records"]
+    assert [r["id"] for r in rows] == ["row-3"]

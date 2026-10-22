@@ -24,12 +24,14 @@ public struct Location: SyncedRecord {
     public var dumbbellIncrement: Double
     public var barbellIncrement: Double
     public var sortOrder: Int
+    /// Which seeded location this row came from (nil for gyms the user added), so renames never duplicate it.
+    public var seedKey: String?
     public var updatedAt: Date
     public var deleted: Bool = false
 
-    public init(id: String = UUIDv7.generate(), userId: String, name: String, dumbbellMaxWeight: Double? = nil,
+    public init(id: String = UUIDv7.generate(), userId: String, name: String, seedKey: String? = nil, dumbbellMaxWeight: Double? = nil,
                 dumbbellIncrement: Double = 5, barbellIncrement: Double = 5, sortOrder: Int = 0, updatedAt: Date = Date()) {
-        self.id = id; self.userId = userId; self.name = name; self.dumbbellMaxWeight = dumbbellMaxWeight
+        self.id = id; self.userId = userId; self.name = name; self.seedKey = seedKey; self.dumbbellMaxWeight = dumbbellMaxWeight
         self.dumbbellIncrement = dumbbellIncrement; self.barbellIncrement = barbellIncrement
         self.sortOrder = sortOrder; self.updatedAt = updatedAt
     }
