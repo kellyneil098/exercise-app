@@ -1,6 +1,5 @@
 name: TestFlight
 # Archives the app and uploads it to App Store Connect (internal TestFlight). Needs these repo secrets:
-#   APPLE_TEAM_ID                      Developer Program Team ID
 #   APP_STORE_CONNECT_KEY_ID           App Store Connect API key ID
 #   APP_STORE_CONNECT_ISSUER_ID        App Store Connect issuer ID
 #   APP_STORE_CONNECT_KEY_P8           contents of the AuthKey_<KEY_ID>.p8 file
@@ -8,6 +7,9 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+
+env:
+  APPLE_TEAM_ID: V74SR2AB3N   # not a secret: the Team ID ships inside every signed bundle
 
 jobs:
   upload:
@@ -33,7 +35,6 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
         env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       - name: Upload to TestFlight
@@ -54,6 +55,5 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
         env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

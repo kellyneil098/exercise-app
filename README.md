@@ -9,6 +9,6 @@ Run `python3 seed/validate_seed.py` after editing any seed file.
 
 ## Shipping to TestFlight
 
-`.github/workflows/testflight.yml` archives and uploads on `workflow_dispatch` or a `v*` tag. It needs four repo secrets:
-`APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_P8` (the `.p8` contents).
+`.github/workflows/testflight.yml` archives and uploads on `workflow_dispatch` or a `v*` tag. It needs three repo secrets:
+`APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_P8` (the `.p8` contents).
 Marketing version lives in `ios/WorkoutApp/project.yml` (`MARKETING_VERSION`); the build number is the CI run number.
