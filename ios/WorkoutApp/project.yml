@@ -43,6 +43,7 @@ targets:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIRequiresFullScreen: true   # portrait-only: opt out of iPad multitasking (App Store check 90474)
+        ITSAppUsesNonExemptEncryption: false   # HTTPS only (exempt) — skips the export-compliance prompt on every TestFlight build
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
