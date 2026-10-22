@@ -359,7 +359,7 @@ public struct Stat: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
-                Text(value).font(Theme.Fonts.numeral).foregroundStyle(tint)
+                Text(value).font(Theme.Fonts.numeral).foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.7)
                 if let unit { Text(unit).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
             }
             Text(label).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)

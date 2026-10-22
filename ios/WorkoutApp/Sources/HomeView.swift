@@ -61,7 +61,7 @@ struct HomeView: View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 Overline(Date.now.formatted(.dateTime.weekday(.wide).month().day()))
-                Text(greeting).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                Text(greeting).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary).lineLimit(1).minimumScaleFactor(0.75)
             }
             Spacer()
             IconButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
@@ -69,6 +69,17 @@ struct HomeView: View {
                 .buttonStyle(PressStyle())
                 .accessibilityLabel("Profile")
         }
+    }
+
+    /// "Today", "Yesterday", a weekday within the week, otherwise a short date.
+    func dayLabel(_ d: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return "Today" }
+        if cal.isDateInYesterday(d) { return "Yesterday" }
+        if let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: .now)).day, days < 7 {
+            return d.formatted(.dateTime.weekday(.wide))
+        }
+        return d.formatted(.dateTime.day().month(.abbreviated))
     }
 
     var greeting: String {
@@ -84,15 +95,17 @@ struct HomeView: View {
         let last = model.recentSessions(limit: 1).first
         return Card(padding: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.m) {
-                Stat("\(week.count)", label: "sessions this week", tint: Theme.Colors.brass)
-                Spacer()
+                Stat("\(week.count)", label: week.count == 1 ? "session this week" : "sessions this week", tint: Theme.Colors.brass)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Rectangle().fill(Theme.Colors.hairline).frame(width: 1, height: 40)
-                Spacer()
-                if let last {
-                    Stat(last.performedAt.formatted(.relative(presentation: .named)).capitalized, label: "last \(last.dayType.label.lowercased()) day")
-                } else {
-                    Stat("—", label: "no sessions yet")
+                Group {
+                    if let last {
+                        Stat(dayLabel(last.performedAt), label: "last · \(last.dayType.label.lowercased())")
+                    } else {
+                        Stat("—", label: "no sessions yet")
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -117,11 +130,13 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                 HStack(spacing: Theme.Spacing.sm) {
                     IconTile("clock", tint: Theme.Colors.brass, size: 32)
-                    Overline("Time", tint: Theme.Colors.textSecondary)
+                    Overline("Minutes", tint: Theme.Colors.textSecondary)
                 }
                 HStack(spacing: Theme.Spacing.s) {
                     ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
-                        Chip("\(m) min", selected: m == duration) { duration = m }
+                        Chip("\(m)", selected: m == duration) { duration = m }
+                            .frame(maxWidth: .infinity)
+                            .accessibilityLabel("\(m) minutes")
                     }
                 }
                 Hairline().padding(.vertical, Theme.Spacing.xs)
