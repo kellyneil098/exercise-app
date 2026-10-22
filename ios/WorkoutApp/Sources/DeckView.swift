@@ -419,7 +419,8 @@ struct ExercisePicker: View {
     }
 
     func patternLabel(_ e: Exercise) -> String {
-        e.movementPattern.replacingOccurrences(of: "_", with: " ").capitalized
+        let label = e.movementPattern.replacingOccurrences(of: "_", with: " ").capitalized
+        return e.isCustom ? "Custom · \(label)" : label
     }
 
     func row(_ c: Candidate) -> some View {
