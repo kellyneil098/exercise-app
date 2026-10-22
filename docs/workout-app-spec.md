@@ -517,13 +517,15 @@ Runs render in the deck as a short card sequence: warm-up, main segment(s) with 
 
 The workout is a **stack of cards, one at a time** (think Tinder, not a list). The user never sees more than the card in hand plus the edges of the next one or two behind it. Every card is one *step*: a warm-up set or a working set of one exercise, showing exactly three things — exercise name, weight, and `set n of m · rep range`.
 
-| Card | Swipe right | Swipe left | Tap |
-|---|---|---|---|
-| `set` (warm-up or working) | **Done** → rest card | **Rate** this set | — |
-| `rate` | Back to the set card | — | Easy / Good / Hard, or "Didn't finish" |
-| `rest` | Skip rest | — | Skip rest |
+| Card | Swipe right | Swipe left | Swipe up | Tap |
+|---|---|---|---|---|
+| `set` (warm-up or working) | **Done** → rest card | **Skip** the exercise | **Rate** this set | — |
+| `rate` | Back to the set card | — | — | Easy / Good / Hard, or "Didn't finish" |
+| `rest` | Skip rest | — | — | Skip rest (pause / −10 / +10 are buttons under the ring) |
 
-Swiping right logs the set as completed at the top of the rep range with no rating; the rest countdown starts and, at zero, the next card is already in hand. Swiping left shows the rating card; the rating implies the reps logged (easy/good = top of range, hard = bottom of range, didn't finish = short of target) so the **working weight adjusts itself** through §5 — the user never types a number mid-set. `hard` holds the load without counting as a failure.
+Swiping right logs the set as completed at the top of the rep range with no rating; the rest countdown starts and, at zero, the next card is already in hand. Swiping up shows the rating card; the rating implies the reps logged (easy/good = top of range, hard = bottom of range, didn't finish = short of target) so the **working weight adjusts itself** through §5 — the user never types a number mid-set. `hard` holds the load without counting as a failure. Swiping left skips the whole exercise for this session: it leaves the stack, sets already logged stay, and it is listed under **Skipped** in the overview with a one-tap restore (back to the end of the deck).
+
+As the drag grows the card tints and stamps the pending action, Tinder-style, so the user knows what letting go will do: **green** for Done, **red** for Skip, **blue** for Rate — the one exception to §8 rule 4. A `.selection` haptic marks the threshold.
 
 Superset partners alternate with their host: host set → partner set (no rest) → rest → host set. Rest after a warm-up is 60 s regardless of band.
 
@@ -544,6 +546,7 @@ Compute remaining time from a **stored start `Date`**, never from a running coun
 
 - Schedule a `UNUserNotificationCenter` local notification for the end time when the rest card appears; cancel it if the user skips rest. Request notification permission the first time a rest card is shown, not at launch.
 - Run a **Live Activity** (ActivityKit) for the duration of a workout showing the rest countdown and the next exercise on the Lock Screen and in the Dynamic Island. The phone is locked between sets; this is where the timer is actually read.
+- **Pause**, **−10 s** and **+10 s** controls sit under the ring. Pausing stores the seconds left and cancels the notification; resuming sets a new end date. ±10 moves the end date (or the paused remainder) and reschedules; dropping to zero ends the rest, stretching past the original length grows the ring.
 - Haptic (`.success`) when the timer hits zero if the app is foregrounded.
 - The timer does not force-advance; it goes to zero and shows overage in the same typographic style, tinted.
 

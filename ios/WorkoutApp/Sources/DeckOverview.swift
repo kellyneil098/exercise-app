@@ -4,7 +4,8 @@ import WorkoutStore
 import WorkoutUI
 
 /// The zoomed-out deck: the whole workout at once. Drag to reorder, swipe a row away to delete, tap a row to
-/// edit weight / sets / reps or swap / delete / undo; `+` adds an exercise. Ending the workout lives here.
+/// edit weight / sets / reps or swap / skip / delete / undo; `+` adds an exercise. Exercises swiped away in the
+/// deck collect under "Skipped" with a one-tap restore. Ending the workout lives here.
 struct DeckOverview: View {
     @Bindable var session: ActiveSession
     @Environment(\.dismiss) private var dismiss
@@ -36,16 +37,38 @@ struct DeckOverview: View {
                 .padding(Theme.Spacing.l)
 
                 List {
-                    ForEach(session.orderedBlocks) { b in
+                    ForEach(session.activeBlocks) { b in
                         row(b)
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(Theme.Colors.hairline)
-                            .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l))
+                            .listRowInsets(rowInsets)
                     }
                     .onMove { session.move(fromOffsets: $0, toOffset: $1) }
                     .onDelete { offsets in
-                        let blocks = session.orderedBlocks
+                        let blocks = session.activeBlocks
                         for i in offsets { session.remove(blocks[i]) }
+                    }
+
+                    if !session.skippedBlocks.isEmpty {
+                        HStack {
+                            Overline("Skipped")
+                            Spacer()
+                            Text("tap to bring back").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                        .padding(.top, Theme.Spacing.xl).padding(.bottom, Theme.Spacing.xs)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(rowInsets)
+                        ForEach(session.skippedBlocks) { b in
+                            skippedRow(b)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparatorTint(Theme.Colors.hairline)
+                                .listRowInsets(rowInsets)
+                        }
+                        .onDelete { offsets in
+                            let blocks = session.skippedBlocks
+                            for i in offsets { session.remove(blocks[i]) }
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -67,8 +90,10 @@ struct DeckOverview: View {
         .presentationBackground(Theme.Colors.canvas)
     }
 
+    private var rowInsets: EdgeInsets { EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l) }
+
     var remainingMinutes: Int {
-        let secs = session.plan.blocks.filter { !session.isComplete($0) }.reduce(0.0) { acc, b in
+        let secs = session.activeBlocks.filter { !session.isComplete($0) }.reduce(0.0) { acc, b in
             let fraction = 1 - Double(session.workingSetsDone(b)) / Double(max(1, b.sets))
             return acc + b.estimatedSeconds * fraction
         }
@@ -107,6 +132,32 @@ struct DeckOverview: View {
         .padding(.vertical, Theme.Spacing.m)
     }
 
+    /// A skipped exercise: dimmed, with its logged sets, and a restore control. The whole row restores on tap.
+    func skippedRow(_ b: PlanBlock) -> some View {
+        let done = session.workingSetsDone(b)
+        return HStack(spacing: Theme.Spacing.m) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary)
+                Text(done > 0 ? "\(done) of \(b.sets) done · \(summary(b, done: done))" : summary(b, done: done))
+                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.uturn.backward").font(.system(size: 13, weight: .semibold))
+                Text("Restore").font(Theme.Fonts.caption)
+            }
+            .foregroundStyle(Theme.Colors.brass)
+            .padding(.horizontal, 12).frame(height: 36)
+            .background(Theme.Colors.brassDim, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+        }
+        .padding(.vertical, Theme.Spacing.m)
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.play(.swap); withAnimation(Theme.Motion.quick) { session.restore(b) } }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Restore \(b.exerciseName)")
+    }
+
     func summary(_ b: PlanBlock, done: Int) -> String {
         let range = b.measure == .seconds ? "\(b.repLow)–\(b.repHigh)s" : "\(b.repLow)–\(b.repHigh)"
         let load = b.weight.map { "\($0.formatted()) lb · " } ?? ""
@@ -128,6 +179,9 @@ struct DeckOverview: View {
                      in: 1...300, step: b.measure == .seconds ? 5 : 1)
             HStack(spacing: Theme.Spacing.s) {
                 IconControl("arrow.triangle.2.circlepath", label: "Swap") { picker = .swap(b) }
+                IconControl("forward.end", label: "Skip") {
+                    withAnimation(Theme.Motion.quick) { expanded = nil; session.skip(b) }
+                }
                 if done > 0 { IconControl("arrow.uturn.backward", label: "Undo last set") { session.undoLast(block: b) } }
                 Spacer()
                 IconControl("trash", label: "Delete", tint: Theme.Colors.destructive) {
