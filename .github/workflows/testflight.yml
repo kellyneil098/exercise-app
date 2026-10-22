@@ -1,0 +1,59 @@
+name: TestFlight
+# Archives the app and uploads it to App Store Connect (internal TestFlight). Needs these repo secrets:
+#   APPLE_TEAM_ID                      Developer Program Team ID
+#   APP_STORE_CONNECT_KEY_ID           App Store Connect API key ID
+#   APP_STORE_CONNECT_ISSUER_ID        App Store Connect issuer ID
+#   APP_STORE_CONNECT_KEY_P8           contents of the AuthKey_<KEY_ID>.p8 file
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  upload:
+    runs-on: macos-15
+    defaults: { run: { working-directory: ios/WorkoutApp } }
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s' "$APP_STORE_CONNECT_KEY_P8" > ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+        env:
+          APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      - name: Archive
+        run: |
+          xcodebuild -project WorkoutApp.xcodeproj -scheme WorkoutApp -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/WorkoutApp.xcarchive -quiet archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      - name: Upload to TestFlight
+        run: |
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/WorkoutApp.xcarchive -exportPath build/export \
+            -exportOptionsPlist build/ExportOptions.plist -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
