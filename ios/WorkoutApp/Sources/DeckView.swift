@@ -69,7 +69,7 @@ struct DeckView: View {
             }
         }
         .padding(.horizontal, Theme.Spacing.l)
-        .padding(.bottom, Theme.Spacing.s)
+        .padding(.bottom, Theme.Spacing.xl + Theme.Spacing.s)
         .frame(maxHeight: .infinity)
         .animation(Theme.Motion.spring, value: session.currentStep?.id)
         .animation(Theme.Motion.spring, value: session.restEndsAt)
@@ -236,7 +236,17 @@ struct StepCard: View {
 
 // MARK: Cards
 
-private let cardMinHeight: CGFloat = 440
+/// Cards fill the height the stack gives them (so the hero element can sit low enough to read from the floor)
+/// and never shrink below this, which still fits an iPhone SE with the peek strips showing.
+private let cardMinHeight: CGFloat = 400
+
+private extension View {
+    /// Shared card body frame: full width and height, content hanging from the top-left; each card
+    /// distributes its own slack with spacers.
+    func cardBody() -> some View {
+        frame(maxWidth: .infinity, minHeight: cardMinHeight, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
 
 struct SetCard: View {
     let step: DeckStep
@@ -245,34 +255,39 @@ struct SetCard: View {
 
     var body: some View {
         Card(raised: true) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+            // Three groups, top to bottom: picture + name, the weight (hero, centred in the remaining space),
+            // set dots pinned to the bottom edge. Spacing is tight inside a group and loose between groups.
+            VStack(alignment: .leading, spacing: 0) {
                 ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
                     .frame(maxHeight: 150)
                     .frame(maxWidth: .infinity)
-                HStack(spacing: 8) {
-                    Overline(kind)
-                    if b.isEstimate { Overline("· est") }
-                    Spacer()
-                }
-                .padding(.top, Theme.Spacing.s)
-                Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Theme.Spacing.m)
-                if let w = step.warmup {
-                    weight(w.weight)
-                    Text("Warm-up \(step.index + 1) of \(b.warmups.count) · \(w.reps) reps")
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
-                } else {
-                    if let w = b.weight { weight(w) } else {
-                        Text("Bodyweight").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    HStack(spacing: Theme.Spacing.s) {
+                        Overline(kind)
+                        if b.isEstimate { Overline("· est") }
                     }
-                    Text("Set \(step.index + 1) of \(b.sets) · \(repRange)")
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                    Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, Theme.Spacing.l)
+                Spacer(minLength: Theme.Spacing.l)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    if let w = step.warmup {
+                        weight(w.weight)
+                        Text("Warm-up \(step.index + 1) of \(b.warmups.count) · \(w.reps) reps")
+                            .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                    } else {
+                        if let w = b.weight { weight(w) } else {
+                            Text("Bodyweight").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                        }
+                        Text("Set \(step.index + 1) of \(b.sets) · \(repRange)")
+                            .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                    }
                 }
                 Spacer(minLength: Theme.Spacing.l)
                 SetDots(done: session.workingSetsDone(b), total: b.sets)
             }
-            .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+            .cardBody()
         }
         .contentShape(Rectangle())
     }
@@ -302,30 +317,36 @@ struct RateCard: View {
 
     var body: some View {
         Card(raised: true) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Overline("How was that set?")
-                Text(step.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
-                Spacer(minLength: Theme.Spacing.m)
-                ForEach([EffortRating.easy, .good, .hard], id: \.rawValue) { e in
-                    Button { onRate(e) } label: {
-                        HStack {
-                            Text(e.label).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                            Spacer()
-                            Text(note(e)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                        .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
-                        .frame(maxWidth: .infinity)
-                        .background(Theme.Colors.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
-                    }
-                    .buttonStyle(PressStyle())
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Overline("How was that set?")
+                    Text(step.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
                 }
-                Spacer(minLength: Theme.Spacing.m)
-                Button("Didn't finish the set") { onRate(.didNotFinish) }
-                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-                    .frame(maxWidth: .infinity)
-                Overline("Swipe right to go back").frame(maxWidth: .infinity)
+                Spacer(minLength: Theme.Spacing.l)
+                VStack(spacing: Theme.Spacing.s) {
+                    ForEach([EffortRating.easy, .good, .hard], id: \.rawValue) { e in
+                        Button { onRate(e) } label: {
+                            HStack {
+                                Text(e.label).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                                Spacer()
+                                Text(note(e)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                            }
+                            .padding(.horizontal, Theme.Spacing.l).padding(.vertical, Theme.Spacing.m)
+                            .frame(maxWidth: .infinity)
+                            .background(Theme.Colors.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                        }
+                        .buttonStyle(PressStyle())
+                    }
+                }
+                Spacer(minLength: Theme.Spacing.l)
+                VStack(spacing: Theme.Spacing.m) {
+                    Button("Didn't finish the set") { onRate(.didNotFinish) }
+                        .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+                    Overline("Swipe right to go back")
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+            .cardBody()
         }
         .contentShape(Rectangle())
     }
@@ -346,8 +367,11 @@ struct RestCard: View {
             let remaining = session.restRemaining(at: ctx.date)
             let paused = session.isRestPaused
             Card(raised: true) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                // Label at the top, "up next" at the bottom, and the ring with its controls floating in the
+                // middle of whatever is left, so the countdown sits at the card's centre rather than its top edge.
+                VStack(alignment: .leading, spacing: 0) {
                     Overline(paused ? "Rest · paused" : "Rest")
+                    Spacer(minLength: Theme.Spacing.m)
                     CountdownRing(progress: remaining / max(1, session.restTotal), dimmed: paused) {
                         Text(clock(remaining)).font(Theme.Fonts.display).monospacedDigit()
                             .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
@@ -355,16 +379,18 @@ struct RestCard: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 200)
-                    .padding(.top, Theme.Spacing.xs)
                     controls(paused: paused)
+                        .padding(.top, Theme.Spacing.l)
                     Spacer(minLength: Theme.Spacing.m)
                     if let next = session.currentStep {
-                        Overline("Up next")
-                        Text(next.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
-                        Text(detail(next)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                            Overline("Up next").padding(.bottom, Theme.Spacing.xs)
+                            Text(next.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                            Text(detail(next)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+                .cardBody()
             }
             .contentShape(Rectangle())
             .onTapGesture { session.skipRest() }
@@ -446,7 +472,7 @@ struct PeekCard: View {
                 Text(block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
                 Spacer()
             }
-            .frame(maxWidth: .infinity, minHeight: cardMinHeight, alignment: .leading)
+            .cardBody()
         }
     }
 }
