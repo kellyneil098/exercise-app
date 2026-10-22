@@ -21,22 +21,24 @@ jobs:
       - run: xcodegen generate
       - name: App Store Connect API key
         run: |
+          # Re-wrap the PEM so the secret works whether it was pasted with or without line breaks.
           mkdir -p ~/private_keys
-          printf '%s' "$APP_STORE_CONNECT_KEY_P8" > ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+          python3 - <<'PY' > ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+          import os, re
+          b = re.sub(r"[^A-Za-z0-9+/=]", "", re.sub(r"-----(BEGIN|END) PRIVATE KEY-----", "", os.environ["APP_STORE_CONNECT_KEY_P8"]))
+          print("-----BEGIN PRIVATE KEY-----\n" + "\n".join(b[i:i+64] for i in range(0, len(b), 64)) + "\n-----END PRIVATE KEY-----")
+          PY
         env:
           APP_STORE_CONNECT_KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       - name: Archive
+        # Unsigned archive; the export step signs with an App Store distribution profile. (A signed archive would
+        # need a development profile, which Apple refuses to issue for a team with no registered devices.)
         run: |
           xcodebuild -project WorkoutApp.xcodeproj -scheme WorkoutApp -configuration Release \
             -destination 'generic/platform=iOS' -archivePath build/WorkoutApp.xcarchive -quiet archive \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 \
-            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
-        env:
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
       - name: Upload to TestFlight
         run: |
           cat > build/ExportOptions.plist <<PLIST
