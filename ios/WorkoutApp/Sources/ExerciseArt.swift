@@ -2,21 +2,32 @@ import SwiftUI
 import WorkoutEngine
 import WorkoutUI
 
-/// Cartoon pictogram of a movement: an articulated wooden-mannequin figure with a mascot-sized head,
+/// Animated pictogram of a movement: an articulated wooden-mannequin figure with a mascot-sized head,
 /// drawn from a small kinematic skeleton so limb proportions are consistent and the implement is always
-/// in the hands. Every pose is a side view chosen for correct form (neutral spine, bar over mid-foot,
-/// knees over toes) and free-standing poses keep the combined centre of mass over the feet.
+/// in the hands. Every exercise is two keyframe poses (start / end of the rep) chosen for correct form
+/// (neutral spine, bar over mid-foot, knees over toes); the figure eases between them, pinned at an
+/// anchor (standing foot, bar in the hands, shoulders on a bench) so gear stays put while the body moves.
 /// Barbells are seen end-on (a plate ring at the hand) because the figure is in profile.
-/// Unit box 100×60, auto-framed around the figure, then scaled to fit.
+/// Unit box 100×60, auto-framed around both keyframes, then scaled to fit.
+///
+/// The pose table is generated from tools/pictograms/motions.py, which also builds the HTML review sheet;
+/// edit it there and rerun `python3 motions.py swift`.
 struct ExerciseArt: View {
     let exerciseKey: String
     let pattern: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static let repPeriod: TimeInterval = 2.8
 
     var body: some View {
+        let renderer = FigureRenderer(motion: Motion.for(exerciseKey: exerciseKey, pattern: pattern))
         ZStack {
             RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
-            Canvas(rendersAsynchronously: true) { ctx, size in
-                FigureRenderer(pose: Pose.for(exerciseKey: exerciseKey, pattern: pattern)).draw(in: &ctx, size: size)
+            TimelineView(.animation(paused: reduceMotion)) { timeline in
+                Canvas(rendersAsynchronously: true) { ctx, size in
+                    let t = reduceMotion ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
+                    renderer.draw(in: &ctx, size: size, phase: t)
+                }
             }
             .padding(Theme.Spacing.m)
         }
@@ -30,7 +41,7 @@ struct Pose {
     enum Implement { case none, barbell, barbellNarrow, shortBar, trapBar, dumbbell, dumbbellVertical, dumbbellFirst, barbellOnHips, handle, kettlebell, wheel }
     enum Prop {
         case bench, inclineBench, declineBench, seat, backrest, hackPad, frontPad, preacherPad, chestPad, kneePad, shoulderPads
-        case cable, cableFromBehind, cableLowFront, cableBehindLow, cableFrontLevel
+        case cable, cableHigh, cableFromBehind, cableLowFront, cableBehindLow, cableFrontLevel
         case highBar, dipBars, smithRails, machineArm, tBar, post, supportRail, supportBench, handBench
         case anklePad, heelAnchor, calfBlock, rearBench, footBlock, footPlate, dipBelt
     }
@@ -57,129 +68,339 @@ struct Pose {
         self.implement = implement; self.props = props; self.grounded = grounded; self.floor = floor
     }
 
-    func with(_ edit: (inout Pose) -> Void) -> Pose { var p = self; edit(&p); return p }
-
-    static func `for`(exerciseKey key: String, pattern: String) -> Pose {
-        var p = base(exerciseKey: key, pattern: pattern)
-        if key.contains("dumbbell"), p.implement == .barbell { p.implement = .dumbbell }
-        if key.contains("barbell"), p.implement == .dumbbell { p.implement = .barbell }
-        if key.contains("smith"), !p.props.contains(.smithRails) { p.props.append(.smithRails) }
-        return p
-    }
-
-    // MARK: - Shared bases
-
-    private static let standing = Pose(50, 36, -90, 90, 90, 90, 90)
-    private static let seated = Pose(44, 38, -90, 90, 90, 0, 90, props: [.seat, .backrest])
-    private static let benchPress = Pose(58, 40, 180, -70, -90, 60, 90, implement: .barbell, props: [.bench])
-    /// Hips back, shins near vertical, shoulders over the bar, bar over mid-foot.
-    private static let hinge = Pose(40, 32, -40, 90, 90, 50, 68, implement: .barbell)
-    /// Knees travel forward, torso leans so the bar stays over mid-foot.
-    private static let squat = Pose(44, 36, -55, -170, 10, 10, 115, implement: .barbell)
-    /// Top of the pull: elbows behind the torso, bar at the lower ribs, hips back over the heels.
-    private static let row = Pose(44, 34, -35, 150, 60, 60, 80, implement: .barbell)
-    private static let hanging = Pose(50, 36, -90, -135, -45, 95, 120, props: [.highBar], grounded: false, floor: false)
-    private static let latPulldown = Pose(46, 38, -100, 120, -30, 0, 90, implement: .barbell, props: [.cable, .seat])
-    private static let romanianDeadlift = Pose(42, 32, -32, 100, 100, 72, 85, implement: .barbell)
-    private static let crunch = Pose(50, 54, -155, -120, 160, -50, 70, grounded: false)
-
-    // MARK: - Table
-
-    private static func base(exerciseKey key: String, pattern: String) -> Pose {
-        switch key {
-        case "decline_push_up": return Pose(56, 38.6, 175, 90, 90, -5, -5, props: [.footBlock], grounded: false)
-        case "push_up": return Pose(56, 46.5, -156, 90, 90, 24, 24, grounded: false)
-        case "dumbbell_floor_press": return Pose(56, 52.5, 180, -70, -90, -40, 100, implement: .dumbbell, grounded: false)
-        case "close_grip_bench_press": return benchPress.with { $0.implement = .barbellNarrow }
-        case "machine_chest_press": return seated.with { $0.upperArm = 0; $0.forearm = 0; $0.implement = .handle; $0.props = [.seat, .backrest, .machineArm] }
-        case "machine_shoulder_press": return seated.with { $0.upperArm = 0; $0.forearm = -90; $0.implement = .handle; $0.props = [.seat, .backrest, .machineArm] }
-        case "seated_dumbbell_press", "dumbbell_shoulder_press": return seated.with { $0.upperArm = -45; $0.forearm = -135; $0.implement = .dumbbell }
-        case "arnold_press": return seated.with { $0.upperArm = 40; $0.forearm = -70; $0.implement = .dumbbellVertical }
-        case "weighted_dip": return Pose(50, 36, -75, 150, 90, 100, 170, props: [.dipBars, .dipBelt], grounded: false, floor: false)
-        case "bench_dip": return Pose(52, 44, -80, 160, 90, 10, 60, props: [.handBench])
-        case "skullcrusher": return benchPress.with { $0.upperArm = -90; $0.forearm = 180; $0.implement = .shortBar }
-        case "dumbbell_overhead_extension": return standing.with { $0.torso = -86; $0.upperArm = -75; $0.forearm = -160; $0.implement = .dumbbellVertical }
-        case "overhead_cable_extension": return Pose(46, 36, -70, -100, -40, 80, 90, implement: .handle, props: [.cableFromBehind])
-        case "cable_pushdown": return standing.with { $0.upperArm = 90; $0.forearm = 80; $0.implement = .handle; $0.props = [.cable] }
-        case "pec_deck_fly": return seated.with { $0.upperArm = 0; $0.forearm = -70; $0.props = [.seat, .backrest, .machineArm] }
-        case "reverse_pec_deck": return Pose(46, 38, -90, 175, 175, 0, 90, implement: .handle, props: [.seat, .chestPad])
-        case "cable_fly": return Pose(46, 36, -80, -10, 0, 90, 90, implement: .handle, props: [.cableFromBehind])
-        case "cable_lateral_raise": return standing.with { $0.upperArm = 0; $0.forearm = 5; $0.implement = .handle; $0.props = [.cableLowFront] }
-        case "lean_away_lateral_raise": return standing.with { $0.torso = -75; $0.upperArm = 0; $0.forearm = 5; $0.upperArm2 = 170; $0.forearm2 = 170; $0.implement = .handle; $0.props = [.cableLowFront, .post] }
-        case "pull_up": return hanging
-        case "weighted_pull_up": return hanging.with { $0.props = [.highBar, .dipBelt] }
-        case "chin_up": return hanging.with { $0.upperArm = -115; $0.forearm = -65 }
-        case "neutral_grip_pulldown": return latPulldown.with { $0.implement = .barbellNarrow }
-        case "straight_arm_pulldown": return Pose(46, 36, -80, -30, -30, 85, 90, implement: .barbellNarrow, props: [.cable])
-        case "kneeling_cable_pulldown": return Pose(46, 40, -90, -40, -110, 90, 180, implement: .handle, props: [.cable])
-        case "pendlay_row": return Pose(40, 34, -20, 90, 90, 40, 75, headAngle: 10, implement: .barbell)
-        case "t_bar_row": return row.with { $0.implement = .handle; $0.props = [.tBar] }
-        case "chest_supported_row": return Pose(44, 38, -50, 100, 100, 90, 90, implement: .handle, props: [.seat, .frontPad])
-        case "seated_cable_row": return Pose(40, 44, -95, 10, 0, -10, 40, implement: .handle, props: [.seat, .cableFrontLevel, .footPlate], grounded: false)
-        case "single_arm_dumbbell_row": return Pose(40, 36, -30, 100, 90, 75, 85, upperArm2: 60, forearm2: 60, thigh2: 55, shin2: 80, implement: .dumbbellFirst, props: [.supportBench])
-        case "inverted_row": return Pose(50, 49, -160, -90, -90, 20, 20, props: [.highBar])
-        case "face_pull": return standing.with { $0.upperArm = -20; $0.forearm = -20; $0.thigh = 80; $0.thigh2 = 100; $0.shin2 = 90; $0.implement = .handle; $0.props = [.cableFrontLevel] }
-        case "cable_reverse_fly": return standing.with { $0.torso = -80; $0.upperArm = 0; $0.forearm = 0; $0.implement = .handle; $0.props = [.cableFrontLevel] }
-        case "hammer_curl": return standing.with { $0.upperArm = 90; $0.forearm = 0; $0.implement = .dumbbellVertical }
-        case "cable_curl": return standing.with { $0.upperArm = 90; $0.forearm = 0; $0.implement = .handle; $0.props = [.cableLowFront] }
-        case "preacher_curl": return Pose(44, 38, -90, 35, -50, 0, 90, implement: .shortBar, props: [.seat, .preacherPad])
-        case "incline_dumbbell_curl": return Pose(52, 42, -130, 100, 20, 60, 90, implement: .dumbbell, props: [.inclineBench])
-        case "front_squat": return squat.with { $0.torso = -70; $0.shin = 120; $0.upperArm = -10; $0.forearm = 165 }
-        case "goblet_squat": return squat.with { $0.torso = -72; $0.shin = 120; $0.upperArm = 60; $0.forearm = -70; $0.implement = .dumbbellVertical }
-        case "hack_squat": return Pose(44, 36, -120, 110, 60, 0, 80, props: [.hackPad])
-        case "leg_press": return Pose(40, 42, -130, 20, 60, -50, -10, props: [.seat, .backrest, .footPlate], grounded: false)
-        case "bulgarian_split_squat": return Pose(50, 36, -90, 90, 90, 0, 90, thigh2: 135, shin2: 190, implement: .dumbbellVertical, props: [.rearBench])
-        case "walking_lunge": return standing.with { $0.thigh = 0; $0.thigh2 = 125; $0.shin2 = 170; $0.implement = .dumbbellVertical }
-        case "reverse_lunge": return standing.with { $0.torso = -88; $0.thigh2 = 120; $0.shin2 = 150; $0.implement = .dumbbellVertical }
-        case "step_up": return standing.with { $0.thigh = -10; $0.thigh2 = 90; $0.shin2 = 90; $0.implement = .dumbbellVertical; $0.props = [.footBlock] }
-        case "romanian_deadlift": return romanianDeadlift
-        case "dumbbell_romanian_deadlift": return romanianDeadlift.with { $0.implement = .dumbbell }
-        case "trap_bar_deadlift": return hinge.with { $0.implement = .trapBar }
-        case "good_morning": return Pose(42, 32, -32, -170, 30, 60, 80, implement: .barbell)
-        case "kettlebell_swing": return Pose(44, 34, -35, 95, 95, 50, 80, implement: .kettlebell)
-        case "cable_pull_through": return Pose(44, 32, -30, 120, 150, 60, 85, implement: .handle, props: [.cableBehindLow])
-        case "barbell_hip_thrust": return Pose(56, 40, 180, 0, 0, 0, 90, implement: .barbellOnHips, props: [.bench])
-        case "seated_leg_curl": return Pose(44, 38, -95, 20, 60, 0, 60, props: [.seat, .backrest, .anklePad])
-        case "nordic_curl": return Pose(44, 46, -70, 60, 180, 110, 180, props: [.heelAnchor])
-        case "standing_calf_raise": return Pose(46, 33, -90, -20, -70, 90, 90, implement: .handle, props: [.calfBlock, .shoulderPads])
-        case "seated_calf_raise": return Pose(44, 38, -90, 40, 60, 0, 90, props: [.seat, .calfBlock, .kneePad])
-        case "dumbbell_calf_raise": return Pose(46, 33, -90, 90, 90, 90, 90, upperArm2: -10, forearm2: -10, implement: .dumbbellFirst, props: [.calfBlock, .supportRail])
-        case "bodyweight_calf_raise": return Pose(46, 33, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail])
-        case "hanging_leg_raise": return hanging.with { $0.upperArm = -45; $0.forearm = -135; $0.thigh = -5; $0.shin = -5 }
-        case "cable_crunch": return Pose(50, 40, -50, -140, -40, 90, 180, props: [.cable])
-        case "ab_wheel_rollout": return Pose(44, 47, -20, 55, 55, 120, 180, implement: .wheel)
-        case "decline_sit_up": return Pose(46, 44, -115, 40, 180, -25, 60, props: [.declineBench], grounded: false)
-        case "pallof_press": return Pose(46, 40, -90, 0, 0, 90, 180, thigh2: 0, shin2: 90, implement: .handle, props: [.cableFrontLevel])
-        case "plank": return Pose(56, 52, -165, 90, 0, 15, 15, grounded: false)
-        case "side_plank": return Pose(56, 47.2, -154, 90, 90, 26, 26, upperArm2: -90, forearm2: -90, grounded: false)
-        case "hollow_hold": return Pose(50, 52, -165, -100, -100, -12, -12, grounded: false)
-        case "dead_bug": return Pose(50, 52, 180, -90, -90, -90, 0, thigh2: -10, shin2: -10, grounded: false)
-        case "bird_dog": return Pose(42, 46, -20, 90, 90, 90, 180, headAngle: 25, upperArm2: -20, forearm2: -20, thigh2: 170, shin2: 170, grounded: false)
-        case "russian_twist": return Pose(50, 54, -120, -25, -25, -45, 65, grounded: false)
-        default: break
+    /// Linear blend of joint angles; gear and props come from `a`.
+    static func lerp(_ a: Pose, _ b: Pose, _ t: CGFloat) -> Pose {
+        func L(_ x: CGFloat, _ y: CGFloat) -> CGFloat { x + (y - x) * t }
+        func LO(_ x: CGFloat?, _ y: CGFloat?) -> CGFloat? {
+            guard let x else { return y }; guard let y else { return x }; return L(x, y)
         }
-        switch pattern {
-        case "horizontal_press": return benchPress
-        case "incline_press": return Pose(58, 42, -145, -75, -90, 60, 90, implement: .barbell, props: [.inclineBench])
-        case "vertical_press": return standing.with { $0.upperArm = -45; $0.forearm = -135; $0.implement = .barbell }
-        case "chest_fly": return Pose(58, 40, 180, -40, -55, 60, 90, upperArm2: -140, forearm2: -125, implement: .dumbbell, props: [.bench])
-        case "lateral_raise": return standing.with { $0.upperArm = 0; $0.forearm = 5; $0.upperArm2 = 180; $0.forearm2 = 175; $0.implement = .dumbbellVertical }
-        case "triceps_extension": return standing.with { $0.upperArm = -80; $0.forearm = -160; $0.implement = .dumbbellVertical }
-        case "vertical_pull": return latPulldown
-        case "horizontal_row": return row
-        case "rear_delt": return Pose(44, 34, -45, -125, -115, 95, 85, implement: .dumbbell)
-        case "elbow_flexion": return standing.with { $0.upperArm = 90; $0.forearm = 0; $0.implement = .dumbbell }
-        case "squat": return squat
-        case "hinge": return hinge
-        case "quad_isolation": return Pose(44, 36, -90, 90, 90, 0, 0, props: [.seat, .backrest, .anklePad], grounded: false)
-        case "hamstring_isolation": return Pose(54, 42, 180, 150, 90, 0, -90, props: [.bench, .anklePad], grounded: false)
-        case "calf": return Pose(46, 33, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail])
-        default: return crunch
-        }
+        return Pose(L(a.hip.x, b.hip.x), L(a.hip.y, b.hip.y), L(a.torso, b.torso), L(a.upperArm, b.upperArm), L(a.forearm, b.forearm),
+                    L(a.thigh, b.thigh), L(a.shin, b.shin),
+                    headAngle: L(a.headAngle ?? a.torso, b.headAngle ?? b.torso),
+                    upperArm2: LO(a.upperArm2, b.upperArm2), forearm2: LO(a.forearm2, b.forearm2),
+                    thigh2: LO(a.thigh2, b.thigh2), shin2: LO(a.shin2, b.shin2),
+                    implement: a.implement, props: a.props, grounded: a.grounded, floor: a.floor)
     }
 }
 
-// MARK: - Skeleton
+/// Two keyframes of one rep plus the point that stays fixed while the body moves between them.
+struct Motion {
+    enum Anchor { case auto, hip, foot, foot2, hand, shoulder }
+
+    var a: Pose, b: Pose
+    var anchor: Anchor = .auto
+    /// Interpolate arm joints in Cartesian space so a transverse sweep (fly, rear delt, face pull) foreshortens
+    /// through the shoulder instead of swinging through the floor.
+    var armsXY = false
+
+    init(_ a: Pose, _ b: Pose, anchor: Anchor = .auto, armsXY: Bool = false) {
+        var b = b
+        if b.upperArm2 == nil { b.upperArm2 = a.upperArm2 }
+        if b.forearm2 == nil { b.forearm2 = a.forearm2 }
+        if b.thigh2 == nil { b.thigh2 = a.thigh2 }
+        if b.shin2 == nil { b.shin2 = a.shin2 }
+        self.a = a; self.b = b; self.anchor = anchor; self.armsXY = armsXY
+    }
+
+    var resolvedAnchor: Anchor {
+        if anchor != .auto { return anchor }
+        if !a.grounded && !a.floor { return .hand }
+        return a.grounded ? .foot : .hip
+    }
+
+    /// Eased ping-pong A → B → A with a short hold at each end; 0...1.
+    static func phase(_ time: TimeInterval, period: TimeInterval) -> CGFloat {
+        let u = time.truncatingRemainder(dividingBy: period) / period
+        let hold = 0.08, span = 0.5 - hold
+        let t: Double
+        if u < span { t = u / span } else if u < 0.5 { t = 1 } else if u < 0.5 + span { t = 1 - (u - 0.5) / span } else { t = 0 }
+        return CGFloat((1 - cos(.pi * t)) / 2)
+    }
+
+    static func `for`(exerciseKey key: String, pattern: String) -> Motion {
+        var m = base(exerciseKey: key, pattern: pattern)
+        func fix(_ p: inout Pose) {
+            if key.contains("dumbbell"), p.implement == .barbell { p.implement = .dumbbell }
+            if key.contains("barbell"), p.implement == .dumbbell { p.implement = .barbell }
+            if key.contains("smith"), !p.props.contains(.smithRails) { p.props.append(.smithRails) }
+        }
+        fix(&m.a); fix(&m.b)
+        return m
+    }
+
+    // MARK: - Table (generated)
+
+    // Generated by tools/pictograms/motions.py — edit that file and rerun `python3 motions.py swift`.
+    static func base(exerciseKey key: String, pattern: String) -> Motion {
+        switch key {
+        case "decline_push_up":
+            return Motion(Pose(44, 38.6, 5, 90, 90, 185, 185, props: [.footBlock], grounded: false),
+                   Pose(44, 38.6, 21, 135, 6, 201, 201, headAngle: 8, props: [.footBlock], grounded: false), anchor: .foot)
+        case "push_up":
+            return Motion(Pose(44, 46.5, 336, 90, 90, 156, 156, grounded: false),
+                   Pose(44, 46.5, 350, 190, 50, 170, 170, grounded: false), anchor: .foot)
+        case "dumbbell_floor_press":
+            return Motion(Pose(56, 52.5, 180, -70, -90, -40, 100, implement: .dumbbell, grounded: false),
+                   Pose(56, 52.5, 180, 20, -90, -40, 100, implement: .dumbbell, grounded: false))
+        case "close_grip_bench_press":
+            return Motion(Pose(58, 40, 180, -70, -90, 60, 90, implement: .barbellNarrow, props: [.bench]),
+                   Pose(58, 40, 180, 5, -80, 60, 90, implement: .barbellNarrow, props: [.bench]))
+        case "machine_chest_press":
+            return Motion(Pose(44, 38, -90, 0, 0, 0, 90, implement: .handle, props: [.seat, .backrest, .machineArm]),
+                   Pose(44, 38, -90, 125, -15, 0, 90, implement: .handle, props: [.seat, .backrest, .machineArm]))
+        case "weighted_dip":
+            return Motion(Pose(50, 36, -75, 150, 90, 100, 170, props: [.dipBars, .dipBelt], grounded: false, floor: false),
+                   Pose(50, 36, -82, 90, 90, 100, 170, props: [.dipBars, .dipBelt], grounded: false, floor: false))
+        case "machine_shoulder_press":
+            return Motion(Pose(44, 38, -90, 30, -90, 0, 90, implement: .handle, props: [.seat, .backrest, .machineArm]),
+                   Pose(44, 38, -90, -80, -90, 0, 90, implement: .handle, props: [.seat, .backrest, .machineArm]))
+        case "seated_dumbbell_press":
+            return Motion(Pose(44, 38, -90, 65, -105, 0, 90, implement: .dumbbell, props: [.seat, .backrest]),
+                   Pose(44, 38, -90, -90, -90, 0, 90, implement: .dumbbell, props: [.seat, .backrest]))
+        case "dumbbell_shoulder_press":
+            return Motion(Pose(44, 38, -90, 65, -105, 0, 90, implement: .dumbbell, props: [.seat, .backrest]),
+                   Pose(44, 38, -90, -90, -90, 0, 90, implement: .dumbbell, props: [.seat, .backrest]))
+        case "arnold_press":
+            return Motion(Pose(44, 38, -90, 40, -70, 0, 90, implement: .dumbbellVertical, props: [.seat, .backrest]),
+                   Pose(44, 38, -90, -90, -90, 0, 90, implement: .dumbbellVertical, props: [.seat, .backrest]))
+        case "skullcrusher":
+            return Motion(Pose(58, 40, 180, -90, 180, 60, 90, implement: .shortBar, props: [.bench]),
+                   Pose(58, 40, 180, -90, 270, 60, 90, implement: .shortBar, props: [.bench]))
+        case "dumbbell_overhead_extension":
+            return Motion(Pose(50, 36, -86, -75, -160, 90, 90, implement: .dumbbellVertical),
+                   Pose(50, 36, -86, -75, -90, 90, 90, implement: .dumbbellVertical))
+        case "overhead_cable_extension":
+            return Motion(Pose(46, 36, -70, -100, -165, 80, 90, implement: .handle, props: [.cableFromBehind]),
+                   Pose(46, 36, -70, -100, -40, 80, 90, implement: .handle, props: [.cableFromBehind]))
+        case "cable_pushdown":
+            return Motion(Pose(50, 36, -90, 90, -30, 90, 90, implement: .handle, props: [.cable]),
+                   Pose(50, 36, -90, 90, 80, 90, 90, implement: .handle, props: [.cable]))
+        case "bench_dip":
+            return Motion(Pose(52, 44, -80, 160, 90, 10, 60, props: [.handBench]),
+                   Pose(55, 40.6, -105, 104.6, 104.6, 38, 66, props: [.handBench], grounded: false), anchor: .hand)
+        case "pec_deck_fly":
+            return Motion(Pose(44, 38, -90, 135, -75, 0, 90, props: [.seat, .backrest, .machineArm]),
+                   Pose(44, 38, -90, 0, -70, 0, 90, props: [.seat, .backrest, .machineArm]), armsXY: true)
+        case "reverse_pec_deck":
+            return Motion(Pose(46, 38, -90, 5, 5, 0, 90, implement: .handle, props: [.seat, .chestPad]),
+                   Pose(46, 38, -90, 175, 175, 0, 90, implement: .handle, props: [.seat, .chestPad]), armsXY: true)
+        case "cable_fly":
+            return Motion(Pose(46, 36, -80, 140, -110, 90, 90, implement: .handle, props: [.cableFromBehind]),
+                   Pose(46, 36, -80, -10, 0, 90, 90, implement: .handle, props: [.cableFromBehind]), armsXY: true)
+        case "cable_lateral_raise":
+            return Motion(Pose(50, 36, -90, 80, 60, 90, 90, implement: .handle, props: [.cableLowFront]),
+                   Pose(50, 36, -90, 0, 5, 90, 90, implement: .handle, props: [.cableLowFront]))
+        case "lean_away_lateral_raise":
+            return Motion(Pose(50, 36, -75, 85, 80, 90, 90, upperArm2: 170, forearm2: 170, implement: .handle, props: [.cableLowFront, .post]),
+                   Pose(50, 36, -75, 0, 5, 90, 90, upperArm2: 170, forearm2: 170, implement: .handle, props: [.cableLowFront, .post]))
+        case "pull_up":
+            return Motion(Pose(50, 36, -90, -90, -90, 95, 120, props: [.highBar], grounded: false, floor: false),
+                   Pose(50, 36, -90, 105, -85, 95, 120, props: [.highBar], grounded: false, floor: false))
+        case "weighted_pull_up":
+            return Motion(Pose(50, 36, -90, -90, -90, 95, 120, props: [.highBar, .dipBelt], grounded: false, floor: false),
+                   Pose(50, 36, -90, 105, -85, 95, 120, props: [.highBar, .dipBelt], grounded: false, floor: false))
+        case "chin_up":
+            return Motion(Pose(50, 36, -90, -85, -85, 95, 120, props: [.highBar], grounded: false, floor: false),
+                   Pose(50, 36, -90, 20, -120, 95, 120, props: [.highBar], grounded: false, floor: false))
+        case "neutral_grip_pulldown":
+            return Motion(Pose(46, 38, -100, -80, -80, 0, 90, implement: .barbellNarrow, props: [.cableHigh, .seat]),
+                   Pose(46, 38, -100, 120, -30, 0, 90, implement: .barbellNarrow, props: [.cableHigh, .seat]))
+        case "straight_arm_pulldown":
+            return Motion(Pose(46, 36, -80, -30, -30, 85, 90, implement: .barbellNarrow, props: [.cable]),
+                   Pose(46, 36, -80, 75, 75, 85, 90, implement: .barbellNarrow, props: [.cable]))
+        case "kneeling_cable_pulldown":
+            return Motion(Pose(46, 40, -90, -40, -110, 90, 180, implement: .handle, props: [.cable]),
+                   Pose(46, 40, -90, 150, -40, 90, 180, implement: .handle, props: [.cable]))
+        case "pendlay_row":
+            return Motion(Pose(40, 34, -20, 90, 90, 40, 75, headAngle: 10, implement: .barbell),
+                   Pose(40, 34, -20, 160, 50, 40, 75, headAngle: 10, implement: .barbell))
+        case "t_bar_row":
+            return Motion(Pose(44, 34, -35, 90, 90, 60, 80, implement: .handle, props: [.tBar]),
+                   Pose(44, 34, -35, 150, 60, 60, 80, implement: .handle, props: [.tBar]))
+        case "chest_supported_row":
+            return Motion(Pose(44, 38, -50, 100, 100, 90, 90, implement: .handle, props: [.seat, .frontPad]),
+                   Pose(44, 38, -50, 160, 70, 90, 90, implement: .handle, props: [.seat, .frontPad]))
+        case "seated_cable_row":
+            return Motion(Pose(40, 44, -95, 10, 0, -10, 40, implement: .handle, props: [.seat, .cableFrontLevel, .footPlate], grounded: false),
+                   Pose(40, 44, -95, 160, 20, -10, 40, implement: .handle, props: [.seat, .cableFrontLevel, .footPlate], grounded: false))
+        case "single_arm_dumbbell_row":
+            return Motion(Pose(40, 36, -30, 100, 90, 75, 85, upperArm2: 60, forearm2: 60, thigh2: 55, shin2: 80, implement: .dumbbellFirst, props: [.supportBench]),
+                   Pose(40, 36, -30, 165, 75, 75, 85, upperArm2: 60, forearm2: 60, thigh2: 55, shin2: 80, implement: .dumbbellFirst, props: [.supportBench]))
+        case "inverted_row":
+            return Motion(Pose(50, 49, -160, -90, -90, 20, 20, props: [.highBar], grounded: false),
+                   Pose(53.7, 42.7, -139.2, -202, -82, 40.8, 40.8, props: [.highBar], grounded: false), anchor: .hand)
+        case "face_pull":
+            return Motion(Pose(50, 36, -90, -20, -20, 80, 90, thigh2: 100, shin2: 90, implement: .handle, props: [.cableFrontLevel]),
+                   Pose(50, 36, -90, 160, -40, 80, 90, thigh2: 100, shin2: 90, implement: .handle, props: [.cableFrontLevel]), armsXY: true)
+        case "cable_reverse_fly":
+            return Motion(Pose(50, 36, -80, 0, 0, 90, 90, implement: .handle, props: [.cableFrontLevel]),
+                   Pose(50, 36, -80, 175, 175, 90, 90, implement: .handle, props: [.cableFrontLevel]), armsXY: true)
+        case "hammer_curl":
+            return Motion(Pose(50, 36, -90, 90, 85, 90, 90, implement: .dumbbellVertical),
+                   Pose(50, 36, -90, 90, -55, 90, 90, implement: .dumbbellVertical))
+        case "cable_curl":
+            return Motion(Pose(50, 36, -90, 90, 85, 90, 90, implement: .handle, props: [.cableLowFront]),
+                   Pose(50, 36, -90, 90, -55, 90, 90, implement: .handle, props: [.cableLowFront]))
+        case "preacher_curl":
+            return Motion(Pose(44, 38, -90, 35, 30, 0, 90, implement: .shortBar, props: [.seat, .preacherPad]),
+                   Pose(44, 38, -90, 35, -50, 0, 90, implement: .shortBar, props: [.seat, .preacherPad]))
+        case "incline_dumbbell_curl":
+            return Motion(Pose(52, 42, -130, 100, 100, 60, 90, implement: .dumbbell, props: [.inclineBench]),
+                   Pose(52, 42, -130, 100, -45, 60, 90, implement: .dumbbell, props: [.inclineBench]))
+        case "front_squat":
+            return Motion(Pose(44, 36, -70, -10, 165, 10, 120, implement: .barbell),
+                   Pose(44, 36, -90, -10, 165, 90, 90, implement: .barbell))
+        case "goblet_squat":
+            return Motion(Pose(44, 36, -72, 60, -70, 10, 120, implement: .dumbbellVertical),
+                   Pose(44, 36, -90, 60, -70, 90, 90, implement: .dumbbellVertical))
+        case "hack_squat":
+            return Motion(Pose(44, 36, -120, 110, 60, 0, 80, props: [.hackPad]),
+                   Pose(44, 36, -120, 110, 60, 40, 48, props: [.hackPad]))
+        case "leg_press":
+            return Motion(Pose(40, 42, -130, 20, 60, -50, -10, props: [.seat, .backrest, .footPlate], grounded: false),
+                   Pose(40, 42, -130, 20, 60, -83, 23, props: [.seat, .backrest, .footPlate], grounded: false))
+        case "bulgarian_split_squat":
+            return Motion(Pose(50, 36, -90, 90, 90, 0, 90, thigh2: 135, shin2: 190, implement: .dumbbellVertical, props: [.rearBench]),
+                   Pose(50, 36, -90, 90, 90, 37, 90, thigh2: 150, shin2: 150, implement: .dumbbellVertical, props: [.rearBench]))
+        case "walking_lunge":
+            return Motion(Pose(50, 36, -90, 90, 90, 90, 90, thigh2: 90, shin2: 90, implement: .dumbbellVertical),
+                   Pose(50, 36, -90, 90, 90, 0, 90, thigh2: 125, shin2: 170, implement: .dumbbellVertical), anchor: .foot2)
+        case "reverse_lunge":
+            return Motion(Pose(50, 36, -88, 90, 90, 90, 90, thigh2: 90, shin2: 90, implement: .dumbbellVertical),
+                   Pose(50, 36, -88, 90, 90, 0, 90, thigh2: 125, shin2: 170, implement: .dumbbellVertical), anchor: .foot)
+        case "step_up":
+            return Motion(Pose(50, 36, -90, 90, 90, -10, 90, thigh2: 90, shin2: 90, implement: .dumbbellVertical, props: [.footBlock], grounded: false),
+                   Pose(50, 24.3, -90, 90, 90, 90, 90, thigh2: 90, shin2: 90, implement: .dumbbellVertical, props: [.footBlock], grounded: false), anchor: .foot)
+        case "romanian_deadlift":
+            return Motion(Pose(42, 32, -90, 90, 90, 90, 90, implement: .barbell),
+                   Pose(42, 32, -32, 100, 100, 72, 85, implement: .barbell))
+        case "dumbbell_romanian_deadlift":
+            return Motion(Pose(42, 32, -90, 90, 90, 90, 90, implement: .dumbbell),
+                   Pose(42, 32, -32, 100, 100, 72, 85, implement: .dumbbell))
+        case "trap_bar_deadlift":
+            return Motion(Pose(40, 32, -40, 90, 90, 50, 68, implement: .trapBar),
+                   Pose(40, 32, -90, 90, 90, 90, 90, implement: .trapBar))
+        case "good_morning":
+            return Motion(Pose(42, 32, -90, -170, 30, 88, 90, implement: .barbell),
+                   Pose(42, 32, -32, -170, 30, 60, 80, implement: .barbell))
+        case "kettlebell_swing":
+            return Motion(Pose(44, 34, -35, 95, 95, 50, 80, implement: .kettlebell),
+                   Pose(44, 34, -90, 0, 0, 90, 90, implement: .kettlebell))
+        case "cable_pull_through":
+            return Motion(Pose(44, 32, -30, 120, 150, 60, 85, implement: .handle, props: [.cableBehindLow]),
+                   Pose(44, 32, -90, 95, 80, 90, 90, implement: .handle, props: [.cableBehindLow]))
+        case "barbell_hip_thrust":
+            return Motion(Pose(56, 40, 180, 0, 0, 0, 90, implement: .barbellOnHips, props: [.bench]),
+                   Pose(54.6, 52.3, 205, 10, 10, -35, 71, implement: .barbellOnHips, props: [.bench], grounded: false), anchor: .shoulder)
+        case "seated_leg_curl":
+            return Motion(Pose(44, 38, -95, 20, 60, 0, 5, props: [.seat, .backrest, .anklePad]),
+                   Pose(44, 38, -95, 20, 60, 0, 80, props: [.seat, .backrest, .anklePad]))
+        case "nordic_curl":
+            return Motion(Pose(44, 46, -70, 60, 180, 110, 180, props: [.heelAnchor]),
+                   Pose(44, 46, -30, 65, 40, 150, 180, props: [.heelAnchor]))
+        case "standing_calf_raise":
+            return Motion(Pose(46, 36, -90, -20, -70, 90, 90, implement: .handle, props: [.calfBlock, .shoulderPads], grounded: false),
+                   Pose(46, 33, -90, -20, -70, 90, 90, implement: .handle, props: [.calfBlock, .shoulderPads], grounded: false))
+        case "seated_calf_raise":
+            return Motion(Pose(44, 46, -90, 40, 60, 0, 90, props: [.seat, .calfBlock, .kneePad], grounded: false),
+                   Pose(44, 46, -90, 40, 60, -17, 90, props: [.seat, .calfBlock, .kneePad], grounded: false), anchor: .hip)
+        case "dumbbell_calf_raise":
+            return Motion(Pose(46, 36, -90, 90, 90, 90, 90, upperArm2: -10, forearm2: -10, implement: .dumbbellFirst, props: [.calfBlock, .supportRail], grounded: false),
+                   Pose(46, 33, -90, 90, 90, 90, 90, upperArm2: -10, forearm2: -10, implement: .dumbbellFirst, props: [.calfBlock, .supportRail], grounded: false))
+        case "bodyweight_calf_raise":
+            return Motion(Pose(46, 36, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail], grounded: false),
+                   Pose(46, 33, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail], grounded: false))
+        case "hanging_leg_raise":
+            return Motion(Pose(50, 36, -90, -90, -90, 85, 88, props: [.highBar], grounded: false, floor: false),
+                   Pose(50, 36, -90, -90, -90, -5, -5, props: [.highBar], grounded: false, floor: false))
+        case "cable_crunch":
+            return Motion(Pose(50, 40, -88, -140, -40, 90, 180, props: [.cable]),
+                   Pose(50, 40, -50, -140, -40, 90, 180, props: [.cable]))
+        case "ab_wheel_rollout":
+            return Motion(Pose(44, 47, -45, 75, 75, 100, 180, implement: .wheel),
+                   Pose(44, 47, -20, 55, 55, 120, 180, implement: .wheel))
+        case "decline_sit_up":
+            return Motion(Pose(46, 44, 160, -60, 80, -25, 60, props: [.declineBench], grounded: false),
+                   Pose(46, 44, 260, 40, 180, -25, 60, props: [.declineBench], grounded: false))
+        case "pallof_press":
+            return Motion(Pose(46, 40, -90, 120, -50, 90, 180, thigh2: 0, shin2: 90, implement: .handle, props: [.cableFrontLevel]),
+                   Pose(46, 40, -90, 0, 0, 90, 180, thigh2: 0, shin2: 90, implement: .handle, props: [.cableFrontLevel]))
+        case "plank":
+            return Motion(Pose(44, 52, 345, 90, 180, 165, 165, grounded: false),
+                   Pose(44, 52, 344, 90, 180, 165.5, 165.5, grounded: false), anchor: .foot)
+        case "side_plank":
+            return Motion(Pose(56, 47.2, -154, 90, 90, 26, 26, upperArm2: -90, forearm2: -90, grounded: false),
+                   Pose(56, 47.2, -153, 90, 90, 25.5, 25.5, upperArm2: -92, forearm2: -92, grounded: false), anchor: .foot)
+        case "hollow_hold":
+            return Motion(Pose(50, 52, -165, -100, -100, -12, -12, grounded: false),
+                   Pose(50, 52, -163, -98, -98, -14, -14, grounded: false), anchor: .hip)
+        case "dead_bug":
+            return Motion(Pose(50, 52, 180, -90, -90, -90, 0, thigh2: -10, shin2: -10, grounded: false),
+                   Pose(50, 52, 180, -150, -170, -15, -5, thigh2: -90, shin2: 0, grounded: false))
+        case "bird_dog":
+            return Motion(Pose(42, 46, -20, 90, 90, 90, 180, headAngle: 25, upperArm2: -20, forearm2: -20, thigh2: 170, shin2: 170, grounded: false),
+                   Pose(42, 46, -20, 90, 90, 90, 180, headAngle: 25, upperArm2: 90, forearm2: 90, thigh2: 90, shin2: 180, grounded: false), anchor: .foot)
+        case "russian_twist":
+            return Motion(Pose(50, 54, -120, -25, -25, -45, 65, grounded: false),
+                   Pose(50, 54, -120, 150, -25, -45, 65, grounded: false), armsXY: true)
+        default: break
+        }
+        switch pattern {
+        case "horizontal_press":
+            return Motion(Pose(58, 40, 180, -70, -90, 60, 90, implement: .barbell, props: [.bench]),
+                   Pose(58, 40, 180, 5, -80, 60, 90, implement: .barbell, props: [.bench]))
+        case "incline_press":
+            return Motion(Pose(58, 42, -145, -75, -90, 60, 90, implement: .barbell, props: [.inclineBench]),
+                   Pose(58, 42, -145, 30, -93, 60, 90, implement: .barbell, props: [.inclineBench]))
+        case "vertical_press":
+            return Motion(Pose(50, 36, -90, 60, -115, 90, 90, implement: .barbell),
+                   Pose(50, 36, -90, -90, -90, 90, 90, implement: .barbell))
+        case "chest_fly":
+            return Motion(Pose(58, 40, 180, -40, -55, 60, 90, upperArm2: -140, forearm2: -125, implement: .dumbbell, props: [.bench]),
+                   Pose(58, 40, 180, -85, -85, 60, 90, upperArm2: -95, forearm2: -95, implement: .dumbbell, props: [.bench]))
+        case "lateral_raise":
+            return Motion(Pose(50, 36, -90, 95, 95, 90, 90, upperArm2: 85, forearm2: 85, implement: .dumbbellVertical),
+                   Pose(50, 36, -90, 0, 5, 90, 90, upperArm2: 180, forearm2: 175, implement: .dumbbellVertical))
+        case "triceps_extension":
+            return Motion(Pose(50, 36, -90, -80, -160, 90, 90, implement: .dumbbellVertical),
+                   Pose(50, 36, -90, -80, -90, 90, 90, implement: .dumbbellVertical))
+        case "vertical_pull":
+            return Motion(Pose(46, 38, -100, -80, -80, 0, 90, implement: .barbell, props: [.cableHigh, .seat]),
+                   Pose(46, 38, -100, 120, -30, 0, 90, implement: .barbell, props: [.cableHigh, .seat]))
+        case "horizontal_row":
+            return Motion(Pose(44, 34, -35, 90, 90, 60, 80, implement: .barbell),
+                   Pose(44, 34, -35, 150, 60, 60, 80, implement: .barbell))
+        case "rear_delt":
+            return Motion(Pose(44, 34, -45, 85, 85, 112, 74, implement: .dumbbell),
+                   Pose(44, 34, -45, -115, -105, 112, 74, implement: .dumbbell), armsXY: true)
+        case "elbow_flexion":
+            return Motion(Pose(50, 36, -90, 90, 85, 90, 90, implement: .dumbbell),
+                   Pose(50, 36, -90, 90, -55, 90, 90, implement: .dumbbell))
+        case "squat":
+            return Motion(Pose(44, 36, -55, -170, 10, 10, 115, implement: .barbell),
+                   Pose(44, 36, -90, -170, 10, 90, 90, implement: .barbell))
+        case "hinge":
+            return Motion(Pose(40, 32, -40, 90, 90, 50, 68, implement: .barbell),
+                   Pose(40, 32, -90, 90, 90, 90, 90, implement: .barbell))
+        case "quad_isolation":
+            return Motion(Pose(44, 36, -90, 90, 90, 0, 80, props: [.seat, .backrest, .anklePad], grounded: false),
+                   Pose(44, 36, -90, 90, 90, 0, 0, props: [.seat, .backrest, .anklePad], grounded: false))
+        case "hamstring_isolation":
+            return Motion(Pose(46, 42, 0, 30, 90, 180, 175, props: [.bench, .anklePad], grounded: false),
+                   Pose(46, 42, 0, 30, 90, 180, 270, props: [.bench, .anklePad], grounded: false))
+        case "calf":
+            return Motion(Pose(46, 36, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail], grounded: false),
+                   Pose(46, 33, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail], grounded: false))
+        default:
+            return Motion(Pose(50, 54, -155, -120, 160, -50, 70, grounded: false),
+                   Pose(50, 54, -120, -85, 195, -50, 70, grounded: false), anchor: .hip)
+        }
+    }
+
+    // MARK: - End table
+}
+
+// MARK: - Kinematics
 
 private let floorY: CGFloat = 56
 
@@ -222,16 +443,40 @@ private struct Skeleton {
             let k2 = seg(hip, t2, Self.thighLen)
             legs.append(Leg(knee: k2, foot: seg(k2, s2, Self.shinLen), shinAngle: s2))
         }
-        if p.grounded {
-            let dy = floorY - legs.map(\.foot.y).max()!
-            hip.y += dy; shoulder.y += dy; head.y += dy
-            arms = arms.map { Arm(elbow: off($0.elbow, 0, dy), hand: off($0.hand, 0, dy)) }
-            legs = legs.map { Leg(knee: off($0.knee, 0, dy), foot: off($0.foot, 0, dy), shinAngle: $0.shinAngle) }
+        if p.grounded { shift(0, floorY - legs.map(\.foot.y).max()!) }
+    }
+
+    mutating func shift(_ dx: CGFloat, _ dy: CGFloat) {
+        hip = off(hip, dx, dy); shoulder = off(shoulder, dx, dy); head = off(head, dx, dy)
+        arms = arms.map { Arm(elbow: off($0.elbow, dx, dy), hand: off($0.hand, dx, dy)) }
+        legs = legs.map { Leg(knee: off($0.knee, dx, dy), foot: off($0.foot, dx, dy), shinAngle: $0.shinAngle) }
+    }
+
+    func anchorPoint(_ mode: Motion.Anchor) -> CGPoint {
+        switch mode {
+        case .foot: return legs[0].foot
+        case .foot2: return legs[legs.count - 1].foot
+        case .hand: return arms[0].hand
+        case .shoulder: return shoulder
+        case .hip, .auto: return hip
         }
+    }
+
+    /// Move so this skeleton's anchor coincides with `ref`'s (grounded feet only slide horizontally).
+    mutating func anchor(to ref: Skeleton, _ mode: Motion.Anchor) {
+        let a = anchorPoint(mode), b = ref.anchorPoint(mode)
+        let dy = (pose.grounded && (mode == .foot || mode == .foot2)) ? 0 : b.y - a.y
+        shift(b.x - a.x, dy)
     }
 
     /// Shin is roughly vertical, so the foot is flat and gets a toe mark.
     static func footFlat(_ leg: Leg) -> Bool { abs(cos(leg.shinAngle * .pi / 180)) < 0.5 }
+    /// Toe mark length: full when the shin is near vertical, shrinking smoothly to nothing as the foot points away
+    /// (a hard threshold made the toe pop in and out mid-rep).
+    static func toeLength(_ leg: Leg) -> CGFloat {
+        let c = abs(cos(leg.shinAngle * .pi / 180))
+        return 5 * max(0, min(1, (0.62 - c) / 0.25))
+    }
 }
 
 // MARK: - Renderer
@@ -250,12 +495,43 @@ private struct FigureRenderer {
     let gear = Theme.Colors.textPrimary.opacity(0.6), gearFill = Theme.Colors.textPrimary.opacity(0.1)
     let propColor = Theme.Colors.brass.opacity(0.38)
 
-    let sk: Skeleton
-    init(pose: Pose) { sk = Skeleton(pose) }
+    let motion: Motion
+    let anchor: Motion.Anchor
+    /// Anchored keyframes: props are built from `skA` so gear never moves; `skB` fixes the framing.
+    let skA: Skeleton, skB: Skeleton
+    let origin: CGPoint, span: CGSize
 
-    func draw(in ctx: inout GraphicsContext, size: CGSize) {
-        let props = propPrims()
-        let (origin, span) = frame(props)
+    init(motion: Motion) {
+        self.motion = motion
+        anchor = motion.resolvedAnchor
+        skA = Skeleton(motion.a)
+        var b = Skeleton(motion.b); b.anchor(to: skA, anchor)
+        skB = b
+        let fr = Self.frame(skA, skB, anchor: anchor)
+        origin = fr.0; span = fr.1
+    }
+
+    /// Live skeleton at phase `t`.
+    func skeleton(at t: CGFloat) -> Skeleton {
+        var sk = Skeleton(Pose.lerp(motion.a, motion.b, t))
+        sk.anchor(to: skA, anchor)
+        if motion.armsXY {
+            let s = sk.shoulder
+            sk.arms = sk.arms.indices.map { i in
+                let pa = skA.arms[min(i, skA.arms.count - 1)], pb = skB.arms[min(i, skB.arms.count - 1)]
+                func blend(_ qa: CGPoint, _ qb: CGPoint) -> CGPoint {
+                    let ra = CGPoint(x: qa.x - skA.shoulder.x, y: qa.y - skA.shoulder.y), rb = CGPoint(x: qb.x - skB.shoulder.x, y: qb.y - skB.shoulder.y)
+                    return CGPoint(x: s.x + ra.x + (rb.x - ra.x) * t, y: s.y + ra.y + (rb.y - ra.y) * t)
+                }
+                return Skeleton.Arm(elbow: blend(pa.elbow, pb.elbow), hand: blend(pa.hand, pb.hand))
+            }
+        }
+        return sk
+    }
+
+    func draw(in ctx: inout GraphicsContext, size: CGSize, phase t: CGFloat) {
+        let sk = skeleton(at: t)
+        let props = Self.propPrims(fixed: skA, live: sk)
         let fit = min(size.width / 100, size.height / 60)
         let scale = min(100 / span.width, 60 / span.height, 1.5)
         let k = fit * scale
@@ -272,40 +548,46 @@ private struct FigureRenderer {
             case .floor: line(&ctx, CGPoint(x: origin.x - 1.5, y: floorY), CGPoint(x: origin.x + span.width + 1.5, y: floorY), 1.4, propColor)
             }
         }
-        drawImplement(&ctx)
+        drawImplement(&ctx, sk)
 
-        let (rest, nearArm) = segments()
+        let (rest, nearArm) = segments(sk)
         for s in rest { segment(&ctx, s) }
-        for leg in sk.legs where Skeleton.footFlat(leg) {
-            let toe = off(leg.foot, 5, 0)
+        for (i, leg) in sk.legs.enumerated() {
+            let len = Skeleton.toeLength(leg)
+            guard len > 0 else { continue }
+            let pinned = (i == 0 && anchor == .foot) || (i == sk.legs.count - 1 && anchor == .foot2)
+            let toe = off(pinned ? skA.legs[i].foot : leg.foot, len, 0)
             line(&ctx, leg.foot, toe, Self.limbW + 1.0, card)
             line(&ctx, leg.foot, toe, Self.limbW - 0.4, brass)
         }
-        drawHead(&ctx)
+        drawHead(&ctx, sk)
         for s in nearArm { segment(&ctx, s) }
         circle(&ctx, sk.hand, Self.limbW * 0.6, fill: brass, stroke: card, w: 0.9)
     }
 
-    /// Bounding box (with padding) around everything that will be drawn, in unit space.
-    private func frame(_ props: [Prim]) -> (CGPoint, CGSize) {
-        var pts = [sk.hip, sk.shoulder, off(sk.head, -Self.headR, -Self.headR), off(sk.head, Self.headR, Self.headR)]
-        for a in sk.arms { pts += [a.elbow, a.hand] }
-        for l in sk.legs { pts += [l.knee, l.foot] }
-        if sk.pose.implement != .none {
-            let r = Self.plateR[sk.pose.implement] ?? 4
-            let c = sk.pose.implement == .barbellOnHips ? sk.hip : sk.hand
-            pts += [off(c, -r, -r), off(c, r, r)]
-        }
-        for prim in props {
-            switch prim {
-            case .line(let a, let b), .plate(let a, let b): pts += [a, b]
-            case .circle(let c, let r): pts += [off(c, -r, -r), off(c, r, r)]
-            case .floor: break
+    /// Bounding box (with padding) around everything drawn in either keyframe, in unit space.
+    private static func frame(_ a: Skeleton, _ b: Skeleton, anchor: Motion.Anchor) -> (CGPoint, CGSize) {
+        var pts: [CGPoint] = []
+        for sk in [a, b] {
+            pts += [sk.hip, sk.shoulder, off(sk.head, -headR, -headR), off(sk.head, headR, headR)]
+            for arm in sk.arms { pts += [arm.elbow, arm.hand] }
+            for l in sk.legs { pts += [l.knee, l.foot] }
+            if sk.pose.implement != .none {
+                let r = plateR[sk.pose.implement] ?? 4
+                let c = sk.pose.implement == .barbellOnHips ? sk.hip : sk.hand
+                pts += [off(c, -r, -r), off(c, r, r)]
+            }
+            for prim in propPrims(fixed: a, live: sk) {
+                switch prim {
+                case .line(let p, let q), .plate(let p, let q): pts += [p, q]
+                case .circle(let c, let r): pts += [off(c, -r, -r), off(c, r, r)]
+                case .floor: break
+                }
             }
         }
         var x0 = pts.map(\.x).min()!, x1 = pts.map(\.x).max()!
         var y0 = pts.map(\.y).min()!, y1 = pts.map(\.y).max()!
-        if sk.pose.floor { y1 = max(y1, floorY) }
+        if a.pose.floor { y1 = max(y1, floorY) }
         let pad: CGFloat = 4.5
         x0 -= pad; x1 += pad; y0 -= pad; y1 += pad
         return (CGPoint(x: x0, y: y0), CGSize(width: x1 - x0, height: y1 - y0))
@@ -313,7 +595,7 @@ private struct FigureRenderer {
 
     /// Far limbs first (dimmed), then torso, then the near leg; the near arm is returned separately
     /// so it can be drawn over the head.
-    private func segments() -> ([Segment], [Segment]) {
+    private func segments(_ sk: Skeleton) -> ([Segment], [Segment]) {
         var rest: [Segment] = [], near: [Segment] = []
         for (i, leg) in sk.legs.reversed().enumerated() {
             let far = sk.legs.count > 1 && i == 0
@@ -335,7 +617,7 @@ private struct FigureRenderer {
         line(&ctx, s.a, s.b, w, s.far ? far : brass)
     }
 
-    private func drawHead(_ ctx: inout GraphicsContext) {
+    private func drawHead(_ ctx: inout GraphicsContext, _ sk: Skeleton) {
         let h = sk.head, r = Self.headR
         circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let ang = sk.headAngle
@@ -348,7 +630,7 @@ private struct FigureRenderer {
     }
 
     /// Side view: a loaded bar is seen end-on, so it reads as a plate ring with the bar end at the hand.
-    private func drawImplement(_ ctx: inout GraphicsContext) {
+    private func drawImplement(_ ctx: inout GraphicsContext, _ sk: Skeleton) {
         let hand = sk.hand
         func plate(_ c: CGPoint, _ r: CGFloat) {
             circle(&ctx, c, r, fill: gearFill, stroke: gear, w: 1.6)
@@ -383,22 +665,23 @@ private struct FigureRenderer {
 
     // MARK: Props (benches, cables, machines)
 
-    private func propPrims() -> [Prim] {
-        let p = sk.pose
-        let hip = sk.hip, shoulder = sk.shoulder, hand = sk.hand, hand2 = sk.farHand
-        let knee = sk.legs[0].knee, foot = sk.legs[0].foot
+    /// Fixed gear (benches, bars, blocks) is placed from the first keyframe; cables, pads and belts follow the live skeleton.
+    private static func propPrims(fixed: Skeleton, live: Skeleton) -> [Prim] {
+        let p = fixed.pose
+        let hip = fixed.hip, shoulder = fixed.shoulder, hand = fixed.hand, hand2 = fixed.farHand
+        let knee = fixed.legs[0].knee, foot = fixed.legs[0].foot
+        let lh = live.hand, lhip = live.hip, lsh = live.shoulder, lknee = live.legs[0].knee, lfoot = live.legs[0].foot
         var out: [Prim] = []
         func L(_ a: CGPoint, _ b: CGPoint) { out.append(.line(a, b)) }
         func LXY(_ ax: CGFloat, _ ay: CGFloat, _ bx: CGFloat, _ by: CGFloat) { out.append(.line(CGPoint(x: ax, y: ay), CGPoint(x: bx, y: by))) }
         func legs(_ a: CGPoint, _ b: CGPoint) { L(a, b); L(a, CGPoint(x: a.x, y: floorY)); L(b, CGPoint(x: b.x, y: floorY)) }
-        func pad(_ c: CGPoint, vertical: Bool) {
-            if vertical {
-                out.append(.line(off(c, 0, -3.5), off(c, 0, 3.5)))
-                for y: CGFloat in [-3.5, 3.5] { out.append(.plate(off(c, -2.5, y), off(c, 2.5, y))) }
-            } else {
-                out.append(.line(off(c, -3.5, 0), off(c, 3.5, 0)))
-                for x: CGFloat in [-3.5, 3.5] { out.append(.plate(off(c, x, -2.5), off(c, x, 2.5))) }
-            }
+        /// Roller pad perpendicular to the limb at `deg`.
+        func pad(_ c: CGPoint, _ deg: CGFloat) {
+            let r = deg * .pi / 180
+            let u = CGPoint(x: cos(r), y: sin(r)), v = CGPoint(x: -u.y, y: u.x)
+            func P(_ s: CGFloat, _ w: CGFloat) -> CGPoint { CGPoint(x: c.x + u.x * s + v.x * w, y: c.y + u.y * s + v.y * w) }
+            out.append(.line(P(0, -3.5), P(0, 3.5)))
+            for w: CGFloat in [-3.5, 3.5] { out.append(.plate(P(-2.5, w), P(2.5, w))) }
         }
         for prop in p.props {
             switch prop {
@@ -415,42 +698,44 @@ private struct FigureRenderer {
             case .backrest:
                 LXY(hip.x - 5, hip.y + 2.5, shoulder.x - 3, shoulder.y - 4)
             case .hackPad:
-                let n = frontNormal(p.torso)
-                let low = CGPoint(x: hip.x - 3 * n.x, y: hip.y - 3 * n.y + 3), high = CGPoint(x: shoulder.x - 3 * n.x - 2, y: shoulder.y - 3 * n.y - 5)
+                let n = frontNormal(live.pose.torso)
+                let low = CGPoint(x: lhip.x - 3 * n.x, y: lhip.y - 3 * n.y + 3), high = CGPoint(x: lsh.x - 3 * n.x - 2, y: lsh.y - 3 * n.y - 5)
                 L(low, high); L(low, CGPoint(x: low.x + 4, y: floorY))
             case .frontPad:
                 let n = frontNormal(p.torso)
                 let low = CGPoint(x: hip.x + 3 * n.x, y: hip.y + 3 * n.y), high = CGPoint(x: shoulder.x + 3 * n.x + 2, y: shoulder.y + 3 * n.y - 2)
                 L(low, high); L(low, CGPoint(x: low.x, y: floorY))
             case .preacherPad:
-                let elbow = sk.arms[0].elbow
+                let elbow = fixed.arms[0].elbow
                 let top = CGPoint(x: shoulder.x + 1, y: shoulder.y + 3), bottom = CGPoint(x: elbow.x + 4, y: elbow.y + 3)
                 L(top, bottom); L(bottom, CGPoint(x: bottom.x, y: floorY))
             case .chestPad:
                 LXY(shoulder.x + 3, shoulder.y - 5, shoulder.x + 3, hip.y + 2.5)
             case .kneePad:
-                LXY(knee.x - 3, knee.y - 3.5, knee.x + 4, knee.y - 3.5); LXY(knee.x + 4, knee.y - 3.5, knee.x + 4, floorY)
+                LXY(lknee.x - 3, lknee.y - 3.5, lknee.x + 4, lknee.y - 3.5); LXY(lknee.x + 4, lknee.y - 3.5, lknee.x + 4, floorY)
             case .shoulderPads:
-                LXY(shoulder.x - 1, shoulder.y - 1.5, shoulder.x + 5, shoulder.y - 1.5); LXY(shoulder.x + 5, 6, shoulder.x + 5, floorY); L(CGPoint(x: shoulder.x + 5, y: hand.y), hand)
+                LXY(lsh.x - 1, lsh.y - 1.5, lsh.x + 5, lsh.y - 1.5); LXY(lsh.x + 5, 6, lsh.x + 5, floorY); L(CGPoint(x: lsh.x + 5, y: lh.y), lh)
             case .cable:
-                L(hand, CGPoint(x: hand.x + 10, y: 4)); LXY(hand.x - 4, 4, hand.x + 24, 4)
+                L(lh, CGPoint(x: hand.x + 10, y: 4)); LXY(hand.x - 4, 4, hand.x + 24, 4)
+            case .cableHigh:
+                L(lh, CGPoint(x: hand.x + 3, y: 2)); LXY(hand.x - 11, 2, hand.x + 17, 2)
             case .cableFromBehind:
-                L(hand, CGPoint(x: hand.x - 22, y: 4)); LXY(hand.x - 26, 4, hand.x - 18, 4)
+                L(lh, CGPoint(x: hand.x - 22, y: 4)); LXY(hand.x - 26, 4, hand.x - 18, 4)
             case .cableLowFront:
-                L(hand, CGPoint(x: hand.x + 6, y: floorY - 4)); LXY(hand.x + 3, floorY - 4, hand.x + 9, floorY - 4)
+                L(lh, CGPoint(x: hand.x + 6, y: floorY - 4)); LXY(hand.x + 3, floorY - 4, hand.x + 9, floorY - 4)
             case .cableBehindLow:
-                L(hand, CGPoint(x: hand.x - 18, y: floorY - 6)); LXY(hand.x - 21, floorY - 6, hand.x - 15, floorY - 6)
+                L(lh, CGPoint(x: hand.x - 18, y: floorY - 6)); LXY(hand.x - 21, floorY - 6, hand.x - 15, floorY - 6)
             case .cableFrontLevel:
-                L(hand, CGPoint(x: hand.x + 12, y: hand.y)); LXY(hand.x + 12, 4, hand.x + 12, floorY)
+                L(lh, CGPoint(x: hand.x + 12, y: hand.y)); LXY(hand.x + 12, 4, hand.x + 12, floorY)
             case .rearBench:
-                let f = sk.legs[sk.legs.count - 1].foot
+                let f = fixed.legs[fixed.legs.count - 1].foot
                 LXY(f.x - 6, f.y + 1, f.x + 5, f.y + 1)
                 for x in [f.x - 4, f.x + 3] { LXY(x, f.y + 1, x, floorY) }
             case .footBlock:
                 LXY(foot.x - 4, foot.y + 1, foot.x + 5, foot.y + 1)
                 for x in [foot.x - 4, foot.x + 5] { LXY(x, foot.y + 1, x, floorY) }
             case .footPlate:
-                LXY(foot.x + 1, foot.y - 7, foot.x + 2.5, foot.y + 7)
+                LXY(lfoot.x + 1, lfoot.y - 7, lfoot.x + 2.5, lfoot.y + 7)
             case .highBar:
                 LXY(hand.x - 20, hand.y, hand.x + 20, hand.y)
                 for x in [hand.x - 20, hand.x + 20] { LXY(x, hand.y, x, hand.y - 6) }
@@ -459,8 +744,8 @@ private struct FigureRenderer {
                 for x in [hand.x - 10, hand.x + 10] { LXY(x, hand.y, x, floorY) }
             case .smithRails:
                 for x in [hand.x - 16, hand.x + 16] { LXY(x, 4, x, floorY) }
-            case .machineArm: L(hand, CGPoint(x: hand.x, y: hand.y + 12))
-            case .tBar: L(hand, CGPoint(x: hand.x + 16, y: floorY - 1))
+            case .machineArm: L(lh, CGPoint(x: hand.x, y: hand.y + 12))
+            case .tBar: L(lh, CGPoint(x: hand.x + 16, y: floorY - 1))
             case .post: LXY(hand2.x, 4, hand2.x, floorY)
             case .supportRail: LXY(hand2.x + 1, hand2.y - 12, hand2.x + 1, floorY)
             case .supportBench:
@@ -470,15 +755,16 @@ private struct FigureRenderer {
                 LXY(hand.x - 10, hand.y + 1, hand.x + 3, hand.y + 1)
                 for x in [hand.x - 8, hand.x + 1] { LXY(x, hand.y + 1, x, floorY) }
             case .anklePad:
-                let seatedLeg = !Skeleton.footFlat(sk.legs[0])
-                pad(CGPoint(x: foot.x, y: foot.y + (seatedLeg ? 2 : 0)), vertical: seatedLeg)
+                let l = live.legs[0]
+                pad(l.foot, l.shinAngle)
             case .heelAnchor:
                 LXY(foot.x - 3, floorY, foot.x - 3, foot.y - 4); LXY(foot.x - 3, foot.y - 4, foot.x + 3, foot.y - 4)
             case .calfBlock:
-                LXY(foot.x + 2, foot.y, foot.x - 3, foot.y - 3); LXY(foot.x + 1, foot.y, foot.x + 5, foot.y)
-                LXY(foot.x - 6, floorY, foot.x + 8, floorY); LXY(foot.x + 8, floorY, foot.x + 8, floorY - 4); LXY(foot.x - 6, floorY - 4, foot.x + 8, floorY - 4)
+                let toe = CGPoint(x: foot.x + 5, y: floorY)
+                LXY(toe.x - 9, floorY, toe.x + 3, floorY); LXY(toe.x + 3, floorY, toe.x + 3, floorY + 3.5)
+                LXY(toe.x - 9, floorY + 3.5, toe.x + 3, floorY + 3.5); LXY(toe.x - 9, floorY, toe.x - 9, floorY + 3.5)
             case .dipBelt:
-                LXY(hip.x + 2, hip.y, hip.x + 3, hip.y + 6); out.append(.circle(CGPoint(x: hip.x + 3, y: hip.y + 8), 2))
+                LXY(lhip.x + 2, lhip.y, lhip.x + 3, lhip.y + 6); out.append(.circle(CGPoint(x: lhip.x + 3, y: lhip.y + 8), 2))
             }
         }
         if p.floor { out.append(.floor) }
