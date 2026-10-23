@@ -249,11 +249,15 @@ final class AppModel {
         activeSession = ActiveSession(row: row, plan: plan, input: input, model: self, existingLogs: logs)
     }
 
+    /// Day the user had picked when they backed out of an unstarted deck, so Home reopens on it rather than the rotation's next day.
+    var resumeDayType: DayType?
+
     /// Drops a deck the user backed out of before starting it.
     func cancel(_ session: ActiveSession) {
         var row = session.row
         row.deleted = true
         try? store.save(row)
+        resumeDayType = DayType(rawValue: row.dayType)
         activeSession = nil
     }
 
