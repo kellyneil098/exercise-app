@@ -208,6 +208,7 @@ final class ActiveSession: Identifiable {
         guard let last = logs(for: block).max(by: { $0.setIndex < $1.setIndex }) else { return }
         try? model.store.delete(last)
         logs.removeAll { $0.id == last.id }
+        if case .logged(let s) = lastAction, s.id == last.id { lastAction = nil }
         skipRest()
     }
 
@@ -269,6 +270,7 @@ final class ActiveSession: Identifiable {
     /// Puts a skipped block back into the deck, at the end of what's left.
     func restore(_ block: PlanBlock) {
         skipped.remove(block.id)
+        if case .skipped(let id) = lastAction, id == block.id { lastAction = nil }
         var ids = activeBlocks.map(\.id).filter { $0 != block.id }
         ids.append(block.id)
         ids += skippedBlocks.map(\.id)
@@ -284,6 +286,11 @@ final class ActiveSession: Identifiable {
         for i in plan.blocks.indices where plan.blocks[i].supersetHostID == block.id { plan.blocks[i].supersetHostID = nil }
         order.removeAll { $0 == block.id }
         skipped.remove(block.id)
+        switch lastAction {
+        case .skipped(let id) where id == block.id: lastAction = nil
+        case .logged(let set) where set.slot == block.slot && set.exerciseKey == block.exerciseKey: lastAction = nil
+        default: break
+        }
         skipRest()
         persistPlan()
     }
