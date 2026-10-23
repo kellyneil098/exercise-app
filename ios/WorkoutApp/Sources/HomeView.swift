@@ -25,7 +25,7 @@ struct HomeView: View {
     var body: some View {
         Screen {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                     header
                     momentum
                     modePicker
@@ -107,25 +107,36 @@ struct HomeView: View {
         }
     }
 
-    /// Underlined tabs: the day colours do the labelling, nothing is boxed.
+    /// The day picker owns the middle of the screen: one tall row per day with what's heavy this time and when it
+    /// was last done, so the choice is informed rather than a strip of tabs.
     var modePicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Spacing.m) {
+        FlatSection("Workout") {
+            VStack(spacing: 0) {
                 ForEach(HomeMode.all, id: \.self) { m in
-                    TabItem(m.label, icon: m.symbol, tint: m.tint, selected: m == mode) {
+                    ModeRow(mode: m, subtitle: subtitle(m), isNext: m == .strength(model.nextDayType), selected: m == mode) {
                         withAnimation(Theme.Motion.quick) { mode = m }
                     }
                 }
             }
         }
-        .scrollClipDisabled()
-        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    func subtitle(_ m: HomeMode) -> String {
+        switch m {
+        case .running:
+            return "This week's plan"
+        case .strength(let d):
+            let heavy = (model.splitState.heavyRotations[d]?.current ?? model.catalog.heavyRotationDefaults[d]?.first)
+                .map { $0.replacingOccurrences(of: "_", with: " ").capitalized }
+            let last = model.completedSessions().first { $0.dayType == d }.map { "last \(dayLabel($0.performedAt).lowercased())" } ?? "not yet done"
+            return [heavy.map { "Heavy: \($0)" }, last].compactMap { $0 }.joined(separator: " · ")
+        }
     }
 
     // MARK: Strength
 
     @ViewBuilder func strength(_ dayType: DayType) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
             optionRow("Minutes", icon: "clock") {
                 ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
                     TextOption("\(m)", selected: m == duration) { duration = m }
@@ -173,8 +184,42 @@ struct HomeView: View {
     }
 
     func startTitle(_ dayType: DayType) -> String {
-        guard let location else { return "Build deck" }
-        let plan = model.preview(dayType: dayType, duration: duration, location: location)
-        return "Build \(dayType.label.lowercased()) deck · \(plan.blocks.count) exercises · ~\(Int((plan.estimatedSeconds / 60).rounded())) min"
+        location == nil ? "Build deck" : "Build \(dayType.label.lowercased()) deck"
+    }
+}
+
+/// One choice in Home's day list: tinted glyph, name, what makes this one different, and a check when chosen.
+struct ModeRow: View {
+    let mode: HomeMode
+    let subtitle: String
+    let isNext: Bool
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.m) {
+                Image(systemName: mode.symbol).font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(selected ? mode.tint : Theme.Colors.textTertiary)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: Theme.Spacing.s) {
+                        Text(mode.label).font(Theme.Fonts.heading)
+                            .foregroundStyle(selected ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
+                        if isNext { Overline("Up next", tint: Theme.Colors.brass) }
+                    }
+                    Text(subtitle).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "checkmark").font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.Colors.brass)
+                    .opacity(selected ? 1 : 0)
+            }
+            .frame(minHeight: 64)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Hairline() }
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

@@ -30,7 +30,7 @@ struct DeckView: View {
         #endif
     }
 
-    /// Day, exercises done, elapsed time, and a momentum bar: how far through the workout you are.
+    /// Day, exercises done, elapsed time, undo for the last swipe, and a momentum bar.
     var header: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(alignment: .center) {
@@ -50,6 +50,13 @@ struct DeckView: View {
                     }
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .padding(.trailing, Theme.Spacing.sm)
+                }
+                if session.lastAction != nil {
+                    IconButton("arrow.uturn.backward", label: "Undo") {
+                        Haptics.play(.swap)
+                        withAnimation(Theme.Motion.spring) { session.undo() }
+                    }
+                    .transition(.scale.combined(with: .opacity))
                 }
                 IconButton("rectangle.stack", label: "Deck overview") { showOverview = true }
             }

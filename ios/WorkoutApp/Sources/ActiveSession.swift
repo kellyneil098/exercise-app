@@ -39,6 +39,9 @@ final class ActiveSession: Identifiable {
         didSet { UserDefaults.standard.set(restPausedRemaining, forKey: "restPausedRemaining") }
     }
     var restTotal: TimeInterval = 0
+    /// The last swipe, so a mis-swipe can be taken back. One level deep, in memory only.
+    enum DeckAction { case logged(SetLog), skipped(UUID) }
+    private(set) var lastAction: DeckAction?
     /// False while the user is still confirming the deck in the overview; true once they tap Start workout.
     private(set) var started: Bool {
         didSet { UserDefaults.standard.set(started, forKey: "deckStarted-\(row.id)") }
@@ -183,6 +186,22 @@ final class ActiveSession: Identifiable {
                          weight: weight, targetReps: block.measure == .seconds ? block.repHigh : block.repLow, repsDone: reps, effort: effort)
         try? model.store.save(set)
         logs.append(set)
+        lastAction = .logged(set)
+    }
+
+    /// Reverses the most recent Done or Skip: the set is deleted (and any rest cancelled) or the block rejoins the deck
+    /// where it was.
+    func undo() {
+        guard let action = lastAction else { return }
+        switch action {
+        case .logged(let set):
+            try? model.store.delete(set)
+            logs.removeAll { $0.id == set.id }
+            skipRest()
+        case .skipped(let id):
+            skipped.remove(id)
+        }
+        lastAction = nil
     }
 
     func undoLast(block: PlanBlock) {
@@ -243,6 +262,7 @@ final class ActiveSession: Identifiable {
     /// Swipe-left: the block leaves the stack for this session. Sets already logged stay; restorable from the overview.
     func skip(_ block: PlanBlock) {
         skipped.insert(block.id)
+        lastAction = .skipped(block.id)
         if currentBlock == nil { skipRest() }   // a running rest stays; only an emptied deck ends it
     }
 
