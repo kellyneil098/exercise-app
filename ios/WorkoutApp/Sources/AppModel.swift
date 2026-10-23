@@ -162,6 +162,21 @@ final class AppModel {
         }
     }
 
+    /// Sessions the user actually finished (not abandoned), newest first; `since` bounds the query for weekly stats.
+    func completedSessions(since: Date? = nil) -> [RecentSession] {
+        _ = dataVersion
+        let rows: [SessionRow] = (try? store.db.read { db -> [SessionRow] in
+            var q = SessionRow.filter(Column("userId") == userId && Column("deleted") == false
+                                      && Column("completedAt") != nil && Column("abandoned") == false)
+            if let since { q = q.filter(Column("completedAt") >= since) }
+            return try q.order(Column("completedAt").desc).fetchAll(db)
+        }) ?? []
+        return rows.compactMap { r in
+            guard let d = DayType(rawValue: r.dayType) else { return nil }
+            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.blocks.map(\.exerciseKey) ?? [])
+        }
+    }
+
     /// Every seeded location exists for this user so Home can offer all of them; installs that predate a seed
     /// entry (or its current name) get it on first launch. Equipment defaults mirror onboarding.
     func ensureSeededLocations() {

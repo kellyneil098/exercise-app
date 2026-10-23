@@ -89,75 +89,73 @@ struct HomeView: View {
         return name.isEmpty ? part : "\(part), \(name)"
     }
 
-    /// This week at a glance. Returning users see their momentum; a new user sees where it will go.
+    /// This week at a glance, set straight on the canvas: two numbers, no box.
     var momentum: some View {
-        let week = model.recentSessions(limit: 30).filter { $0.performedAt >= Date.startOfWeek }
-        let last = model.recentSessions(limit: 1).first
-        return Card(padding: Theme.Spacing.m) {
-            HStack(spacing: Theme.Spacing.m) {
-                Stat("\(week.count)", label: week.count == 1 ? "session this week" : "sessions this week", tint: Theme.Colors.brass)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Rectangle().fill(Theme.Colors.hairline).frame(width: 1, height: 40)
-                Group {
-                    if let last {
-                        Stat(dayLabel(last.performedAt), label: "last · \(last.dayType.label.lowercased())")
-                    } else {
-                        Stat("—", label: "no sessions yet")
-                    }
-                }
+        let week = model.completedSessions(since: Date.startOfWeek)
+        let last = model.completedSessions().first
+        return HStack(alignment: .top, spacing: Theme.Spacing.l) {
+            Stat("\(week.count)", label: week.count == 1 ? "session this week" : "sessions this week", tint: Theme.Colors.brass)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if let last {
+                Stat(dayLabel(last.performedAt), label: "last · \(last.dayType.label.lowercased())")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Stat("—", label: "no sessions yet")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
+    /// Underlined tabs: the day colours do the labelling, nothing is boxed.
     var modePicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Spacing.s) {
+            HStack(spacing: Theme.Spacing.m) {
                 ForEach(HomeMode.all, id: \.self) { m in
-                    Chip(m.label, icon: m.symbol, dot: m == mode ? nil : m.tint, selected: m == mode) {
+                    TabItem(m.label, icon: m.symbol, tint: m.tint, selected: m == mode) {
                         withAnimation(Theme.Motion.quick) { mode = m }
                     }
                 }
             }
         }
         .scrollClipDisabled()
+        .overlay(alignment: .bottom) { Hairline() }
     }
 
     // MARK: Strength
 
     @ViewBuilder func strength(_ dayType: DayType) -> some View {
-        Card {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    IconTile("clock", tint: Theme.Colors.brass, size: 32)
-                    Overline("Minutes", tint: Theme.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            optionRow("Minutes", icon: "clock") {
+                ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
+                    TextOption("\(m)", selected: m == duration) { duration = m }
+                        .accessibilityLabel("\(m) minutes")
                 }
-                HStack(spacing: Theme.Spacing.s) {
-                    ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
-                        Chip("\(m)", selected: m == duration) { duration = m }
-                            .frame(maxWidth: .infinity)
-                            .accessibilityLabel("\(m) minutes")
-                    }
+            }
+            Hairline()
+            optionRow("Where", icon: "mappin") {
+                ForEach(model.locations) { l in
+                    TextOption(l.name, selected: l.id == location?.id) { location = l }
                 }
-                Hairline().padding(.vertical, Theme.Spacing.xs)
-                HStack(spacing: Theme.Spacing.sm) {
-                    IconTile("mappin", tint: Theme.Colors.day(dayType), size: 32)
-                    Overline("Where", tint: Theme.Colors.textSecondary)
-                }
-                ScrollView(.horizontal) {
-                    HStack(spacing: Theme.Spacing.s) {
-                        ForEach(model.locations) { l in
-                            Chip(l.name, icon: model.catalog.seededLocations.first { $0.key == l.seedKey }?.kind == "home_gym" ? "house" : "building.2", selected: l.id == location?.id) { location = l }
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-                .scrollClipDisabled()
             }
         }
 
         if let location {
             PlanPreview(plan: model.preview(dayType: dayType, duration: duration, location: location), dayType: dayType)
+        }
+    }
+
+    /// Label on the left, text options trailing; options scroll if a gym name is long.
+    func optionRow<Options: View>(_ label: String, icon: String, @ViewBuilder options: () -> Options) -> some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.m) {
+            HStack(spacing: Theme.Spacing.s) {
+                Glyph(icon, tint: Theme.Colors.textTertiary, width: 20)
+                Overline(label, tint: Theme.Colors.textSecondary)
+            }
+            .frame(width: 104, alignment: .leading)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Spacing.l) { options() }
+            }
+            .scrollClipDisabled()
         }
     }
 
@@ -185,42 +183,32 @@ struct HomeView: View {
     }
 }
 
-/// The deck before it's dealt: each exercise with its load and volume, the heavy lift leading.
+/// The deck before it's dealt: each exercise with its load and volume, the heavy lift leading. A plain list on
+/// the canvas — the card is saved for the deck itself.
 struct PlanPreview: View {
     let plan: Plan
     let dayType: DayType
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                HStack {
-                    Overline("Today's plan", tint: Theme.Colors.textSecondary)
-                    Spacer()
-                    Text("\(plan.blocks.count) exercises · ~\(Int(plan.estimatedSeconds / 60)) min").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                }
-                VStack(spacing: 0) {
-                    ForEach(Array(plan.blocks.sorted { $0.slot < $1.slot }.enumerated()), id: \.element.id) { i, b in
-                        HStack(spacing: Theme.Spacing.sm) {
-                            if b.isSupersetted {
-                                Image(systemName: "arrow.turn.down.right").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
-                                    .frame(width: 32)
-                            } else {
-                                IconTile(b.band == .heavy ? "flame" : "dumbbell", tint: b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(dayType), size: 32)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(b.isSupersetted ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
-                                    .lineLimit(2).minimumScaleFactor(0.85)
-                                Text(b.band == .heavy ? "Heavy" : b.isSupersetted ? "Superset" : b.pattern.replacingOccurrences(of: "_", with: " ").capitalized)
-                                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(b.weight.map { "\($0.formatted()) lb" } ?? "Body").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textPrimary)
-                                Text("\(b.sets) × \(b.repLow)–\(b.repHigh)").font(Theme.Fonts.caption).monospacedDigit().foregroundStyle(Theme.Colors.textTertiary)
-                            }
+        FlatSection("Today's plan", detail: "\(plan.blocks.count) exercises · ~\(Int(plan.estimatedSeconds / 60)) min") {
+            VStack(spacing: 0) {
+                ForEach(Array(plan.blocks.sorted { $0.slot < $1.slot }.enumerated()), id: \.element.id) { i, b in
+                    HStack(spacing: Theme.Spacing.sm) {
+                        Glyph(b.isSupersetted ? "arrow.turn.down.right" : b.band == .heavy ? "flame" : "dumbbell",
+                              tint: b.isSupersetted ? Theme.Colors.textTertiary : b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(dayType))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(b.isSupersetted ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
+                                .lineLimit(2).minimumScaleFactor(0.85)
+                            Text(b.band == .heavy ? "Heavy" : b.isSupersetted ? "Superset" : b.pattern.replacingOccurrences(of: "_", with: " ").capitalized)
+                                .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                         }
-                        .padding(.vertical, Theme.Spacing.sm)
-                        if i < plan.blocks.count - 1 { Hairline() }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(b.weight.map { "\($0.formatted()) lb" } ?? "Body").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textPrimary)
+                            Text("\(b.sets) × \(b.repLow)–\(b.repHigh)").font(Theme.Fonts.caption).monospacedDigit().foregroundStyle(Theme.Colors.textTertiary)
+                        }
                     }
+                    .padding(.vertical, Theme.Spacing.sm)
+                    if i < plan.blocks.count - 1 { Hairline() }
                 }
             }
         }

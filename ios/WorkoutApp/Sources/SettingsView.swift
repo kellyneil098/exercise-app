@@ -16,7 +16,7 @@ struct SettingsView: View {
     var body: some View {
         Screen {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                     HStack(spacing: Theme.Spacing.m) {
                         Avatar(name: model.settings?.displayName ?? "", size: 56)
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
@@ -26,10 +26,10 @@ struct SettingsView: View {
                     }
                     .padding(.top, Theme.Spacing.s)
 
-                    Card { account }
-                    Card { gyms }
-                    Card { rotation }
-                    Card { prefs }
+                    account
+                    gyms
+                    rotation
+                    prefs
                 }
                 .padding(.horizontal, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xl)
             }
@@ -81,7 +81,7 @@ struct SettingsView: View {
             ForEach(model.locations) { loc in
                 Button { editingLocation = loc } label: {
                     HStack(spacing: Theme.Spacing.m) {
-                        IconTile(model.catalog.seededLocations.first { $0.key == loc.seedKey }?.kind == "home_gym" ? "house" : "building.2", tint: Theme.Colors.textSecondary, size: 40)
+                        Glyph(model.catalog.seededLocations.first { $0.key == loc.seedKey }?.kind == "home_gym" ? "house" : "building.2", tint: Theme.Colors.textSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(loc.name).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                             Text("\(model.equipment(for: loc).count) pieces of equipment").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
@@ -108,7 +108,7 @@ struct SettingsView: View {
             ForEach(DayType.allCases, id: \.self) { d in
                 let rot = model.splitState.heavyRotations[d]
                 HStack(alignment: .top, spacing: Theme.Spacing.m) {
-                    IconTile(d.symbol, tint: Theme.Colors.day(d), size: 40)
+                    Glyph(d.symbol, tint: Theme.Colors.day(d))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(d.label).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                         Text((rot?.sequence ?? []).map { $0.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: " → "))
@@ -137,16 +137,19 @@ struct SettingsView: View {
     }
 }
 
-/// Card section heading: a tinted icon tile beside an overline.
+/// Section heading on the canvas: a tinted glyph beside an overline, ruled beneath.
 struct SectionHeader: View {
     let title: String
     let icon: String
     let tint: Color
     init(_ title: String, icon: String, tint: Color) { self.title = title; self.icon = icon; self.tint = tint }
     var body: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            IconTile(icon, tint: tint, size: 32)
-            Overline(title, tint: Theme.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(spacing: Theme.Spacing.sm) {
+                Glyph(icon, tint: tint, width: 20)
+                Overline(title, tint: Theme.Colors.textSecondary)
+            }
+            Hairline()
         }
     }
 }
@@ -158,7 +161,7 @@ struct PrefLabel: View {
     init(_ title: String, detail: String, icon: String) { self.title = title; self.detail = detail; self.icon = icon }
     var body: some View {
         HStack(spacing: Theme.Spacing.m) {
-            IconTile(icon, tint: Theme.Colors.textSecondary, size: 40)
+            Glyph(icon, tint: Theme.Colors.textSecondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                 Text(detail).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
@@ -182,11 +185,12 @@ struct EquipmentEditor: View {
                         TextField("Gym name", text: $location.name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                     }
                     .padding(.top, Theme.Spacing.s)
-                    Card {
+                    Group {
                         Adjuster(dbMax == 0 ? "Dumbbells: no limit" : "Dumbbells up to \(dbMax.formatted()) lb", value: $dbMax, in: 0...150, step: 5)
                     }
-                    Card(padding: Theme.Spacing.s) {
+                    Group {
                         VStack(spacing: 0) {
+                            Hairline()
                             ForEach(Array(model.catalog.equipmentTypes.enumerated()), id: \.element.key) { i, eq in
                                 let on = selected.contains(eq.key)
                                 Button { Haptics.play(.swap); if on { selected.remove(eq.key) } else { selected.insert(eq.key) } } label: {
@@ -201,7 +205,7 @@ struct EquipmentEditor: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(PressStyle())
-                                if i < model.catalog.equipmentTypes.count - 1 { Hairline().padding(.leading, Theme.Spacing.s) }
+                                Hairline()
                             }
                         }
                     }

@@ -256,6 +256,93 @@ public struct Chip: View {
     }
 }
 
+/// Text-only option for dense screens: brass when selected, no box. The row it sits in supplies the structure.
+public struct TextOption: View {
+    let title: String
+    let icon: String?
+    let selected: Bool
+    let action: () -> Void
+    public init(_ title: String, icon: String? = nil, selected: Bool, action: @escaping () -> Void) {
+        self.title = title; self.icon = icon; self.selected = selected; self.action = action
+    }
+    public var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.xs) {
+                if let icon { Image(systemName: icon).font(.system(size: 12, weight: .bold)) }
+                Text(title).font(selected ? Theme.Fonts.bodyMedium : Theme.Fonts.body).lineLimit(1).fixedSize()
+            }
+            .foregroundStyle(selected ? Theme.Colors.brass : Theme.Colors.textTertiary)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Underlined tab: label with a 2-pt tint bar beneath when selected. For switching modes without chips.
+public struct TabItem: View {
+    let title: String
+    let icon: String?
+    let tint: Color
+    let selected: Bool
+    let action: () -> Void
+    public init(_ title: String, icon: String? = nil, tint: Color = Theme.Colors.brass, selected: Bool, action: @escaping () -> Void) {
+        self.title = title; self.icon = icon; self.tint = tint; self.selected = selected; self.action = action
+    }
+    public var body: some View {
+        Button(action: action) {
+            VStack(spacing: Theme.Spacing.s) {
+                HStack(spacing: Theme.Spacing.xs) {
+                    if let icon { Image(systemName: icon).font(.system(size: 13, weight: .bold)) }
+                    Text(title).font(Theme.Fonts.bodyMedium).lineLimit(1).fixedSize()
+                }
+                .foregroundStyle(selected ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
+                Capsule().fill(selected ? tint : .clear).frame(height: 2)
+                    .shadow(color: selected ? tint.opacity(0.6) : .clear, radius: 4)
+            }
+            .padding(.horizontal, Theme.Spacing.xs)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Plain tinted symbol in a fixed column, for list rows that don't need a tile behind the glyph.
+public struct Glyph: View {
+    let icon: String
+    let tint: Color
+    var width: CGFloat = 28
+    public init(_ icon: String, tint: Color = Theme.Colors.brass, width: CGFloat = 28) { self.icon = icon; self.tint = tint; self.width = width }
+    public var body: some View {
+        Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint)
+            .frame(width: width, alignment: .leading)
+    }
+}
+
+/// Section on the canvas: overline title, optional trailing detail, hairline, content. The flat alternative to a Card.
+public struct FlatSection<Content: View>: View {
+    let title: String
+    let detail: String?
+    let content: Content
+    public init(_ title: String, detail: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title; self.detail = detail; self.content = content()
+    }
+    public var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Overline(title, tint: Theme.Colors.textSecondary)
+                Spacer()
+                if let detail { Text(detail).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary) }
+            }
+            Hairline()
+            content
+        }
+    }
+}
+
 /// Round icon button for headers and toolbars: a 44-pt target on a soft surface.
 public struct IconButton: View {
     let icon: String

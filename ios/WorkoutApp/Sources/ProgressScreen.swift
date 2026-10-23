@@ -24,14 +24,14 @@ struct ProgressScreen: View {
                     .padding(.top, Theme.Spacing.s)
                     summary
                     if !partners.isEmpty {
-                        HStack(spacing: Theme.Spacing.s) {
-                            Chip("Just me", icon: "person", selected: partnerId == nil) { partnerId = nil }
-                            ForEach(partners, id: \.id) { p in Chip("With \(p.displayName.isEmpty ? "partner" : p.displayName)", icon: "person.2", selected: partnerId == p.id) { partnerId = p.id } }
+                        HStack(spacing: Theme.Spacing.l) {
+                            TextOption("Just me", icon: "person", selected: partnerId == nil) { partnerId = nil }
+                            ForEach(partners, id: \.id) { p in TextOption("With \(p.displayName.isEmpty ? "partner" : p.displayName)", icon: "person.2", selected: partnerId == p.id) { partnerId = p.id } }
                         }
                     }
-                    Card { weightChart }
-                    Card { volumeChart }
-                    Card { mileageChart }
+                    weightChart
+                    volumeChart
+                    mileageChart
                 }
                 .padding(.horizontal, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xl)
             }
@@ -42,12 +42,12 @@ struct ProgressScreen: View {
 
     /// Four numbers that say how training is going: sessions and volume this week, plus the all-time totals.
     var summary: some View {
-        let recent = model.recentSessions(limit: 200)
+        let recent = model.completedSessions()
         let week = recent.filter { $0.performedAt >= Date.startOfWeek }
         let volume = volumeSeries(model.userId)
         let thisWeek = volume.last.flatMap { $0.date >= Date.startOfWeek ? $0.value : nil } ?? 0
         let miles = mileageSeries(model.userId).reduce(0) { $0 + $1.value }
-        return Card(padding: Theme.Spacing.m) {
+        return VStack(spacing: Theme.Spacing.m) {
             HStack(alignment: .top) {
                 Stat("\(week.count)", label: "this week", tint: Theme.Colors.brass)
                 Spacer()
@@ -57,6 +57,7 @@ struct ProgressScreen: View {
                 Spacer()
                 Stat(compact(miles), unit: "mi", label: "run")
             }
+            Hairline()
         }
     }
 
@@ -114,12 +115,13 @@ struct ProgressScreen: View {
     var weightChart: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.sm) {
-                IconTile("scalemass", tint: Theme.Colors.brass, size: 32)
+                Glyph("scalemass", tint: Theme.Colors.brass, width: 20)
                 Overline("Working weight", tint: Theme.Colors.textSecondary)
                 Spacer()
                 Picker("", selection: $exerciseKey) { ForEach(exerciseKeys, id: \.self) { Text(model.catalog.exercises[$0]?.name ?? $0).tag($0) } }
                     .labelsHidden().tint(Theme.Colors.textSecondary)
             }
+            Hairline()
             chart(userIds.flatMap { weightSeries($0.0) }, unit: "lb", lines: true)
         }
     }
@@ -127,9 +129,10 @@ struct ProgressScreen: View {
     var volumeChart: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.sm) {
-                IconTile("chart.bar", tint: Theme.Colors.push, size: 32)
+                Glyph("chart.bar", tint: Theme.Colors.push, width: 20)
                 Overline("Weekly volume", tint: Theme.Colors.textSecondary)
             }
+            Hairline()
             chart(userIds.flatMap { volumeSeries($0.0) }, unit: "lb", lines: false)
         }
     }
@@ -137,21 +140,21 @@ struct ProgressScreen: View {
     var mileageChart: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.sm) {
-                IconTile("figure.run", tint: Theme.Colors.pull, size: 32)
+                Glyph("figure.run", tint: Theme.Colors.pull, width: 20)
                 Overline("Weekly mileage", tint: Theme.Colors.textSecondary)
             }
+            Hairline()
             chart(userIds.flatMap { mileageSeries($0.0) }, unit: "mi", lines: false)
         }
     }
 
     @ViewBuilder func chart(_ points: [Point], unit: String, lines: Bool) -> some View {
         if points.isEmpty {
-            VStack(spacing: Theme.Spacing.s) {
-                Image(systemName: "waveform.path.ecg").font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
+            HStack(spacing: Theme.Spacing.s) {
+                Image(systemName: "waveform.path.ecg").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
                 Text("Your first session draws the first point.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
             }
-            .frame(maxWidth: .infinity).frame(height: 120)
-            .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading).frame(height: 56)
         } else {
             Chart(points) { p in
                 if lines {

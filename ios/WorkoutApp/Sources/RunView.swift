@@ -18,10 +18,10 @@ struct RunContent: View {
             if let plan {
                 let state = plan.engineState
                 let done = runs.filter { $0.completedAt != nil }
-                Card {
+                Group {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         HStack(spacing: Theme.Spacing.sm) {
-                            IconTile("figure.run", tint: Theme.Colors.pull, size: 32)
+                            Glyph("figure.run", tint: Theme.Colors.pull, width: 20)
                             Overline("This week", tint: Theme.Colors.textSecondary)
                             Spacer()
                             if state.isDeloadWeek {
@@ -29,6 +29,7 @@ struct RunContent: View {
                                     .padding(.horizontal, Theme.Spacing.s).frame(height: 24).background(Theme.Colors.pull.opacity(0.12), in: Capsule())
                             }
                         }
+                        Hairline()
                         HStack(alignment: .top) {
                             Stat(state.weeklyVolumeMi.formatted(), unit: "mi", label: "planned", tint: Theme.Colors.textPrimary)
                             Spacer()
@@ -43,9 +44,9 @@ struct RunContent: View {
                     RunCard(run: run, state: state, planned: plannedRun(run, state: state), onStart: { starting = run }, onLog: { logging = run })
                 }
             } else {
-                Card {
+                Group {
                     HStack(spacing: Theme.Spacing.m) {
-                        IconTile("figure.run", tint: Theme.Colors.textTertiary, size: 44)
+                        Glyph("figure.run", tint: Theme.Colors.textTertiary)
                         Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                     }
                 }
@@ -104,9 +105,8 @@ struct RunCard: View {
                             }
                         }
                     }
-                    .padding(Theme.Spacing.sm)
+                    .padding(.leading, Theme.Spacing.xs)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
                 }
                 if !done {
                     HStack(spacing: Theme.Spacing.s) {
@@ -190,7 +190,7 @@ struct LogRunSheet: View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                 HStack(spacing: Theme.Spacing.m) {
-                    IconTile("square.and.pencil", tint: Theme.Colors.pull, size: 44)
+                    Glyph("square.and.pencil", tint: Theme.Colors.pull)
                     VStack(alignment: .leading, spacing: 2) {
                         Overline("Log run")
                         Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
@@ -200,16 +200,16 @@ struct LogRunSheet: View {
                         Stat(formatPace(Double(minutes * 60) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.brass)
                     }
                 }
-                Card {
+                Group {
                     VStack(spacing: Theme.Spacing.m) {
                         Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
                         Hairline()
                         Adjuster("\(minutes) min", value: $minutes.asDouble, in: 0...600)
                     }
                 }
-                HStack(spacing: Theme.Spacing.s) {
+                HStack(spacing: Theme.Spacing.l) {
                     ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
-                        Chip(e.label, selected: e == effort) { effort = e }
+                        TextOption(e.label, selected: e == effort) { effort = e }
                     }
                 }
                 Spacer()

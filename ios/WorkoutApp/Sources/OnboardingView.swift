@@ -59,14 +59,14 @@ struct OnboardingView: View {
                 Text("Hello.").font(Theme.Fonts.display).heroTracking().foregroundStyle(Theme.Colors.textPrimary)
                 Text("Two things, then we lift.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
             }
-            Card {
-                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    Overline("Your name")
-                    TextField("First name", text: $name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                        .textInputAutocapitalization(.words).submitLabel(.done)
-                }
+            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                Overline("Your name")
+                TextField("First name", text: $name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    .textInputAutocapitalization(.words).submitLabel(.done)
+                Hairline()
             }
-            Overline("Where do you train?")
+            VStack(alignment: .leading, spacing: 0) {
+            Overline("Where do you train?").padding(.bottom, Theme.Spacing.s)
             ForEach(model.catalog.seededLocations, id: \.key) { loc in
                 let on = selectedSeeds.contains(loc.key)
                 Button {
@@ -74,7 +74,7 @@ struct OnboardingView: View {
                     withAnimation(Theme.Motion.quick) { if on { selectedSeeds.remove(loc.key) } else { selectedSeeds.insert(loc.key) } }
                 } label: {
                     HStack(spacing: Theme.Spacing.m) {
-                        IconTile(loc.kind == "home_gym" ? "house" : "building.2", tint: on ? Theme.Colors.brass : Theme.Colors.textSecondary, size: 44)
+                        Glyph(loc.kind == "home_gym" ? "house" : "building.2", tint: on ? Theme.Colors.brass : Theme.Colors.textSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(loc.name).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                             Text(loc.kind == "home_gym" ? "Building gym · limited equipment" : "Commercial gym · everything available")
@@ -84,14 +84,14 @@ struct OnboardingView: View {
                         Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.system(size: 24))
                             .foregroundStyle(on ? Theme.Colors.brass : Theme.Colors.textTertiary)
                     }
-                    .padding(Theme.Spacing.m)
-                    .background(on ? Theme.Colors.brassDim : Theme.Colors.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                        .strokeBorder(on ? Theme.Colors.brass.opacity(0.5) : Theme.Colors.hairline, lineWidth: 1))
+                    .padding(.vertical, Theme.Spacing.sm)
+                    .frame(minHeight: 56)
+                    .overlay(alignment: .bottom) { Hairline() }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PressStyle())
                 .accessibilityAddTraits(on ? .isSelected : [])
+            }
             }
             Text("You can add gyms and edit equipment later.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
         }
@@ -105,11 +105,12 @@ struct OnboardingView: View {
                 Text("Working weights").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                 Text("Optional. A weight you can do for 5–8 reps. Everything else is estimated from these and corrected as you lift.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
             }
-            Card(padding: Theme.Spacing.s) {
+            Group {
                 VStack(spacing: 0) {
+                    Hairline()
                     ForEach(Array(anchorKeys.enumerated()), id: \.element) { i, key in
                         HStack(spacing: Theme.Spacing.m) {
-                            IconTile("scalemass", tint: (baselines[key] ?? 0) > 0 ? Theme.Colors.brass : Theme.Colors.textTertiary, size: 40)
+                            Glyph("scalemass", tint: (baselines[key] ?? 0) > 0 ? Theme.Colors.brass : Theme.Colors.textTertiary)
                             Text(model.catalog.exercises[key]?.name ?? key).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                             Spacer()
                             TextField("—", value: Binding(get: { baselines[key] }, set: { baselines[key] = $0 }), format: .number)
@@ -118,7 +119,7 @@ struct OnboardingView: View {
                             Text("lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                         }
                         .padding(.horizontal, Theme.Spacing.s).frame(minHeight: 56)
-                        if i < anchorKeys.count - 1 { Hairline().padding(.leading, Theme.Spacing.s) }
+                        Hairline()
                     }
                 }
             }
@@ -131,7 +132,7 @@ struct OnboardingView: View {
                 Text("Running").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                 Text("A starting point. The plan adapts from here.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
             }
-            Card {
+            Group {
                 VStack(spacing: Theme.Spacing.m) {
                     Adjuster("\(runs) runs a week", value: $runs.asDouble, in: 2...3)
                     Hairline()

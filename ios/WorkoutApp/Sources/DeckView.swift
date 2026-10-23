@@ -298,7 +298,6 @@ struct SetCard: View {
                         Text(kind.uppercased()).font(Theme.Fonts.overline).tracking(1.2).foregroundStyle(tint)
                             .padding(.horizontal, Theme.Spacing.s).frame(height: 24)
                             .background(tint.opacity(0.12), in: Capsule())
-                        if b.isEstimate { Overline("estimate") }
                     }
                     Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
