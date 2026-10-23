@@ -53,6 +53,8 @@
     get hand() { return this.arms[0][1]; }
     get farHand() { return this.arms[this.arms.length - 1][1]; }
     static footFlat(leg) { return Math.abs(Math.cos(rad(leg.shin))) < 0.5; }
+    // Toe mark length: full when the shin is near vertical, shrinking smoothly to nothing as the foot points away.
+    static toeLength(leg) { const c = Math.abs(Math.cos(rad(leg.shin))); return 5 * Math.max(0, Math.min(1, (0.62 - c) / 0.25)); }
   }
 
   class Figure {
@@ -199,9 +201,10 @@
       const armsRev = [...sk.arms].reverse(); const near = [];
       armsRev.forEach((arm, i) => { const isFar = sk.arms.length > 1 && i === 0; if (isFar) { segment(sk.shoulder, arm[0], false, true); segment(arm[0], arm[1], false, true); } else near.push([sk.shoulder, arm[0]], [arm[0], arm[1]]); });
       sk.legs.forEach((leg, i) => {
-        if (!Skeleton.footFlat(leg)) return;
+        const len = Skeleton.toeLength(leg);
+        if (len <= 0) return;
         const pinned = i === 0 && this.anchor === 'foot' || (i === sk.legs.length - 1 && this.anchor === 'foot2');
-        const toe = pinned ? off(this.a.legs[i].foot, 5, 0) : off(leg.foot, 5, 0);
+        const toe = pinned ? off(this.a.legs[i].foot, len, 0) : off(leg.foot, len, 0);
         line(leg.foot, toe, LIMB_W + 1.0, card); line(leg.foot, toe, LIMB_W - 0.4, brass);
       });
       // head

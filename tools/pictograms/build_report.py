@@ -84,6 +84,7 @@ document.getElementById('frames').addEventListener('change', e => {{
   for (const c of cards) {{ c.classList.toggle('frames', showFrames); c.querySelector('canvas').height = showFrames ? 120 : 360; }}
 }});
 if (location.hash.startsWith('#frames')) {{ if (location.hash.startsWith('#frames-big')) document.body.classList.add('big');
+  const only = (location.hash.match(/only=([\w,]+)/) || [])[1]; if (only) {{ const keep = new Set(only.split(',')); document.querySelectorAll('.pic').forEach(c => {{ if (!keep.has(c.dataset.key)) c.remove(); }}); document.querySelectorAll('.a-section').forEach(s => {{ if (!s.querySelector('.pic')) s.remove(); }}); }}
   const skip = +(location.hash.split('skip=')[1] || 0); document.querySelectorAll('.a-section').forEach((s, i) => {{ if (i < skip) s.hidden = true; }}); const cb = document.getElementById('frames'); cb.checked = true; cb.dispatchEvent(new Event('change')); }}
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) {{ playing = false; document.getElementById('play').textContent = 'Play'; }}
 </script>

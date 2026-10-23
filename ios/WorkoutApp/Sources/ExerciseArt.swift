@@ -134,11 +134,11 @@ struct Motion {
     static func base(exerciseKey key: String, pattern: String) -> Motion {
         switch key {
         case "decline_push_up":
-            return Motion(Pose(56, 38.6, 175, 90, 90, -5, -5, props: [.footBlock], grounded: false),
-                   Pose(56, 38.6, 159, 45, 174, -21, -21, headAngle: 172, props: [.footBlock], grounded: false), anchor: .foot)
+            return Motion(Pose(44, 38.6, 5, 90, 90, 185, 185, props: [.footBlock], grounded: false),
+                   Pose(44, 38.6, 21, 135, 6, 201, 201, headAngle: 8, props: [.footBlock], grounded: false), anchor: .foot)
         case "push_up":
-            return Motion(Pose(56, 46.5, -156, 90, 90, 24, 24, grounded: false),
-                   Pose(56, 46.5, -170, -10, 130, 10, 10, grounded: false), anchor: .foot)
+            return Motion(Pose(44, 46.5, 336, 90, 90, 156, 156, grounded: false),
+                   Pose(44, 46.5, 350, 190, 50, 170, 170, grounded: false), anchor: .foot)
         case "dumbbell_floor_press":
             return Motion(Pose(56, 52.5, 180, -70, -90, -40, 100, implement: .dumbbell, grounded: false),
                    Pose(56, 52.5, 180, 20, -90, -40, 100, implement: .dumbbell, grounded: false))
@@ -195,10 +195,10 @@ struct Motion {
                    Pose(50, 36, -75, 0, 5, 90, 90, upperArm2: 170, forearm2: 170, implement: .handle, props: [.cableLowFront, .post]))
         case "pull_up":
             return Motion(Pose(50, 36, -90, -90, -90, 95, 120, props: [.highBar], grounded: false, floor: false),
-                   Pose(50, 36, -90, -135, -45, 95, 120, props: [.highBar], grounded: false, floor: false))
+                   Pose(50, 36, -90, 105, -85, 95, 120, props: [.highBar], grounded: false, floor: false))
         case "weighted_pull_up":
             return Motion(Pose(50, 36, -90, -90, -90, 95, 120, props: [.highBar, .dipBelt], grounded: false, floor: false),
-                   Pose(50, 36, -90, -135, -45, 95, 120, props: [.highBar, .dipBelt], grounded: false, floor: false))
+                   Pose(50, 36, -90, 105, -85, 95, 120, props: [.highBar, .dipBelt], grounded: false, floor: false))
         case "chin_up":
             return Motion(Pose(50, 36, -90, -85, -85, 95, 120, props: [.highBar], grounded: false, floor: false),
                    Pose(50, 36, -90, 20, -120, 95, 120, props: [.highBar], grounded: false, floor: false))
@@ -228,7 +228,7 @@ struct Motion {
                    Pose(40, 36, -30, 165, 75, 75, 85, upperArm2: 60, forearm2: 60, thigh2: 55, shin2: 80, implement: .dumbbellFirst, props: [.supportBench]))
         case "inverted_row":
             return Motion(Pose(50, 49, -160, -90, -90, 20, 20, props: [.highBar], grounded: false),
-                   Pose(53.7, 42.7, -139.2, 158, -82, 40.8, 40.8, props: [.highBar], grounded: false), anchor: .hand)
+                   Pose(53.7, 42.7, -139.2, -202, -82, 40.8, 40.8, props: [.highBar], grounded: false), anchor: .hand)
         case "face_pull":
             return Motion(Pose(50, 36, -90, -20, -20, 80, 90, thigh2: 100, shin2: 90, implement: .handle, props: [.cableFrontLevel]),
                    Pose(50, 36, -90, 160, -40, 80, 90, thigh2: 100, shin2: 90, implement: .handle, props: [.cableFrontLevel]), armsXY: true)
@@ -291,7 +291,7 @@ struct Motion {
                    Pose(44, 32, -90, 95, 80, 90, 90, implement: .handle, props: [.cableBehindLow]))
         case "barbell_hip_thrust":
             return Motion(Pose(56, 40, 180, 0, 0, 0, 90, implement: .barbellOnHips, props: [.bench]),
-                   Pose(54.6, 52.3, -155, 10, 10, -35, 71, implement: .barbellOnHips, props: [.bench], grounded: false), anchor: .shoulder)
+                   Pose(54.6, 52.3, 205, 10, 10, -35, 71, implement: .barbellOnHips, props: [.bench], grounded: false), anchor: .shoulder)
         case "seated_leg_curl":
             return Motion(Pose(44, 38, -95, 20, 60, 0, 5, props: [.seat, .backrest, .anklePad]),
                    Pose(44, 38, -95, 20, 60, 0, 80, props: [.seat, .backrest, .anklePad]))
@@ -326,8 +326,8 @@ struct Motion {
             return Motion(Pose(46, 40, -90, 120, -50, 90, 180, thigh2: 0, shin2: 90, implement: .handle, props: [.cableFrontLevel]),
                    Pose(46, 40, -90, 0, 0, 90, 180, thigh2: 0, shin2: 90, implement: .handle, props: [.cableFrontLevel]))
         case "plank":
-            return Motion(Pose(56, 52, -165, 90, 0, 15, 15, grounded: false),
-                   Pose(56, 52, -164, 90, 0, 14.5, 14.5, grounded: false), anchor: .foot)
+            return Motion(Pose(44, 52, 345, 90, 180, 165, 165, grounded: false),
+                   Pose(44, 52, 344, 90, 180, 165.5, 165.5, grounded: false), anchor: .foot)
         case "side_plank":
             return Motion(Pose(56, 47.2, -154, 90, 90, 26, 26, upperArm2: -90, forearm2: -90, grounded: false),
                    Pose(56, 47.2, -153, 90, 90, 25.5, 25.5, upperArm2: -92, forearm2: -92, grounded: false), anchor: .foot)
@@ -386,8 +386,8 @@ struct Motion {
             return Motion(Pose(44, 36, -90, 90, 90, 0, 80, props: [.seat, .backrest, .anklePad], grounded: false),
                    Pose(44, 36, -90, 90, 90, 0, 0, props: [.seat, .backrest, .anklePad], grounded: false))
         case "hamstring_isolation":
-            return Motion(Pose(54, 42, 180, 150, 90, 0, 5, props: [.bench, .anklePad], grounded: false),
-                   Pose(54, 42, 180, 150, 90, 0, -90, props: [.bench, .anklePad], grounded: false))
+            return Motion(Pose(46, 42, 0, 30, 90, 180, 175, props: [.bench, .anklePad], grounded: false),
+                   Pose(46, 42, 0, 30, 90, 180, 270, props: [.bench, .anklePad], grounded: false))
         case "calf":
             return Motion(Pose(46, 36, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail], grounded: false),
                    Pose(46, 33, -90, -10, -10, 90, 90, props: [.calfBlock, .supportRail], grounded: false))
@@ -471,6 +471,12 @@ private struct Skeleton {
 
     /// Shin is roughly vertical, so the foot is flat and gets a toe mark.
     static func footFlat(_ leg: Leg) -> Bool { abs(cos(leg.shinAngle * .pi / 180)) < 0.5 }
+    /// Toe mark length: full when the shin is near vertical, shrinking smoothly to nothing as the foot points away
+    /// (a hard threshold made the toe pop in and out mid-rep).
+    static func toeLength(_ leg: Leg) -> CGFloat {
+        let c = abs(cos(leg.shinAngle * .pi / 180))
+        return 5 * max(0, min(1, (0.62 - c) / 0.25))
+    }
 }
 
 // MARK: - Renderer
@@ -546,9 +552,11 @@ private struct FigureRenderer {
 
         let (rest, nearArm) = segments(sk)
         for s in rest { segment(&ctx, s) }
-        for (i, leg) in sk.legs.enumerated() where Skeleton.footFlat(leg) {
+        for (i, leg) in sk.legs.enumerated() {
+            let len = Skeleton.toeLength(leg)
+            guard len > 0 else { continue }
             let pinned = (i == 0 && anchor == .foot) || (i == sk.legs.count - 1 && anchor == .foot2)
-            let toe = off(pinned ? skA.legs[i].foot : leg.foot, 5, 0)
+            let toe = off(pinned ? skA.legs[i].foot : leg.foot, len, 0)
             line(&ctx, leg.foot, toe, Self.limbW + 1.0, card)
             line(&ctx, leg.foot, toe, Self.limbW - 0.4, brass)
         }

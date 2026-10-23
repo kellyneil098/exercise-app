@@ -70,6 +70,14 @@ def P(*args, **kw) -> Pose:
     return Pose(*args, **kw)
 
 
+def mirror(p: Pose) -> Pose:
+    """Flip a pose left-right. Prone figures (push-ups, planks) must have the head on the RIGHT: the renderer's
+    front normal is the torso rotated 90 degrees clockwise, so a head-left horizontal torso faces the ceiling."""
+    f = lambda a: None if a is None else 180 - a
+    return p.w(hx=100 - p.hx, torso=f(p.torso), ua=f(p.ua), fa=f(p.fa), th=f(p.th), sh=f(p.sh), head=f(p.head),
+               ua2=f(p.ua2), fa2=f(p.fa2), th2=f(p.th2), sh2=f(p.sh2))
+
+
 def M(a: Pose, b: Pose, anchor: str = "auto", arms_xy: bool = False) -> Motion:
     # B inherits A's far limbs / implement / props unless it sets them, so a keyframe never adds a limb.
     fill = {}
@@ -92,7 +100,7 @@ squat_bottom = P(44, 36, -55, -170, 10, 10, 115, impl="barbell")
 squat_top = squat_bottom.w(torso=-90, th=90, sh=90)
 row_top = P(44, 34, -35, 150, 60, 60, 80, impl="barbell")
 row_bottom = row_top.w(ua=90, fa=90)
-hang_top = P(50, 36, -90, -135, -45, 95, 120, props=["highBar"], grounded=False, floor=False)
+hang_top = P(50, 36, -90, 105, -85, 95, 120, props=["highBar"], grounded=False, floor=False)
 hang_bottom = hang_top.w(ua=-90, fa=-90)
 pulldown_bottom = P(46, 38, -100, 120, -30, 0, 90, impl="barbell", props=["cableHigh", "seat"])
 pulldown_top = pulldown_bottom.w(ua=-80, fa=-80)
@@ -112,10 +120,10 @@ calf_up = calf_down.w(hy=33)
 # ---------------------------------------------------------------- table
 TABLE: dict[str, Motion] = {
     # horizontal press
-    "decline_push_up": M(P(56, 38.6, 175, 90, 90, -5, -5, props=["footBlock"], grounded=False),
-                         P(56, 38.6, 159, 45, 174, -21, -21, head=172, props=["footBlock"], grounded=False), anchor="foot"),
-    "push_up": M(P(56, 46.5, -156, 90, 90, 24, 24, grounded=False),
-                 P(56, 46.5, -170, -10, 130, 10, 10, grounded=False), anchor="foot"),
+    "decline_push_up": M(mirror(P(56, 38.6, 175, 90, 90, -5, -5, props=["footBlock"], grounded=False)),
+                         mirror(P(56, 38.6, 159, 45, 174, -21, -21, head=172, props=["footBlock"], grounded=False)), anchor="foot"),
+    "push_up": M(mirror(P(56, 46.5, -156, 90, 90, 24, 24, grounded=False)),
+                 mirror(P(56, 46.5, -170, -10, 130, 10, 10, grounded=False)), anchor="foot"),
     "dumbbell_floor_press": M(P(56, 52.5, 180, -70, -90, -40, 100, impl="dumbbell", grounded=False),
                               P(56, 52.5, 180, 20, -90, -40, 100, impl="dumbbell", grounded=False)),
     "close_grip_bench_press": M(bench_press_top.w(impl="barbellNarrow"), bench_press_bottom.w(impl="barbellNarrow")),
@@ -171,7 +179,7 @@ TABLE: dict[str, Motion] = {
     "single_arm_dumbbell_row": M(P(40, 36, -30, 100, 90, 75, 85, ua2=60, fa2=60, th2=55, sh2=80, impl="dumbbellFirst", props=["supportBench"]),
                                  P(40, 36, -30, 165, 75, 75, 85, impl="dumbbellFirst", props=["supportBench"])),
     "inverted_row": M(P(50, 49, -160, -90, -90, 20, 20, props=["highBar"], grounded=False),
-                      P(53.7, 42.7, -139.2, 158, -82, 40.8, 40.8, props=["highBar"], grounded=False), anchor="hand"),
+                      P(53.7, 42.7, -139.2, -202, -82, 40.8, 40.8, props=["highBar"], grounded=False), anchor="hand"),
     # rear delt (transverse sweeps)
     "face_pull": M(standing.w(ua=-20, fa=-20, th=80, th2=100, sh2=90, impl="handle", props=["cableFrontLevel"]),
                    standing.w(ua=160, fa=-40, th=80, th2=100, sh2=90, impl="handle", props=["cableFrontLevel"]), arms_xy=True),
@@ -206,7 +214,7 @@ TABLE: dict[str, Motion] = {
     "cable_pull_through": M(P(44, 32, -30, 120, 150, 60, 85, impl="handle", props=["cableBehindLow"]),
                             P(44, 32, -90, 95, 80, 90, 90, impl="handle", props=["cableBehindLow"])),
     "barbell_hip_thrust": M(P(56, 40, 180, 0, 0, 0, 90, impl="barbellOnHips", props=["bench"]),
-                            P(54.6, 52.3, -155, 10, 10, -35, 71, impl="barbellOnHips", props=["bench"], grounded=False), anchor="shoulder"),
+                            P(54.6, 52.3, 205, 10, 10, -35, 71, impl="barbellOnHips", props=["bench"], grounded=False), anchor="shoulder"),
     # hamstrings / calves
     "seated_leg_curl": M(P(44, 38, -95, 20, 60, 0, 5, props=["seat", "backrest", "anklePad"]),
                          P(44, 38, -95, 20, 60, 0, 80, props=["seat", "backrest", "anklePad"])),
@@ -226,7 +234,7 @@ TABLE: dict[str, Motion] = {
                         P(46, 44, 260, 40, 180, -25, 60, props=["declineBench"], grounded=False)),
     "pallof_press": M(P(46, 40, -90, 120, -50, 90, 180, th2=0, sh2=90, impl="handle", props=["cableFrontLevel"]),
                       P(46, 40, -90, 0, 0, 90, 180, th2=0, sh2=90, impl="handle", props=["cableFrontLevel"])),
-    "plank": M(P(56, 52, -165, 90, 0, 15, 15, grounded=False), P(56, 52, -164, 90, 0, 14.5, 14.5, grounded=False), anchor="foot"),
+    "plank": M(mirror(P(56, 52, -165, 90, 0, 15, 15, grounded=False)), mirror(P(56, 52, -164, 90, 0, 14.5, 14.5, grounded=False)), anchor="foot"),
     "side_plank": M(P(56, 47.2, -154, 90, 90, 26, 26, ua2=-90, fa2=-90, grounded=False),
                     P(56, 47.2, -153, 90, 90, 25.5, 25.5, ua2=-92, fa2=-92, grounded=False), anchor="foot"),
     "hollow_hold": M(P(50, 52, -165, -100, -100, -12, -12, grounded=False), P(50, 52, -163, -98, -98, -14, -14, grounded=False), anchor="hip"),
@@ -255,8 +263,8 @@ PATTERNS: dict[str, Motion] = {
     "hinge": M(hinge_bottom, hinge_top),
     "quad_isolation": M(P(44, 36, -90, 90, 90, 0, 80, props=["seat", "backrest", "anklePad"], grounded=False),
                         P(44, 36, -90, 90, 90, 0, 0, props=["seat", "backrest", "anklePad"], grounded=False)),
-    "hamstring_isolation": M(P(54, 42, 180, 150, 90, 0, 5, props=["bench", "anklePad"], grounded=False),
-                             P(54, 42, 180, 150, 90, 0, -90, props=["bench", "anklePad"], grounded=False)),
+    "hamstring_isolation": M(mirror(P(54, 42, 180, 150, 90, 0, 5, props=["bench", "anklePad"], grounded=False)),
+                             mirror(P(54, 42, 180, 150, 90, 0, -90, props=["bench", "anklePad"], grounded=False))),
     "calf": M(calf_down, calf_up),
 }
 DEFAULT = M(crunch_down, crunch_up, anchor="hip")
@@ -427,6 +435,21 @@ def floor_check(m: Motion, key: str) -> list[str]:
     return out
 
 
+def wrap_check(m: Motion, key: str) -> list[str]:
+    """Joint angles interpolate linearly without normalisation: a B angle more than 180 deg from A spins the long way."""
+    out = []
+    for f in ("torso", "ua", "fa", "th", "sh", "head", "ua2", "fa2", "th2", "sh2"):
+        x, y = getattr(m.a, f), getattr(m.b, f)
+        if f == "head":
+            x = m.a.head if m.a.head is not None else m.a.torso
+            y = m.b.head if m.b.head is not None else m.b.torso
+        if m.arms_xy and f in ("ua", "fa", "ua2", "fa2"):
+            continue
+        if x is not None and y is not None and abs(x - y) > 200:
+            out.append(f"{key}: {f} {x} -> {y} spins the long way (use {y - 360 if y > x else y + 360})")
+    return out
+
+
 def all_exercises():
     data = json.loads((REPO / "seed" / "exercises.json").read_text())["exercises"]
     return [(e["key"], e["name"], e["movement_pattern"]) for e in data]
@@ -440,7 +463,7 @@ def check():
             issues.append(f"table key not in seed: {k}")
     for key, name, pattern in all_exercises():
         m = motion_for(key, pattern)
-        issues += com_check(m, key) + floor_check(m, key)
+        issues += com_check(m, key) + floor_check(m, key) + wrap_check(m, key)
     print("\n".join(issues) if issues else "all checks passed")
     return issues
 
