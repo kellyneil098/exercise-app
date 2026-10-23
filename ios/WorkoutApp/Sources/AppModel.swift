@@ -205,7 +205,7 @@ final class AppModel {
 
     var nextDayType: DayType {
         _ = dataVersion
-        let last = recentSessions(limit: 1).first
+        let last = completedSessions().first
         return SplitState(lastDayType: last?.dayType, lastCompletedAt: last?.performedAt).nextDayType
     }
 

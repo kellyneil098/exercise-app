@@ -98,7 +98,10 @@ struct DeckView: View {
     @ViewBuilder var hint: some View {
         HStack(spacing: Theme.Spacing.s) {
             if session.restEndsAt != nil {
-                Spacer(); cue("hand.tap", "Tap to skip rest", Theme.Colors.textSecondary); Spacer()
+                Spacer()
+                cue("hand.tap", "Tap to skip rest", Theme.Colors.textSecondary)
+                    .onTapGesture { withAnimation(Theme.Motion.spring) { session.skipRest() } }
+                Spacer()
             } else {
                 cue("arrow.left", "Skip", Theme.Colors.swipeSkip)
                 Spacer()
