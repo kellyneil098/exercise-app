@@ -124,6 +124,7 @@ struct ProgressScreen: View {
             Hairline()
             chart(userIds.flatMap { weightSeries($0.0) }, unit: "lb", lines: true)
         }
+        .onAppear { if !exerciseKeys.contains(exerciseKey), let first = exerciseKeys.first { exerciseKey = first } }
     }
 
     var volumeChart: some View {

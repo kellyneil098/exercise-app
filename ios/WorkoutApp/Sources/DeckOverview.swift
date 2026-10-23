@@ -8,6 +8,8 @@ import WorkoutUI
 /// deck collect under "Skipped" with a one-tap restore. Ending the workout lives here.
 struct DeckOverview: View {
     @Bindable var session: ActiveSession
+    /// Shown full-screen between Home and the deck: confirm the exercises, then Start workout.
+    var confirming = false
     @Environment(\.dismiss) private var dismiss
     @State private var expanded: UUID?
     @State private var picker: PickerMode?
@@ -25,22 +27,28 @@ struct DeckOverview: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Overline("Deck")
+                            Overline(confirming ? "Today's plan" : "Deck")
                             HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
                                 Text("\(session.remainingCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
-                                Text("left · ~\(remainingMinutes) min").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                                Text("\(confirming ? "exercises" : "left") · ~\(remainingMinutes) min").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                             }
                         }
                         Spacer()
                         IconButton("plus", label: "Add exercise", tint: Theme.Colors.brass) { picker = .add }
-                        Button { dismiss() } label: {
-                            Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.canvas)
-                                .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
-                                .background(Theme.Colors.brass, in: Capsule())
+                        if !confirming {
+                            Button { dismiss() } label: {
+                                Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.canvas)
+                                    .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
+                                    .background(Theme.Colors.brass, in: Capsule())
+                            }
+                            .buttonStyle(PressStyle())
                         }
-                        .buttonStyle(PressStyle())
                     }
-                    ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
+                    if confirming {
+                        Text("Reorder, swap or drop exercises, then start.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                    } else {
+                        ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
+                    }
                 }
                 .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
 
@@ -83,8 +91,17 @@ struct DeckOverview: View {
                 .scrollContentBackground(.hidden)
                 .environment(\.defaultMinListRowHeight, 1)
 
-                PillButton("End workout", icon: "stop.fill", style: .quiet) { confirmEnd = true }
-                    .padding(Theme.Spacing.l)
+                if confirming {
+                    VStack(spacing: Theme.Spacing.xs) {
+                        PillButton("Start workout", icon: "play.fill") { session.start() }
+                        Button("Back") { session.cancel() }
+                            .font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textSecondary).frame(minHeight: 44)
+                    }
+                    .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.s)
+                } else {
+                    PillButton("End workout", icon: "stop.fill", style: .quiet) { confirmEnd = true }
+                        .padding(Theme.Spacing.l)
+                }
             }
         }
         .sheet(item: $picker) { mode in ExercisePicker(session: session, replacing: mode.block) }

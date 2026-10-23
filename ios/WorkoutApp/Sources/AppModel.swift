@@ -237,7 +237,7 @@ final class AppModel {
     func restoreActiveSession() {
         guard activeSession == nil,
               let row = try? store.db.read({
-                  try SessionRow.filter(Column("userId") == userId && Column("completedAt") == nil && Column("abandoned") == false)
+                  try SessionRow.filter(Column("userId") == userId && Column("completedAt") == nil && Column("abandoned") == false && Column("deleted") == false)
                       .order(Column("startedAt").desc).fetchOne($0)
               }),
               let plan = row.plan,
@@ -247,6 +247,14 @@ final class AppModel {
         let input = plannerInput(dayType: dayType, duration: row.durationMin, location: location)
         let logs = (try? store.db.read { try SetLog.filter(Column("sessionId") == row.id).fetchAll($0) }) ?? []
         activeSession = ActiveSession(row: row, plan: plan, input: input, model: self, existingLogs: logs)
+    }
+
+    /// Drops a deck the user backed out of before starting it.
+    func cancel(_ session: ActiveSession) {
+        var row = session.row
+        row.deleted = true
+        try? store.save(row)
+        activeSession = nil
     }
 
     // MARK: Session completion

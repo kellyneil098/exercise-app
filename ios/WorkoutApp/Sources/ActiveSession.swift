@@ -39,6 +39,10 @@ final class ActiveSession: Identifiable {
         didSet { UserDefaults.standard.set(restPausedRemaining, forKey: "restPausedRemaining") }
     }
     var restTotal: TimeInterval = 0
+    /// False while the user is still confirming the deck in the overview; true once they tap Start workout.
+    private(set) var started: Bool {
+        didSet { UserDefaults.standard.set(started, forKey: "deckStarted-\(row.id)") }
+    }
 
     var id: String { row.id }
 
@@ -53,7 +57,17 @@ final class ActiveSession: Identifiable {
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
         order = (UserDefaults.standard.array(forKey: "deckOrder-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
         skipped = Set((UserDefaults.standard.array(forKey: "deckSkipped-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? [])
+        started = !existingLogs.isEmpty || UserDefaults.standard.bool(forKey: "deckStarted-\(row.id)")
     }
+
+    /// The clock starts here, not when the deck was built, so time spent confirming it isn't counted.
+    func start() {
+        row.startedAt = Date()
+        try? model.store.save(row)
+        started = true
+    }
+    /// Back out of an unstarted deck; nothing was logged so the session row is dropped.
+    func cancel() { model.cancel(self) }
 
     // MARK: Ordering
 

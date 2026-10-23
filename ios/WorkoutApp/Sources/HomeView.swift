@@ -138,10 +138,6 @@ struct HomeView: View {
                 }
             }
         }
-
-        if let location {
-            PlanPreview(plan: model.preview(dayType: dayType, duration: duration, location: location), dayType: dayType)
-        }
     }
 
     /// Label on the left, text options trailing; options scroll if a gym name is long.
@@ -155,14 +151,13 @@ struct HomeView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Theme.Spacing.l) { options() }
             }
-            .scrollClipDisabled()
         }
     }
 
-    /// Thumb-zone CTA over a fade so the plan can scroll underneath it.
+    /// Thumb-zone CTA: hands the chosen type / minutes / gym to the deck overview for confirmation.
     func startBar(_ dayType: DayType) -> some View {
         VStack(spacing: 0) {
-            PillButton(startTitle(dayType), icon: "play.fill") {
+            PillButton(startTitle(dayType), icon: "rectangle.stack") {
                 if let location { model.startSession(dayType: dayType, duration: duration, location: location) }
             }
             .disabled(location == nil)
@@ -177,40 +172,8 @@ struct HomeView: View {
     }
 
     func startTitle(_ dayType: DayType) -> String {
-        guard let location else { return "Start" }
-        let mins = Int(model.preview(dayType: dayType, duration: duration, location: location).estimatedSeconds / 60)
-        return "Start \(dayType.label.lowercased()) · ~\(mins) min"
-    }
-}
-
-/// The deck before it's dealt: each exercise with its load and volume, the heavy lift leading. A plain list on
-/// the canvas — the card is saved for the deck itself.
-struct PlanPreview: View {
-    let plan: Plan
-    let dayType: DayType
-    var body: some View {
-        FlatSection("Today's plan", detail: "\(plan.blocks.count) exercises · ~\(Int(plan.estimatedSeconds / 60)) min") {
-            VStack(spacing: 0) {
-                ForEach(Array(plan.blocks.sorted { $0.slot < $1.slot }.enumerated()), id: \.element.id) { i, b in
-                    HStack(spacing: Theme.Spacing.sm) {
-                        Glyph(b.isSupersetted ? "arrow.turn.down.right" : b.band == .heavy ? "flame" : "dumbbell",
-                              tint: b.isSupersetted ? Theme.Colors.textTertiary : b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(dayType))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(b.isSupersetted ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
-                                .lineLimit(2).minimumScaleFactor(0.85)
-                            Text(b.band == .heavy ? "Heavy" : b.isSupersetted ? "Superset" : b.pattern.replacingOccurrences(of: "_", with: " ").capitalized)
-                                .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(b.weight.map { "\($0.formatted()) lb" } ?? "Body").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textPrimary)
-                            Text("\(b.sets) × \(b.repLow)–\(b.repHigh)").font(Theme.Fonts.caption).monospacedDigit().foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                    }
-                    .padding(.vertical, Theme.Spacing.sm)
-                    if i < plan.blocks.count - 1 { Hairline() }
-                }
-            }
-        }
+        guard let location else { return "Build deck" }
+        let plan = model.preview(dayType: dayType, duration: duration, location: location)
+        return "Build \(dayType.label.lowercased()) deck · \(plan.blocks.count) exercises · ~\(Int(plan.estimatedSeconds / 60)) min"
     }
 }

@@ -23,13 +23,14 @@ struct RootView: View {
             if !model.isOnboarded {
                 OnboardingView()
             } else if let session = model.activeSession {
-                DeckView(session: session)
+                if session.started { DeckView(session: session) } else { DeckOverview(session: session, confirming: true) }
             } else {
                 HomeView()
             }
         }
         .animation(Theme.Motion.spring, value: model.isOnboarded)
         .animation(Theme.Motion.spring, value: model.activeSession?.id)
+        .animation(Theme.Motion.spring, value: model.activeSession?.started)
         .task { await model.syncIfPossible() }
     }
 }
