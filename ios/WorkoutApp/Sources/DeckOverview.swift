@@ -149,7 +149,7 @@ struct DeckOverview: View {
                     if b.band == .heavy || b.isSupersetted {
                         Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
                     }
-                    Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(1).minimumScaleFactor(0.85)
+                    Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent ? Theme.Colors.brass : Theme.Colors.textPrimary)
                     Text(summary(b, done: done)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                 }

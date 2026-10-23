@@ -117,11 +117,11 @@ struct ProgressScreen: View {
             HStack(spacing: Theme.Spacing.sm) {
                 Glyph("scalemass", tint: Theme.Colors.brass, width: 20)
                 Overline("Working weight", tint: Theme.Colors.textSecondary)
-                Spacer()
-                Picker("", selection: $exerciseKey) { ForEach(exerciseKeys, id: \.self) { Text(model.catalog.exercises[$0]?.name ?? $0).tag($0) } }
-                    .labelsHidden().tint(Theme.Colors.textSecondary)
             }
             Hairline()
+            Picker("", selection: $exerciseKey) { ForEach(exerciseKeys, id: \.self) { Text(model.catalog.exercises[$0]?.name ?? $0).tag($0) } }
+                .labelsHidden().tint(Theme.Colors.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             chart(userIds.flatMap { weightSeries($0.0) }, unit: "lb", lines: true)
         }
         .onAppear { if !exerciseKeys.contains(exerciseKey), let first = exerciseKeys.first { exerciseKey = first } }

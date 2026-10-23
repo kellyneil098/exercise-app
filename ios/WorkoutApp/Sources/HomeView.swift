@@ -175,6 +175,6 @@ struct HomeView: View {
     func startTitle(_ dayType: DayType) -> String {
         guard let location else { return "Build deck" }
         let plan = model.preview(dayType: dayType, duration: duration, location: location)
-        return "Build \(dayType.label.lowercased()) deck · \(plan.blocks.count) exercises · ~\(Int(plan.estimatedSeconds / 60)) min"
+        return "Build \(dayType.label.lowercased()) deck · \(plan.blocks.count) exercises · ~\(Int((plan.estimatedSeconds / 60).rounded())) min"
     }
 }
