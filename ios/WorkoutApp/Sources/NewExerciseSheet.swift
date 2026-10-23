@@ -25,16 +25,19 @@ struct NewExerciseSheet: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                        Overline("New exercise")
-                        TextField("Name", text: $name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                            .textInputAutocapitalization(.words).focused($nameFocused).submitLabel(.done)
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                            Overline("New exercise")
+                            TextField("Name", text: $name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                                .textInputAutocapitalization(.words).focused($nameFocused).submitLabel(.done)
+                        }
+                        .padding(.top, Theme.Spacing.s)
                         Hairline()
-                        Overline("Movement")
+                        SectionHeader("Movement", icon: "figure.strengthtraining.traditional", tint: Theme.Colors.brass)
                         wrap(patterns, id: \.self) { p in
                             Chip(label(p), selected: p == pattern) { pattern = p }
                         }
                         Hairline()
-                        Overline("Needs")
+                        SectionHeader("Needs", icon: "dumbbell", tint: Theme.Colors.legs)
                         wrap(model.catalog.equipmentTypes.map(\.key), id: \.self) { e in
                             Chip(model.catalog.equipmentTypes.first { $0.key == e }?.label ?? e, selected: equipment.contains(e)) {
                                 if equipment.contains(e) { equipment.remove(e) } else { equipment.insert(e) }
@@ -42,7 +45,7 @@ struct NewExerciseSheet: View {
                             }
                         }
                         Hairline()
-                        Overline("Load")
+                        SectionHeader("Load", icon: "scalemass", tint: Theme.Colors.pull)
                         HStack(spacing: Theme.Spacing.s) {
                             Chip("Weighted", selected: loadable) { loadable = true }
                             Chip("Bodyweight / timed", selected: !loadable) { loadable = false }
@@ -57,7 +60,7 @@ struct NewExerciseSheet: View {
                     .padding(Theme.Spacing.l)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                PillButton("Create") {
+                PillButton("Create exercise", icon: "plus") {
                     guard let e = model.createExercise(name: name, pattern: pattern, equipment: equipment.sorted(), loadable: loadable, dumbbellBased: dumbbellBased)
                     else { return }
                     Haptics.play(.swap)

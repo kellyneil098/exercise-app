@@ -8,6 +8,8 @@ import WorkoutUI
 /// deck collect under "Skipped" with a one-tap restore. Ending the workout lives here.
 struct DeckOverview: View {
     @Bindable var session: ActiveSession
+    /// Shown full-screen between Home and the deck: confirm the exercises, then Start workout.
+    var confirming = false
     @Environment(\.dismiss) private var dismiss
     @State private var expanded: UUID?
     @State private var picker: PickerMode?
@@ -22,23 +24,37 @@ struct DeckOverview: View {
     var body: some View {
         Screen {
             VStack(spacing: 0) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Overline("Deck")
-                        Text("\(session.remainingCount) left · ~\(remainingMinutes) min").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                            Overline(confirming ? "Today's plan" : "Deck")
+                            HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
+                                Text("\(session.remainingCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                                Text("\(confirming ? "exercises" : "left") · ~\(remainingMinutes) min").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                            }
+                        }
+                        Spacer()
+                        IconButton("plus", label: "Add exercise", tint: Theme.Colors.brass) { picker = .add }
+                        if !confirming {
+                            Button { dismiss() } label: {
+                                Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.canvas)
+                                    .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
+                                    .background(Theme.Colors.brass, in: Capsule())
+                            }
+                            .buttonStyle(PressStyle())
+                        }
                     }
-                    Spacer()
-                    Button { picker = .add } label: { Image(systemName: "plus").font(.system(size: 20, weight: .medium)) }
-                        .foregroundStyle(Theme.Colors.brass)
-                        .accessibilityLabel("Add exercise")
-                        .padding(.trailing, Theme.Spacing.m)
-                    Button("Done") { dismiss() }.font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.brass)
+                    if confirming {
+                        Text("Reorder, swap or drop exercises, then start.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                    } else {
+                        ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
+                    }
                 }
-                .padding(Theme.Spacing.l)
+                .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
 
                 List {
-                    ForEach(session.activeBlocks) { b in
-                        row(b)
+                    ForEach(Array(session.activeBlocks.enumerated()), id: \.element.id) { i, b in
+                        row(b, index: i)
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(Theme.Colors.hairline)
                             .listRowInsets(rowInsets)
@@ -75,8 +91,17 @@ struct DeckOverview: View {
                 .scrollContentBackground(.hidden)
                 .environment(\.defaultMinListRowHeight, 1)
 
-                PillButton("End workout", style: .quiet) { confirmEnd = true }
-                    .padding(Theme.Spacing.l)
+                if confirming {
+                    VStack(spacing: Theme.Spacing.xs) {
+                        PillButton("Start workout", icon: "play.fill") { session.start() }
+                        Button("Back") { session.cancel() }
+                            .font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textSecondary).frame(minHeight: 44)
+                    }
+                    .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.s)
+                } else {
+                    PillButton("End workout", icon: "stop.fill", style: .quiet) { confirmEnd = true }
+                        .padding(Theme.Spacing.l)
+                }
             }
         }
         .sheet(item: $picker) { mode in ExercisePicker(session: session, replacing: mode.block) }
@@ -102,27 +127,36 @@ struct DeckOverview: View {
 
     // MARK: Row
 
-    func row(_ b: PlanBlock) -> some View {
+    func row(_ b: PlanBlock, index: Int) -> some View {
         let done = session.workingSetsDone(b)
         let isCurrent = session.currentBlock?.id == b.id
         let complete = session.isComplete(b)
+        let tint = b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(session.plan.dayType)
         return VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.m) {
+                Group {
+                    if complete {
+                        IconTile("checkmark", tint: Theme.Colors.brass, size: 40)
+                    } else if isCurrent {
+                        IconTile("play.fill", tint: tint, size: 40)
+                    } else {
+                        IconTile(b.isSupersetted ? "link" : "\(min(index + 1, 50)).circle", tint: tint, size: 40)
+                            .opacity(0.7)
+                    }
+                }
+                .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
                     if b.band == .heavy || b.isSupersetted {
-                        Overline(b.band == .heavy ? "Heavy" : "Superset")
+                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
                     }
-                    Text(b.exerciseName).font(Theme.Fonts.body)
+                    Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent ? Theme.Colors.brass : Theme.Colors.textPrimary)
                     Text(summary(b, done: done)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                 }
-                .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
-                Spacer()
-                if complete {
-                    Image(systemName: "checkmark").foregroundStyle(Theme.Colors.brass)
-                } else {
-                    SetDots(done: done, total: b.sets)
-                }
+                Spacer(minLength: Theme.Spacing.s)
+                SetDots(done: done, total: b.sets)
+                Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
+                    .rotationEffect(.degrees(expanded == b.id ? 180 : 0))
             }
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(Theme.Motion.quick) { expanded = expanded == b.id ? nil : b.id } }
@@ -136,19 +170,21 @@ struct DeckOverview: View {
     func skippedRow(_ b: PlanBlock) -> some View {
         let done = session.workingSetsDone(b)
         return HStack(spacing: Theme.Spacing.m) {
+            IconTile("forward.end", tint: Theme.Colors.textTertiary, size: 40).opacity(0.6)
             VStack(alignment: .leading, spacing: 3) {
-                Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary)
+                Text(b.exerciseName).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textTertiary)
                 Text(done > 0 ? "\(done) of \(b.sets) done · \(summary(b, done: done))" : summary(b, done: done))
                     .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
             }
             Spacer()
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.uturn.backward").font(.system(size: 13, weight: .semibold))
-                Text("Restore").font(Theme.Fonts.caption)
+            HStack(spacing: Theme.Spacing.s) {
+                Image(systemName: "arrow.uturn.backward").font(.system(size: 13, weight: .bold))
+                Text("Restore").font(Theme.Fonts.captionBold)
             }
             .foregroundStyle(Theme.Colors.brass)
-            .padding(.horizontal, 12).frame(height: 36)
-            .background(Theme.Colors.brassDim, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+            .padding(.horizontal, Theme.Spacing.sm).frame(height: 36)
+            .background(Theme.Colors.brassDim, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.Colors.brass.opacity(0.3), lineWidth: 1))
         }
         .padding(.vertical, Theme.Spacing.m)
         .contentShape(Rectangle())
@@ -205,10 +241,10 @@ struct IconControl: View {
         self.icon = icon; self.label = label; self.tint = tint; self.action = action
     }
     var body: some View {
-        Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint)
-            .frame(width: 48, height: 36)
-            .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+        Image(systemName: icon).font(.system(size: 15, weight: .bold)).foregroundStyle(tint)
+            .frame(width: 52, height: 44)
+            .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.brassBorder, lineWidth: 1))
             .contentShape(Rectangle())
             .onTapGesture(perform: action)
             .accessibilityAddTraits(.isButton)

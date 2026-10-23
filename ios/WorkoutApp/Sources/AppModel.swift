@@ -162,6 +162,21 @@ final class AppModel {
         }
     }
 
+    /// Sessions the user actually finished (not abandoned), newest first; `since` bounds the query for weekly stats.
+    func completedSessions(since: Date? = nil) -> [RecentSession] {
+        _ = dataVersion
+        let rows: [SessionRow] = (try? store.db.read { db -> [SessionRow] in
+            var q = SessionRow.filter(Column("userId") == userId && Column("deleted") == false
+                                      && Column("completedAt") != nil && Column("abandoned") == false)
+            if let since { q = q.filter(Column("completedAt") >= since) }
+            return try q.order(Column("completedAt").desc).fetchAll(db)
+        }) ?? []
+        return rows.compactMap { r in
+            guard let d = DayType(rawValue: r.dayType) else { return nil }
+            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.blocks.map(\.exerciseKey) ?? [])
+        }
+    }
+
     /// Every seeded location exists for this user so Home can offer all of them; installs that predate a seed
     /// entry (or its current name) get it on first launch. Equipment defaults mirror onboarding.
     func ensureSeededLocations() {
@@ -190,7 +205,7 @@ final class AppModel {
 
     var nextDayType: DayType {
         _ = dataVersion
-        let last = recentSessions(limit: 1).first
+        let last = completedSessions().first
         return SplitState(lastDayType: last?.dayType, lastCompletedAt: last?.performedAt).nextDayType
     }
 
@@ -222,7 +237,7 @@ final class AppModel {
     func restoreActiveSession() {
         guard activeSession == nil,
               let row = try? store.db.read({
-                  try SessionRow.filter(Column("userId") == userId && Column("completedAt") == nil && Column("abandoned") == false)
+                  try SessionRow.filter(Column("userId") == userId && Column("completedAt") == nil && Column("abandoned") == false && Column("deleted") == false)
                       .order(Column("startedAt").desc).fetchOne($0)
               }),
               let plan = row.plan,
@@ -232,6 +247,18 @@ final class AppModel {
         let input = plannerInput(dayType: dayType, duration: row.durationMin, location: location)
         let logs = (try? store.db.read { try SetLog.filter(Column("sessionId") == row.id).fetchAll($0) }) ?? []
         activeSession = ActiveSession(row: row, plan: plan, input: input, model: self, existingLogs: logs)
+    }
+
+    /// Day the user had picked when they backed out of an unstarted deck, so Home reopens on it rather than the rotation's next day.
+    var resumeDayType: DayType?
+
+    /// Drops a deck the user backed out of before starting it.
+    func cancel(_ session: ActiveSession) {
+        var row = session.row
+        row.deleted = true
+        try? store.save(row)
+        resumeDayType = DayType(rawValue: row.dayType)
+        activeSession = nil
     }
 
     // MARK: Session completion

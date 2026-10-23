@@ -17,23 +17,39 @@ struct RunContent: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             if let plan {
                 let state = plan.engineState
-                Card {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                        Overline("This week")
-                        HStack(alignment: .lastTextBaseline, spacing: 4) {
-                            Text(state.weeklyVolumeMi.formatted()).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
-                            Text("mi").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                let done = runs.filter { $0.completedAt != nil }
+                Group {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                        HStack(spacing: Theme.Spacing.sm) {
+                            Glyph("figure.run", tint: Theme.Colors.pull, width: 20)
+                            Overline("This week", tint: Theme.Colors.textSecondary)
                             Spacer()
-                            Text("\(runs.filter { $0.completedAt != nil }.count) of \(runs.count) done").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                            if state.isDeloadWeek {
+                                Text("Lighter week").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.pull)
+                                    .padding(.horizontal, Theme.Spacing.s).frame(height: 24).background(Theme.Colors.pull.opacity(0.12), in: Capsule())
+                            }
                         }
-                        if state.isDeloadWeek { Text("Lighter week.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary) }
+                        Hairline()
+                        HStack(alignment: .top) {
+                            Stat(state.weeklyVolumeMi.formatted(), unit: "mi", label: "planned", tint: Theme.Colors.textPrimary)
+                            Spacer()
+                            Stat(done.reduce(0) { $0 + ($1.distanceMi ?? 0) }.formatted(.number.precision(.fractionLength(0...1))), unit: "mi", label: "run so far", tint: Theme.Colors.pull)
+                            Spacer()
+                            Stat("\(done.count)", unit: "of \(runs.count)", label: "runs done")
+                        }
+                        ProgressBar(Double(done.count) / Double(max(1, runs.count)), tint: Theme.Colors.pull)
                     }
                 }
                 ForEach(runs) { run in
                     RunCard(run: run, state: state, planned: plannedRun(run, state: state), onStart: { starting = run }, onLog: { logging = run })
                 }
             } else {
-                Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                Group {
+                    HStack(spacing: Theme.Spacing.m) {
+                        Glyph("figure.run", tint: Theme.Colors.textTertiary)
+                        Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
             }
         }
         .onAppear(perform: load)
@@ -61,39 +77,60 @@ struct RunCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-                            Card(raised: run.completedAt == nil) {
-                                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                                    HStack {
-                                        Overline(run.runType.capitalized)
-                                        Spacer()
-                                        if run.completedAt != nil { Image(systemName: "checkmark").foregroundStyle(Theme.Colors.brass) }
-                                    }
-                                    HStack(alignment: .lastTextBaseline) {
-                                        Text("\(run.targetDistanceMi.formatted()) mi").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
-                                        Text("@ \(formatPace(run.targetPaceSecPerMi))").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
-                                    }
-                                    if let planned {
-                                        ForEach(Array(model.runPlanner.segments(for: planned, state: state).enumerated()), id: \.offset) { _, seg in
-                                            Text(segmentText(seg)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                                        }
-                                    }
-                                    if run.completedAt == nil {
-                                        HStack(spacing: Theme.Spacing.s) {
-                                            PillButton("Start", action: onStart)
-                                            Button(action: onLog) {
-                                                Image(systemName: "square.and.pencil").font(.system(size: 17, weight: .medium))
-                                                    .frame(width: 56, height: 54)
-                                                    .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
-                                                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
-                                            }
-                                            .foregroundStyle(Theme.Colors.textPrimary).buttonStyle(PressStyle())
-                                            .accessibilityLabel("Log run manually")
-                                        }
-                                    } else if let d = run.distanceMi, let p = run.paceSecPerMi {
-                                        Text("\(d.formatted()) mi at \(formatPace(p))").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-                                    }
-                                }
+        let done = run.completedAt != nil
+        Card(raised: !done) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                HStack(spacing: Theme.Spacing.m) {
+                    IconTile(done ? "checkmark" : symbol, tint: done ? Theme.Colors.brass : Theme.Colors.pull, size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(done ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
+                        if done, let d = run.distanceMi, let p = run.paceSecPerMi {
+                            Text("\(d.formatted()) mi at \(formatPace(p)) /mi").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        } else {
+                            Text("Target").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                    }
+                    Spacer()
+                    HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
+                        Text(run.targetDistanceMi.formatted()).font(Theme.Fonts.numeral).foregroundStyle(done ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
+                        Text("mi").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
+                if let planned, !done {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                        ForEach(Array(model.runPlanner.segments(for: planned, state: state).enumerated()), id: \.offset) { _, seg in
+                            HStack(spacing: Theme.Spacing.s) {
+                                Circle().fill(Theme.Colors.pull.opacity(0.6)).frame(width: 6, height: 6)
+                                Text(segmentText(seg)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                             }
+                        }
+                    }
+                    .padding(.leading, Theme.Spacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if !done {
+                    HStack(spacing: Theme.Spacing.s) {
+                        PillButton("Start run", icon: "play.fill", action: onStart)
+                        Button(action: onLog) {
+                            Image(systemName: "square.and.pencil").font(.system(size: 17, weight: .bold))
+                                .frame(width: 56, height: 56)
+                                .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).strokeBorder(Theme.Colors.brassBorder, lineWidth: 1))
+                        }
+                        .foregroundStyle(Theme.Colors.textPrimary).buttonStyle(PressStyle())
+                        .accessibilityLabel("Log run manually")
+                    }
+                }
+            }
+        }
+    }
+
+    var symbol: String {
+        switch run.runType {
+        case "long": "arrow.right.to.line"
+        case "tempo", "intervals", "quality": "bolt"
+        default: "figure.run"
+        }
     }
 
     func segmentText(_ s: RunSegment) -> String {
@@ -152,19 +189,31 @@ struct LogRunSheet: View {
     var body: some View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                Overline("Log \(run.runType)")
-                Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
-                Adjuster("\(minutes) min", value: $minutes.asDouble, in: 0...600)
-                if distance > 0, minutes > 0 {
-                    Text(formatPace(Double(minutes * 60) / distance) + " /mi").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.brass)
+                HStack(spacing: Theme.Spacing.m) {
+                    Glyph("square.and.pencil", tint: Theme.Colors.pull)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Overline("Log run")
+                        Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                    }
+                    Spacer()
+                    if distance > 0, minutes > 0 {
+                        Stat(formatPace(Double(minutes * 60) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.brass)
+                    }
                 }
-                HStack(spacing: Theme.Spacing.s) {
+                Group {
+                    VStack(spacing: Theme.Spacing.m) {
+                        Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
+                        Hairline()
+                        Adjuster("\(minutes) min", value: $minutes.asDouble, in: 0...600)
+                    }
+                }
+                HStack(spacing: Theme.Spacing.l) {
                     ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
-                        Chip(e.label, selected: e == effort) { effort = e }
+                        TextOption(e.label, selected: e == effort) { effort = e }
                     }
                 }
                 Spacer()
-                PillButton("Save") {
+                PillButton("Save run", icon: "checkmark") {
                     var r = run
                     r.distanceMi = distance; r.durationSec = minutes * 60; r.effort = effort.rawValue; r.completedAt = Date()
                     try? model.store.save(r)

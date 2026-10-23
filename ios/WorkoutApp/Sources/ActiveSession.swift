@@ -39,6 +39,13 @@ final class ActiveSession: Identifiable {
         didSet { UserDefaults.standard.set(restPausedRemaining, forKey: "restPausedRemaining") }
     }
     var restTotal: TimeInterval = 0
+    /// The last swipe, so a mis-swipe can be taken back. One level deep, in memory only.
+    enum DeckAction { case logged(SetLog), skipped(UUID) }
+    private(set) var lastAction: DeckAction?
+    /// False while the user is still confirming the deck in the overview; true once they tap Start workout.
+    private(set) var started: Bool {
+        didSet { UserDefaults.standard.set(started, forKey: "deckStarted-\(row.id)") }
+    }
 
     var id: String { row.id }
 
@@ -53,7 +60,17 @@ final class ActiveSession: Identifiable {
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
         order = (UserDefaults.standard.array(forKey: "deckOrder-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
         skipped = Set((UserDefaults.standard.array(forKey: "deckSkipped-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? [])
+        started = !existingLogs.isEmpty || UserDefaults.standard.bool(forKey: "deckStarted-\(row.id)")
     }
+
+    /// The clock starts here, not when the deck was built, so time spent confirming it isn't counted.
+    func start() {
+        row.startedAt = Date()
+        try? model.store.save(row)
+        started = true
+    }
+    /// Back out of an unstarted deck; nothing was logged so the session row is dropped.
+    func cancel() { model.cancel(self) }
 
     // MARK: Ordering
 
@@ -169,12 +186,29 @@ final class ActiveSession: Identifiable {
                          weight: weight, targetReps: block.measure == .seconds ? block.repHigh : block.repLow, repsDone: reps, effort: effort)
         try? model.store.save(set)
         logs.append(set)
+        lastAction = .logged(set)
+    }
+
+    /// Reverses the most recent Done or Skip: the set is deleted (and any rest cancelled) or the block rejoins the deck
+    /// where it was.
+    func undo() {
+        guard let action = lastAction else { return }
+        switch action {
+        case .logged(let set):
+            try? model.store.delete(set)
+            logs.removeAll { $0.id == set.id }
+            skipRest()
+        case .skipped(let id):
+            skipped.remove(id)
+        }
+        lastAction = nil
     }
 
     func undoLast(block: PlanBlock) {
         guard let last = logs(for: block).max(by: { $0.setIndex < $1.setIndex }) else { return }
         try? model.store.delete(last)
         logs.removeAll { $0.id == last.id }
+        if case .logged(let s) = lastAction, s.id == last.id { lastAction = nil }
         skipRest()
     }
 
@@ -229,12 +263,14 @@ final class ActiveSession: Identifiable {
     /// Swipe-left: the block leaves the stack for this session. Sets already logged stay; restorable from the overview.
     func skip(_ block: PlanBlock) {
         skipped.insert(block.id)
+        lastAction = .skipped(block.id)
         if currentBlock == nil { skipRest() }   // a running rest stays; only an emptied deck ends it
     }
 
     /// Puts a skipped block back into the deck, at the end of what's left.
     func restore(_ block: PlanBlock) {
         skipped.remove(block.id)
+        if case .skipped(let id) = lastAction, id == block.id { lastAction = nil }
         var ids = activeBlocks.map(\.id).filter { $0 != block.id }
         ids.append(block.id)
         ids += skippedBlocks.map(\.id)
@@ -250,6 +286,11 @@ final class ActiveSession: Identifiable {
         for i in plan.blocks.indices where plan.blocks[i].supersetHostID == block.id { plan.blocks[i].supersetHostID = nil }
         order.removeAll { $0 == block.id }
         skipped.remove(block.id)
+        switch lastAction {
+        case .skipped(let id) where id == block.id: lastAction = nil
+        case .logged(let set) where set.slot == block.slot && set.exerciseKey == block.exerciseKey: lastAction = nil
+        default: break
+        }
         skipRest()
         persistPlan()
     }

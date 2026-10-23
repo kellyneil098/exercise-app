@@ -8,9 +8,12 @@ enum HomeMode: Hashable {
     case strength(DayType), running
     static let all: [HomeMode] = DayType.allCases.map { .strength($0) } + [.running]
     var label: String { switch self { case .strength(let d): d.label; case .running: "Run" } }
+    var symbol: String { switch self { case .strength(let d): d.symbol; case .running: "figure.run" } }
+    var tint: Color { switch self { case .strength(let d): Theme.Colors.day(d); case .running: Theme.Colors.run } }
 }
 
-/// Cold open → workout in ≤3 taps: Start is the primary action, duration/location are one tap each.
+/// Cold open → workout in ≤3 taps. The greeting and this week's momentum sit at the top, the choices in the
+/// middle, and Start lives in the thumb zone, pinned to the bottom edge.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var mode: HomeMode = .strength(.push)
@@ -22,37 +25,27 @@ struct HomeView: View {
     var body: some View {
         Screen {
             ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    HStack(spacing: Theme.Spacing.m) {
-                        Overline(Date.now.formatted(.dateTime.weekday(.wide).month().day()))
-                        Spacer()
-                        headerButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
-                        headerButton("person", label: "Profile") { showSettings = true }
-                    }
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .padding(.trailing, -Theme.Spacing.s)
-
-                    Text(mode.label).font(Theme.Fonts.display).foregroundStyle(Theme.Colors.textPrimary)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: Theme.Spacing.s) {
-                            ForEach(HomeMode.all, id: \.self) { m in
-                                Chip(m.label, selected: m == mode) { withAnimation(Theme.Motion.quick) { mode = m } }
-                            }
-                        }
-                    }
-                    .scrollClipDisabled()
-
+                VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+                    header
+                    momentum
+                    modePicker
                     switch mode {
                     case .strength(let dayType): strength(dayType)
                     case .running: RunContent()
                     }
                 }
-                .padding(Theme.Spacing.l)
+                .padding(.horizontal, Theme.Spacing.l)
+                .padding(.top, Theme.Spacing.s)
+                .padding(.bottom, Theme.Spacing.xl)
+            }
+            .scrollIndicators(.hidden)
+            .safeAreaInset(edge: .bottom) {
+                if case .strength(let dayType) = mode { startBar(dayType) }
             }
         }
         .onAppear {
-            mode = ActiveRunClock.resumableRunID() != nil ? .running : .strength(model.nextDayType)
+            mode = ActiveRunClock.resumableRunID() != nil ? .running : .strength(model.resumeDayType ?? model.nextDayType)
+            model.resumeDayType = nil
             let split = model.splitState
             duration = split.defaultDurationMin
             model.ensureSeededLocations()
@@ -63,82 +56,170 @@ struct HomeView: View {
         .sheet(isPresented: $showSettings) { SettingsView() }
     }
 
-    /// Full 44-pt targets with a gap between them, so analytics and profile can't be mis-tapped for each other.
-    func headerButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon).font(.system(size: 18, weight: .regular))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+    // MARK: Header
+
+    var header: some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Overline(Date.now.formatted(.dateTime.weekday(.wide).month().day()))
+                Text(greeting).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary).lineLimit(1).minimumScaleFactor(0.75)
+            }
+            Spacer()
+            IconButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
+            Button { showSettings = true } label: { Avatar(name: model.settings?.displayName ?? "") }
+                .buttonStyle(PressStyle())
+                .accessibilityLabel("Profile")
         }
-        .buttonStyle(PressStyle())
-        .accessibilityLabel(label)
     }
+
+    /// "Today", "Yesterday", a weekday within the week, otherwise a short date.
+    func dayLabel(_ d: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return "Today" }
+        if cal.isDateInYesterday(d) { return "Yesterday" }
+        if let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: .now)).day, days < 7 {
+            return d.formatted(.dateTime.weekday(.wide))
+        }
+        return d.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    var greeting: String {
+        let hour = Calendar.current.component(.hour, from: .now)
+        let part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+        let name = model.settings?.displayName.split(separator: " ").first.map(String.init) ?? ""
+        return name.isEmpty ? part : "\(part), \(name)"
+    }
+
+    /// This week at a glance, set straight on the canvas: two numbers, no box.
+    var momentum: some View {
+        let week = model.completedSessions(since: Date.startOfWeek)
+        let last = model.completedSessions().first
+        return HStack(alignment: .top, spacing: Theme.Spacing.l) {
+            Stat("\(week.count)", label: week.count == 1 ? "session this week" : "sessions this week", tint: Theme.Colors.brass)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let last {
+                Stat(dayLabel(last.performedAt), label: "last · \(last.dayType.label.lowercased())")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Stat("—", label: "no sessions yet")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// The day picker owns the middle of the screen: one tall row per day with what's heavy this time and when it
+    /// was last done, so the choice is informed rather than a strip of tabs.
+    var modePicker: some View {
+        FlatSection("Workout") {
+            VStack(spacing: 0) {
+                ForEach(HomeMode.all, id: \.self) { m in
+                    ModeRow(mode: m, subtitle: subtitle(m), isNext: m == .strength(model.nextDayType), selected: m == mode) {
+                        withAnimation(Theme.Motion.quick) { mode = m }
+                    }
+                }
+            }
+        }
+    }
+
+    func subtitle(_ m: HomeMode) -> String {
+        switch m {
+        case .running:
+            return "This week's plan"
+        case .strength(let d):
+            let heavy = (model.splitState.heavyRotations[d]?.current ?? model.catalog.heavyRotationDefaults[d]?.first)
+                .map { $0.replacingOccurrences(of: "_", with: " ").capitalized }
+            let last = model.completedSessions().first { $0.dayType == d }.map { "last \(dayLabel($0.performedAt).lowercased())" } ?? "not yet done"
+            return [heavy.map { "Heavy: \($0)" }, last].compactMap { $0 }.joined(separator: " · ")
+        }
+    }
+
+    // MARK: Strength
 
     @ViewBuilder func strength(_ dayType: DayType) -> some View {
-        Card {
-            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Overline("Time")
-                HStack(spacing: Theme.Spacing.s) {
-                    ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
-                        Chip("\(m)", selected: m == duration) { duration = m }
-                    }
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            optionRow("Minutes", icon: "clock") {
+                ForEach(EngineConfig.default.durationBuckets, id: \.self) { m in
+                    TextOption("\(m)", selected: m == duration) { duration = m }
+                        .accessibilityLabel("\(m) minutes")
                 }
-                Hairline()
-                Overline("Where")
-                HStack(spacing: Theme.Spacing.s) {
-                    ForEach(model.locations) { l in
-                        Chip(l.name, selected: l.id == location?.id) { location = l }
-                    }
+            }
+            Hairline()
+            optionRow("Where", icon: "mappin") {
+                ForEach(model.locations) { l in
+                    TextOption(l.name, selected: l.id == location?.id) { location = l }
                 }
             }
         }
+    }
 
-        if let location {
-            PlanPreview(plan: model.preview(dayType: dayType, duration: duration, location: location))
+    /// Label on the left, text options trailing; options scroll if a gym name is long.
+    func optionRow<Options: View>(_ label: String, icon: String, @ViewBuilder options: () -> Options) -> some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.m) {
+            HStack(spacing: Theme.Spacing.s) {
+                Glyph(icon, tint: Theme.Colors.textTertiary, width: 20)
+                Overline(label, tint: Theme.Colors.textSecondary)
+            }
+            .frame(width: 104, alignment: .leading)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Theme.Spacing.l) { options() }
+            }
         }
+    }
 
-        PillButton("Start") {
-            if let location { model.startSession(dayType: dayType, duration: duration, location: location) }
+    /// Thumb-zone CTA: hands the chosen type / minutes / gym to the deck overview for confirmation.
+    func startBar(_ dayType: DayType) -> some View {
+        VStack(spacing: 0) {
+            PillButton(startTitle(dayType), icon: "rectangle.stack") {
+                if let location { model.startSession(dayType: dayType, duration: duration, location: location) }
+            }
+            .disabled(location == nil)
+            .padding(.horizontal, Theme.Spacing.l)
+            .padding(.top, Theme.Spacing.m)
+            .padding(.bottom, Theme.Spacing.s)
         }
-        .disabled(location == nil)
+        .background(
+            LinearGradient(colors: [Theme.Colors.canvas.opacity(0), Theme.Colors.canvas, Theme.Colors.canvas], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+        )
+    }
+
+    func startTitle(_ dayType: DayType) -> String {
+        location == nil ? "Build deck" : "Build \(dayType.label.lowercased()) deck"
     }
 }
 
-struct Chip: View {
-    let title: String
+/// One choice in Home's day list: tinted glyph, name, what makes this one different, and a check when chosen.
+struct ModeRow: View {
+    let mode: HomeMode
+    let subtitle: String
+    let isNext: Bool
     let selected: Bool
     let action: () -> Void
-    init(_ title: String, selected: Bool, action: @escaping () -> Void) { self.title = title; self.selected = selected; self.action = action }
+
     var body: some View {
         Button(action: action) {
-            Text(title).font(Theme.Fonts.caption).padding(.horizontal, 14).padding(.vertical, 10)
-                .background(selected ? Theme.Colors.brassDim : Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                .foregroundStyle(selected ? Theme.Colors.brass : Theme.Colors.textSecondary)
+            HStack(spacing: Theme.Spacing.m) {
+                Image(systemName: mode.symbol).font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(selected ? mode.tint : Theme.Colors.textTertiary)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: Theme.Spacing.s) {
+                        Text(mode.label).font(Theme.Fonts.heading)
+                            .foregroundStyle(selected ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
+                        if isNext { Overline("Up next", tint: Theme.Colors.brass) }
+                    }
+                    Text(subtitle).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "checkmark").font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.Colors.brass)
+                    .opacity(selected ? 1 : 0)
+            }
+            .frame(minHeight: 64)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Hairline() }
         }
         .buttonStyle(PressStyle())
-    }
-}
-
-struct PlanPreview: View {
-    let plan: Plan
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                HStack {
-                    Overline("Plan")
-                    Spacer()
-                    Text("~\(Int(plan.estimatedSeconds / 60)) min").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                }
-                ForEach(plan.blocks.sorted { $0.slot < $1.slot }) { b in
-                    HStack {
-                        Text(b.exerciseName).font(Theme.Fonts.body).foregroundStyle(b.isSupersetted ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
-                            .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
-                        Spacer()
-                        Text(b.weight.map { "\($0.formatted()) · " } ?? "").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        + Text("\(b.sets)×\(b.repLow)–\(b.repHigh)").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                    }
-                }
-            }
-        }
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
