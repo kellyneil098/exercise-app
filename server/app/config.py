@@ -18,9 +18,21 @@ class Settings(BaseSettings):
     invite_ttl_hours: int = 72
 
 
+def is_production() -> bool:
+    return bool(os.environ.get("FLY_APP_NAME")) or os.environ.get("ENVIRONMENT", "").strip().lower() == "production"
+
+
+def check_production_safety(s: Settings) -> None:
+    if not is_production():
+        return
+    if s.database_url.startswith("sqlite"):
+        raise RuntimeError("DATABASE_URL must point at Postgres in production; refusing to start on ephemeral SQLite")
+    if s.dev_login_enabled:
+        raise RuntimeError("DEV_LOGIN_ENABLED must be off in production; refusing to start with password-less login")
+
+
 @lru_cache
 def settings() -> Settings:
     s = Settings()
-    if os.environ.get("FLY_APP_NAME") and s.database_url.startswith("sqlite"):
-        raise RuntimeError("DATABASE_URL must point at Postgres in production; refusing to start on ephemeral SQLite")
+    check_production_safety(s)
     return s
