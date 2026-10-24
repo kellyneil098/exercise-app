@@ -99,8 +99,7 @@ struct DeckView: View {
         HStack(spacing: Theme.Spacing.s) {
             if session.restEndsAt != nil {
                 Spacer()
-                cue("hand.tap", "Tap to skip rest", Theme.Colors.textSecondary)
-                    .onTapGesture { withAnimation(Theme.Motion.spring) { session.skipRest() } }
+                cue("arrow.left.and.right", "Swipe to skip rest", Theme.Colors.swipeSkip)
                 Spacer()
             } else {
                 cue("arrow.left", "Skip", Theme.Colors.swipeSkip)
@@ -150,8 +149,7 @@ struct StepCard: View {
                 SetCard(step: step, session: session)
             }
         }
-        .overlay { tint }
-        .overlay { stamp }
+        .overlay { if let p = pending { SwipeFeedback(label: label(p.action), color: color(p.action), strength: p.strength, placement: placement(p.action)) } }
         .offset(drag)
         .rotationEffect(.degrees(Double(drag.width / 24)))
         .gesture(dragGesture)
@@ -185,34 +183,9 @@ struct StepCard: View {
         switch a { case .done: "Done"; case .skip: "Skip"; case .rate: "Rate"; case .back: "Back" }
     }
 
-    /// Wash over the card in the action's colour, deepening toward the threshold.
-    @ViewBuilder private var tint: some View {
-        if let p = pending {
-            let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-            shape.fill(color(p.action).opacity(0.08 + 0.14 * p.strength))
-                .overlay(shape.strokeBorder(color(p.action).opacity(0.35 + 0.65 * p.strength), lineWidth: 1.5))
-                .allowsHitTesting(false)
-        }
-    }
-
-    /// The stamp: done sits top-left (the card is moving right), skip top-right, rate top-centre.
-    @ViewBuilder private var stamp: some View {
-        if let p = pending {
-            let c = color(p.action)
-            let alignment: Alignment = switch p.action { case .done, .back: .topLeading; case .skip: .topTrailing; case .rate: .top }
-            let tilt: Double = switch p.action { case .done, .back: -12; case .skip: 12; case .rate: 0 }
-            Text(label(p.action).uppercased())
-                .font(.system(size: 24, weight: .bold)).tracking(3)
-                .foregroundStyle(c)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(c, lineWidth: 3))
-                .rotationEffect(.degrees(tilt))
-                .scaleEffect(0.85 + 0.15 * p.strength)
-                .opacity(0.45 + 0.55 * p.strength)
-                .padding(Theme.Spacing.l)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-                .allowsHitTesting(false)
-        }
+    /// Done sits top-left (the card is moving right), skip top-right, rate top-centre.
+    private func placement(_ a: SwipeAction) -> SwipeFeedback.Placement {
+        switch a { case .done, .back: .leading; case .skip: .trailing; case .rate: .top }
     }
 
     var dragGesture: some Gesture {
@@ -269,6 +242,36 @@ struct StepCard: View {
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.23) { action() }
+    }
+}
+
+/// Mid-drag feedback shared by every swipeable card: a wash over the card in the action's colour, deepening
+/// toward the threshold, plus a tilted stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+struct SwipeFeedback: View {
+    enum Placement { case leading, trailing, top }
+    let label: String
+    let color: Color
+    let strength: Double
+    let placement: Placement
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+        let alignment: Alignment = switch placement { case .leading: .topLeading; case .trailing: .topTrailing; case .top: .top }
+        let tilt: Double = switch placement { case .leading: -12; case .trailing: 12; case .top: 0 }
+        shape.fill(color.opacity(0.08 + 0.14 * strength))
+            .overlay(shape.strokeBorder(color.opacity(0.35 + 0.65 * strength), lineWidth: 1.5))
+            .overlay(alignment: alignment) {
+                Text(label.uppercased())
+                    .font(.system(size: 24, weight: .bold)).tracking(3)
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: 3))
+                    .rotationEffect(.degrees(tilt))
+                    .scaleEffect(0.85 + 0.15 * strength)
+                    .opacity(0.45 + 0.55 * strength)
+                    .padding(Theme.Spacing.l)
+            }
+            .allowsHitTesting(false)
     }
 }
 
@@ -417,11 +420,16 @@ struct RateCard: View {
     }
 }
 
-/// Countdown between sets. Auto-advances to the next card at zero; tap or swipe right to skip.
-/// Pause / −10 / +10 sit under the ring; the remaining time still derives from a stored end date (§7.4).
+/// Countdown between sets. Auto-advances to the next card at zero; swipe it away (either side) to skip the rest.
+/// Tapping the card does nothing — pause / −10 / +10 under the ring are the only tap targets. The remaining
+/// time still derives from a stored end date (§7.4).
 struct RestCard: View {
     let session: ActiveSession
     let endsAt: Date
+    @State private var drag: CGSize = .zero
+    @State private var axis: Axis?
+    @State private var armed = false
+    private let threshold: CGFloat = 110
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
@@ -455,14 +463,49 @@ struct RestCard: View {
                 }
                 .cardBody()
             }
-            .contentShape(Rectangle())
-            .onTapGesture { session.skipRest() }
-            .gesture(DragGesture(minimumDistance: 24).onEnded { v in if v.translation.width > 80 { session.skipRest() } })
+            .overlay { if let s = strength { SwipeFeedback(label: "Skip", color: Theme.Colors.swipeSkip, strength: s, placement: .top) } }
+            .offset(drag)
+            .rotationEffect(.degrees(Double(drag.width / 24)))
+            .gesture(dragGesture)
             .onChange(of: remaining <= 0) { _, zero in
                 if zero { Haptics.play(.warning); withAnimation(Theme.Motion.spring) { session.skipRest() } }
             }
             .onAppear { if remaining <= 0 { session.skipRest() } }
         }
+    }
+
+    /// How committed the horizontal drag is (0…1 at the threshold), either side; nil when nothing would happen.
+    private var strength: Double? {
+        guard axis == .horizontal, abs(drag.width) > 20 else { return nil }
+        return min(1, Double((abs(drag.width) - 20) / (threshold - 20)))
+    }
+
+    /// Same feel as the set card: the card follows a horizontal drag and only rubber-bands vertically. The stamp
+    /// sits top-centre for both directions so it never covers the "Rest" label in the top-left corner.
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { v in
+                let w = v.translation.width, h = v.translation.height
+                if axis == nil { axis = abs(w) >= abs(h) ? .horizontal : .vertical }
+                drag = axis == .horizontal ? CGSize(width: w, height: h * 0.15) : CGSize(width: w * 0.15, height: h * 0.25)
+                let crossed = (strength ?? 0) >= 1
+                if crossed != armed {
+                    armed = crossed
+                    if crossed { Haptics.play(.swap) }
+                }
+            }
+            .onEnded { v in
+                let endedAxis = axis
+                axis = nil; armed = false
+                let x = v.translation.width + (v.predictedEndTranslation.width - v.translation.width) * 0.3
+                if endedAxis == .horizontal, abs(x) > threshold {
+                    Haptics.play(.exerciseDone)
+                    withAnimation(.easeOut(duration: 0.22)) { drag = CGSize(width: x > 0 ? 640 : -640, height: drag.height) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.23) { session.skipRest() }
+                } else {
+                    withAnimation(Theme.Motion.spring) { drag = .zero }
+                }
+            }
     }
 
     func controls(paused: Bool) -> some View {
@@ -482,9 +525,6 @@ struct RestCard: View {
             }
             Spacer()
         }
-        // The controls row is a no-skip zone: taps between the buttons must not reach the card's tap-to-skip.
-        .contentShape(Rectangle())
-        .onTapGesture {}
     }
 
     func clock(_ t: TimeInterval) -> String {
