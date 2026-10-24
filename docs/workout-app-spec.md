@@ -521,7 +521,7 @@ The workout is a **stack of cards, one at a time** (think Tinder, not a list). T
 |---|---|---|---|---|
 | `set` (warm-up or working) | **Done** → rest card | **Skip** the exercise | **Rate** this set | — |
 | `rate` | Back to the set card | — | — | Easy / Good / Hard, or "Didn't finish" |
-| `rest` | Skip rest | — | — | Skip rest (pause / −10 / +10 are buttons under the ring) |
+| `rest` | Skip rest | Skip rest | — | — (pause / −10 / +10 are buttons under the ring) |
 
 Swiping right logs the set as completed at the top of the rep range with no rating; the rest countdown starts and, at zero, the next card is already in hand. Swiping up shows the rating card; the rating implies the reps logged (easy/good = top of range, hard = bottom of range, didn't finish = short of target) so the **working weight adjusts itself** through §5 — the user never types a number mid-set. `hard` holds the load without counting as a failure. Swiping left skips the whole exercise for this session: it leaves the stack, sets already logged stay, and it is listed under **Skipped** in the overview with a one-tap restore (back to the end of the deck).
 
