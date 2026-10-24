@@ -463,7 +463,7 @@ struct RestCard: View {
                 }
                 .cardBody()
             }
-            .overlay { if let s = strength { SwipeFeedback(label: "Skip", color: Theme.Colors.swipeSkip, strength: s, placement: drag.width > 0 ? .leading : .trailing) } }
+            .overlay { if let s = strength { SwipeFeedback(label: "Skip", color: Theme.Colors.swipeSkip, strength: s, placement: .top) } }
             .offset(drag)
             .rotationEffect(.degrees(Double(drag.width / 24)))
             .gesture(dragGesture)
@@ -480,7 +480,8 @@ struct RestCard: View {
         return min(1, Double((abs(drag.width) - 20) / (threshold - 20)))
     }
 
-    /// Same feel as the set card: the card follows a horizontal drag and only rubber-bands vertically.
+    /// Same feel as the set card: the card follows a horizontal drag and only rubber-bands vertically. The stamp
+    /// sits top-centre for both directions so it never covers the "Rest" label in the top-left corner.
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { v in
