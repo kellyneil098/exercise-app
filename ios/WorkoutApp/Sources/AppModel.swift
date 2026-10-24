@@ -87,6 +87,7 @@ final class AppModel {
         let store = try! WorkoutStore(path: dir.appending(path: "workout.sqlite").path)
         let base = (Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String).flatMap(URL.init(string:))
             ?? URL(string: "https://exercise-app-api.fly.dev")!
+        Keychain.migrateAccessibility()
         let api = APIClient(baseURL: base, token: { Keychain.get(Keychain.tokenKey) })
         // Local identity exists before any server login so the app is fully usable offline (§9).
         let userId = Keychain.get(Keychain.userIdKey) ?? {
@@ -332,6 +333,10 @@ final class AppModel {
         do {
             try await SyncClient(api: api, store: store).sync()
             lastSyncError = nil
+        } catch APIClient.APIError.unauthorized {
+            // Expired or revoked on the server: drop it so the app shows signed-out instead of retrying forever.
+            Keychain.remove(Keychain.tokenKey)
+            lastSyncError = "Signed out. Sign in again to sync."
         } catch {
             lastSyncError = "\(error)"
         }
@@ -370,6 +375,7 @@ final class AppModel {
                 return
             }
         }
+        if let previous = Keychain.get(Keychain.tokenKey), previous != token { revokeOnServer(previous) }
         Keychain.set(token, for: Keychain.tokenKey)
         if serverUserId != userId {
             moveLocalRows(from: old, to: serverUserId, keepOldAccountRows: oldWasAnotherAccount)
@@ -400,8 +406,16 @@ final class AppModel {
     }
 
     func signOut() {
+        if let token = Keychain.get(Keychain.tokenKey) { revokeOnServer(token) }
         Keychain.remove(Keychain.tokenKey)
         lastSyncError = nil
+    }
+
+    /// Best effort: if offline the token still dies at its server-side expiry.
+    private func revokeOnServer(_ token: String) {
+        var client = api
+        client.token = { token }
+        Task { try? await client.send("POST", "/auth/logout") }
     }
 
     func createInvite(viewMe: Bool, viewThem: Bool) async throws -> InviteDTO {

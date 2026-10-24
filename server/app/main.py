@@ -56,6 +56,17 @@ def auth_dev(body: schemas.DevLoginIn, db: DbSession = Depends(get_db)) -> schem
     return schemas.TokenOut(token=auth.issue_token(db, user, body.device_name), user=user_out(user))
 
 
+@app.post("/auth/logout", status_code=204)
+def logout(sess: models.Session = Depends(auth.current_session), db: DbSession = Depends(get_db)) -> None:
+    db.delete(sess)
+    db.commit()
+
+
+@app.post("/auth/logout-all", status_code=204)
+def logout_all(sess: models.Session = Depends(auth.current_session), db: DbSession = Depends(get_db)) -> None:
+    auth.revoke_sessions(db, sess.user_id)
+
+
 @app.get("/me", response_model=schemas.UserOut)
 def me(user: models.User = Depends(auth.current_user)) -> schemas.UserOut:
     return user_out(user)

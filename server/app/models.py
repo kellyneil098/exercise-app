@@ -25,7 +25,7 @@ class User(Base):
 
 
 class Session(Base):
-    """Opaque bearer tokens. Only the SHA-256 of the token is stored."""
+    """Opaque bearer tokens. Only the SHA-256 of the token is stored. `expires_at` is fixed at issue time."""
 
     __tablename__ = "session"
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -33,6 +33,7 @@ class Session(Base):
     device_name: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Invite(Base):
