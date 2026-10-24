@@ -1,5 +1,8 @@
 from conftest import login
 
+from app import schemas
+from app.limits import MAX_REQUEST_BYTES
+
 
 def rec(id, table="session", op="upsert", payload=None, updated_at="2026-01-01T00:00:00Z"):
     return {"id": id, "table": table, "op": op, "payload": payload or {"v": 1}, "updated_at": updated_at}
@@ -63,3 +66,48 @@ def test_pull_pagination(client):
     assert len(p1["records"]) == 500 and p1["has_more"] is True
     p2 = client.get(f"/sync/pull?since={p1['cursor']}", headers=neil).json()
     assert len(p2["records"]) == 100 and p2["has_more"] is False
+
+
+def test_push_rejects_oversized_record_payload(client):
+    neil, _ = login(client, "neil@example.com")
+    big = {"blob": "x" * (schemas.MAX_RECORD_PAYLOAD_BYTES + 1)}
+    r = client.post("/sync/push", json={"records": [rec("a", payload=big)]}, headers=neil)
+    assert r.status_code == 422
+    assert client.get("/sync/pull?since=0", headers=neil).json()["records"] == []
+
+
+def test_push_rejects_oversized_total_payload(client):
+    neil, _ = login(client, "neil@example.com")
+    per = schemas.MAX_RECORD_PAYLOAD_BYTES - 100
+    n = schemas.MAX_PUSH_PAYLOAD_BYTES // per + 1
+    records = [rec(f"r{i}", payload={"blob": "x" * per}) for i in range(n)]
+    r = client.post("/sync/push", json={"records": records}, headers=neil)
+    assert r.status_code == 422
+    assert client.get("/sync/pull?since=0", headers=neil).json()["records"] == []
+    r = client.post("/sync/push", json={"records": records[: n - 1]}, headers=neil)
+    assert r.status_code == 200 and r.json()["accepted"] == n - 1
+
+
+def test_push_rejects_oversized_table_name(client):
+    neil, _ = login(client, "neil@example.com")
+    r = client.post("/sync/push", json={"records": [rec("a", table="t" * 1000)]}, headers=neil)
+    assert r.status_code == 422
+
+
+def test_request_body_size_limit(client):
+    neil, _ = login(client, "neil@example.com")
+    body = b'{"records":[]}' + b" " * MAX_REQUEST_BYTES
+    headers = {**neil, "Content-Type": "application/json"}
+    r = client.post("/sync/push", content=body, headers=headers)
+    assert r.status_code == 413
+
+    def chunked():
+        yield b'{"records":['
+        for _ in range(MAX_REQUEST_BYTES // 65536 + 1):
+            yield b" " * 65536
+        yield b"]}"
+
+    r = client.post("/sync/push", content=chunked(), headers=headers)
+    assert r.status_code == 413
+    r = client.post("/sync/push", content=b'{"records":[]}', headers=headers)
+    assert r.status_code == 200
