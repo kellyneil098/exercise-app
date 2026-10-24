@@ -41,7 +41,7 @@ The defining constraints:
 
 - Initial users: Neil and Natalie. The schema and UI must support **N users**; nothing may assume two.
 - **No public signup.** Access is by server-side allowlist of Apple user identifiers / emails, edited by the operator (a `users` table row with `status = 'invited'`, created via an admin CLI command — no admin UI in v1).
-- **Auth: Sign in with Apple** is the only identity provider. Flow: `ASAuthorizationAppleIDProvider` on device → `POST /auth/apple` with the identity token → server verifies it against Apple's JWKS, matches `sub` (or the email on first sign-in) to an allowlisted user, and returns an opaque **session token with a 1-year expiry**. Store it in the Keychain (`kSecAttrAccessibleAfterFirstUnlock`, so background sync works with the phone locked). Nobody re-authenticates at a squat rack. Refresh silently on any 401 by re-running Sign in with Apple, which is non-interactive once granted.
+- **Auth: Sign in with Apple** is the only identity provider. Flow: `ASAuthorizationAppleIDProvider` on device → `POST /auth/apple` with the identity token → server verifies it against Apple's JWKS, matches `sub` (or the email on first sign-in) to an allowlisted user, and returns an opaque **session token with a 1-year hard expiry** (also revoked after 30 days unused; `POST /auth/logout` revokes the caller's token, `POST /auth/logout-all` every token of the account). Store it in the Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, so background sync works with the phone locked but the token never travels in a backup or restore). Nobody re-authenticates at a squat rack. Refresh silently on any 401 by re-running Sign in with Apple, which is non-interactive once granted.
 - **Dev login:** `POST /dev/login {user_id}` returns a session token for any user, enabled only when `ENV != production`. The app exposes it behind `#if DEBUG` as a user picker on the sign-in screen. Simulator builds and UI tests use it.
 
 ### Sharing model
@@ -658,7 +658,7 @@ Every record belongs to exactly one user and users cannot write to each other's 
 
 ### Backend
 
-- **FastAPI, Python 3.12, SQLAlchemy 2.x + Alembic, Pydantic v2.** Endpoints: `/auth/apple`, `/dev/login`, `/sync/push`, `/sync/pull`, `/invites` (create / accept), `/health`. Nothing else. There is no REST resource API — the app never reads a single record through anything but `/sync/pull`.
+- **FastAPI, Python 3.12, SQLAlchemy 2.x + Alembic, Pydantic v2.** Endpoints: `/auth/apple`, `/auth/logout`, `/auth/logout-all`, `/dev/login`, `/sync/push`, `/sync/pull`, `/invites` (create / accept), `/health`. Nothing else. There is no REST resource API — the app never reads a single record through anything but `/sync/pull`.
 - Pydantic models are the API contract; generate Swift `Codable` types from the OpenAPI schema (`swift-openapi-generator`) in the `WorkoutStore` package so the two sides can't drift.
 - Admin CLI (`python -m app.admin add-user <email>`) for the allowlist.
 

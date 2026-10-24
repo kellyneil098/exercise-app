@@ -30,6 +30,11 @@ public struct APIClient: Sendable {
         try JSONDecoder.store.decode(T.self, from: try await request("GET", path))
     }
 
+    /// For endpoints that answer 204 with no body.
+    public func send(_ method: String, _ path: String) async throws {
+        _ = try await request(method, path)
+    }
+
     public func post<B: Encodable, T: Decodable>(_ path: String, _ body: B, as: T.Type, auth: Bool = true) async throws -> T {
         try JSONDecoder.store.decode(T.self, from: try await request("POST", path, body: try JSONEncoder.store.encode(body), auth: auth))
     }
