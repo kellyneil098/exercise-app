@@ -9,7 +9,9 @@ import WorkoutUI
 /// Partner data shows in the partner hue, side by side, never ranked.
 struct ProgressScreen: View {
     @Environment(AppModel.self) private var model
-    @State private var exerciseKey: String = "barbell_bench_press"
+    /// The user's pick; `nil` (or a pick no longer on the list) falls back to the most-performed lift (§12.1).
+    @State private var exerciseKey: String?
+    @State private var choosingExercise = false
     @State private var partnerId: String?
     @State private var partners: [UserDTO] = []
 
@@ -75,7 +77,7 @@ struct ProgressScreen: View {
 
     func weightSeries(_ uid: String) -> [Point] {
         let rows = (try? model.store.db.read {
-            try SetLog.filter(Column("userId") == uid && Column("exerciseKey") == exerciseKey && Column("isWarmup") == false && Column("deleted") == false)
+            try SetLog.filter(Column("userId") == uid && Column("exerciseKey") == selectedKey && Column("isWarmup") == false && Column("deleted") == false)
                 .order(Column("completedAt")).fetchAll($0)
         }) ?? []
         var byDay: [Date: Double] = [:]
@@ -107,9 +109,26 @@ struct ProgressScreen: View {
         return byWeek.sorted { $0.key < $1.key }.map { Point(who: who, date: $0.key, value: $0.value) }
     }
 
+    /// Exercises with at least one working set for any of `uids`, most-performed (by sessions) first.
+    func performedKeys(_ uids: [String]) -> [String] {
+        let marks = uids.map { _ in "?" }.joined(separator: ", ")
+        let sql = """
+            SELECT exerciseKey FROM set_log WHERE userId IN (\(marks)) AND isWarmup = 0 AND deleted = 0
+            GROUP BY exerciseKey ORDER BY COUNT(DISTINCT sessionId) DESC, COUNT(*) DESC, exerciseKey
+            """
+        return (try? model.store.db.read { try String.fetchAll($0, sql: sql, arguments: StatementArguments(uids)) }) ?? []
+    }
+
+    /// Everything charted on screen (me, plus the partner when one is shown), or a starter set before any data.
     var exerciseKeys: [String] {
-        let mine = (try? model.store.db.read { try String.fetchAll($0, sql: "SELECT DISTINCT exerciseKey FROM set_log WHERE userId = ? ORDER BY exerciseKey", arguments: [model.userId]) }) ?? []
-        return mine.isEmpty ? ["barbell_bench_press", "back_squat", "deadlift"] : mine
+        let keys = performedKeys(userIds.map(\.0))
+        return keys.isEmpty ? ["barbell_bench_press", "back_squat", "deadlift"] : keys
+    }
+
+    var selectedKey: String {
+        let keys = exerciseKeys
+        if let exerciseKey, keys.contains(exerciseKey) { return exerciseKey }
+        return performedKeys([model.userId]).first ?? keys[0]
     }
 
     var weightChart: some View {
@@ -119,12 +138,38 @@ struct ProgressScreen: View {
                 Overline("Working weight", tint: Theme.Colors.textSecondary)
             }
             Hairline()
-            Picker("", selection: $exerciseKey) { ForEach(exerciseKeys, id: \.self) { Text(model.catalog.exercises[$0]?.name ?? $0).tag($0) } }
-                .labelsHidden().tint(Theme.Colors.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            exerciseButton
             chart(userIds.flatMap { weightSeries($0.0) }, unit: "lb", lines: true)
         }
-        .onAppear { if !exerciseKeys.contains(exerciseKey), let first = exerciseKeys.first { exerciseKey = first } }
+        .sheet(isPresented: $choosingExercise) {
+            ProgressExercisePicker(keys: exerciseKeys, selected: selectedKey) { exerciseKey = $0 }
+        }
+    }
+
+    /// The current exercise, with its section and pattern; tap to open the searchable picker.
+    var exerciseButton: some View {
+        let key = selectedKey
+        let entry = model.catalog.browseEntry(forExercise: key)
+        let caption = [model.catalog.title(of: model.catalog.group(ofExercise: key)), entry.detail].compactMap { $0 }.joined(separator: " · ")
+        return Button { choosingExercise = true } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.name).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                        .multilineTextAlignment(.leading)
+                    Text(caption).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                }
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.brass)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Exercise")
+        .accessibilityValue("\(entry.name), \(caption)")
+        .accessibilityHint("Choose which exercise's working weight to chart")
+        .accessibilityAddTraits(.isButton)
     }
 
     var volumeChart: some View {
@@ -172,5 +217,51 @@ struct ProgressScreen: View {
             .chartYAxis { AxisMarks { AxisGridLine().foregroundStyle(Theme.Colors.hairline); AxisValueLabel().foregroundStyle(Theme.Colors.textTertiary) } }
             .frame(height: 160)
         }
+    }
+}
+
+/// Progress's exercise picker: the deck's swap picker layout (search field, overline sections, plain rows),
+/// grouped by the pattern's home day from the seed (Push, Pull, Legs, then Core and Other), A–Z within each.
+struct ProgressExercisePicker: View {
+    let keys: [String]
+    let selected: String
+    let onPick: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
+    @State private var query = ""
+
+    var body: some View {
+        let sections = model.catalog.browseSections(keys: keys, query: query)
+        Screen {
+            VStack(alignment: .leading, spacing: Theme.Spacing.m) {
+                Overline("Working weight")
+                ExerciseSearchField(text: $query)
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            if sections.isEmpty {
+                                Text("No matches").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary).padding(.vertical, 12)
+                            }
+                            ForEach(Array(sections.enumerated()), id: \.element.id) { i, section in
+                                ExercisePickerHeader(title: section.title, topPadding: i == 0 ? Theme.Spacing.s : Theme.Spacing.l)
+                                ForEach(section.entries) { entry in
+                                    ExercisePickerRow(name: entry.name, detail: entry.detail, selected: entry.key == selected, action: {
+                                        onPick(entry.key)
+                                        dismiss()
+                                    })
+                                    .id(entry.key)
+                                }
+                            }
+                        }
+                    }
+                    .scrollDismissesKeyboard(.immediately)
+                    .onAppear { proxy.scrollTo(selected, anchor: .center) }
+                }
+            }
+            .padding(Theme.Spacing.l)
+        }
+        .presentationDetents([.large])
+        .presentationBackground(Theme.Colors.canvas)
     }
 }
