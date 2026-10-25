@@ -94,6 +94,15 @@ struct ExerciseGuideView: View {
                 .aspectRatio(100.0 / 68.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
                 .background(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card))
+                .overlay(alignment: .topTrailing) {
+                    // Resume sits on the figure, not in the stage strip, so long stage names keep their width.
+                    if frozenStage != nil {
+                        IconButton("play.fill", label: "Resume demonstration") { frozenStage = nil }
+                            .padding(Theme.Spacing.s)
+                            .transition(.opacity)
+                    }
+                }
+                .animation(Theme.Motion.quick, value: frozenStage)
                 .accessibilityElement()
                 .accessibilityLabel("\(guide.exerciseName) demonstration, \(guide.stages.count) stages")
                 .accessibilityValue(guide.stages[stage].name)
@@ -104,12 +113,8 @@ struct ExerciseGuideView: View {
                         stageTab(i, s, active: i == stage)
                     }
                     Spacer(minLength: 0)
-                    if frozenStage != nil {
-                        IconButton("play.fill", label: "Resume demonstration") { frozenStage = nil }
-                    }
                 }
                 .frame(minHeight: 44)
-                .animation(Theme.Motion.quick, value: frozenStage)
 
                 Text(guide.stages[stage].cue)
                     .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
@@ -131,7 +136,7 @@ struct ExerciseGuideView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 HStack(spacing: Theme.Spacing.xs) {
                     Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(active ? Theme.Colors.brass : Theme.Colors.textTertiary)
-                    Text(s.name).font(active ? Theme.Fonts.bodyMedium : Theme.Fonts.body).lineLimit(1)
+                    Text(s.name).font(active ? Theme.Fonts.bodyMedium : Theme.Fonts.body).lineLimit(1).minimumScaleFactor(0.85)
                         .foregroundStyle(active ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
                 }
                 Capsule().fill(active ? Theme.Colors.brass : Theme.Colors.hairline).frame(height: 2)
