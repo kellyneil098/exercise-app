@@ -21,7 +21,7 @@ struct ProgressScreen: View {
                         Overline("Progress")
                         Text("Your numbers").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                     }
-                    .padding(.top, Theme.Spacing.s)
+                    .padding(.top, Theme.Spacing.xl)
                     summary
                     if !partners.isEmpty {
                         HStack(spacing: Theme.Spacing.l) {
