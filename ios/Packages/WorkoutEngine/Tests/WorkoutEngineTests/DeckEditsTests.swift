@@ -142,7 +142,8 @@ final class DeckEditsTests: XCTestCase {
 
     /// Mirrors `ActiveSession.orderedBlocks`: a block is listed on its own unless it has a live host.
     func testEveryBlockIsListedWhenEitherSideOfAPairIsDeleted() {
-        var plan = Plan(dayType: .push, durationMinutes: 60, locationKey: "x", blocks: blocks)
+        // One pair only, so slot order and listing order agree.
+        var plan = Plan(dayType: .push, durationMinutes: 60, locationKey: "x", blocks: blocks.map { var b = $0; b.supersetHostID = nil; return b })
         plan.blocks[1].supersetHostID = plan.blocks[0].id
         func ordered(_ plan: Plan) -> [UUID] {
             var out: [UUID] = []
