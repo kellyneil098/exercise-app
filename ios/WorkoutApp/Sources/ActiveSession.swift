@@ -176,7 +176,7 @@ final class ActiveSession: Identifiable {
         append(block: b, reps: reps, weight: b.weight, effort: effort, isWarmup: false)
         guard let next = currentBlock else { skipRest(); return }
         if next.supersetHostID == b.id { skipRest(); return }   // partner's set fills the host's rest
-        startRest(seconds: plan.host(of: b)?.restSeconds ?? b.restSeconds)
+        startRest(seconds: plan.restSeconds(for: b))
     }
 
     private func append(block: PlanBlock, reps: Int, weight: Double?, effort: EffortRating?, isWarmup: Bool) {
@@ -312,6 +312,16 @@ final class ActiveSession: Identifiable {
 
     func shiftReps(_ block: PlanBlock, by d: Int) {
         mutate(block) { guard $0.repLow + d >= 1 else { return }; $0.repLow += d; $0.repHigh += d }
+    }
+
+    /// Rest after this block's sets — what the next rest card counts down from. Shared with the host for a superset partner.
+    func restSeconds(for block: PlanBlock) -> Int { plan.restSeconds(for: block) }
+
+    /// Plan-editor stepper: ±10 s per tap; takes effect on the next rest card for this exercise.
+    func stepRest(_ block: PlanBlock, by steps: Int) {
+        guard plan.blocks.contains(where: { $0.id == block.id }) else { return }
+        plan.stepRest(of: block, by: steps)
+        persistPlan()
     }
 
     func increment(for block: PlanBlock) -> Double {

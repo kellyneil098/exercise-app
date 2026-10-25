@@ -77,4 +77,22 @@ final class StoreTests: XCTestCase {
         let back = try store.db.read { try SessionRow.fetchOne($0, key: row.id) }
         XCTAssertEqual(back?.plan?.blocks.count, plan.blocks.count)
     }
+
+    /// The overview's rest stepper persists through the session row and drives the restored deck's rest.
+    func testEditedRestPersistsInSessionPlan() throws {
+        let catalog = try SeedLoader.loadBundled()
+        let planner = Planner(catalog: catalog)
+        let inventory = LocationInventory(locationKey: "crunch_union_square", name: "Crunch", available: Set(catalog.equipmentTypes.map(\.key)), dumbbellMaxWeight: nil, plateIncrement: 2.5)
+        var plan = planner.generate(PlannerInput(dayType: .push, durationMinutes: 60, location: inventory, heavyRotation: HeavyRotation(sequence: ["horizontal_press"])))
+        let block = plan.blocks[0]
+        let original = plan.restSeconds(for: block)
+        plan.stepRest(of: block, by: -1)
+        plan.stepRest(of: block, by: -1)
+        let row = SessionRow(userId: "u1", dayType: .push, locationId: "loc", durationMin: 60, plan: plan)
+        let store = try WorkoutStore.inMemory()
+        try store.save(row)
+        let back = try XCTUnwrap(try store.db.read { try SessionRow.fetchOne($0, key: row.id) }?.plan)
+        XCTAssertEqual(back.restSeconds(for: block), original - 20)
+        XCTAssertEqual(back, plan)
+    }
 }
