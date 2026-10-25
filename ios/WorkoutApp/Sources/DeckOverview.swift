@@ -3,9 +3,10 @@ import WorkoutEngine
 import WorkoutStore
 import WorkoutUI
 
-/// The zoomed-out deck: the whole workout at once. Drag to reorder, swipe a row away to delete, tap a row to
-/// edit weight / sets / reps or swap / skip / delete / undo; `+` adds an exercise. Exercises swiped away in the
-/// deck collect under "Skipped" with a one-tap restore. Ending the workout lives here.
+/// The zoomed-out deck: the whole workout at once. Drag to reorder; swipe a row left to delete it, right to swap
+/// it; tap a row to edit weight / sets / reps or undo a set; `+` adds an exercise. Exercises skipped in the deck
+/// collect under "Skipped" and deleted ones under "Deleted" — both swipe right to come back, so nothing is lost
+/// for the session. Ending the workout lives here.
 struct DeckOverview: View {
     @Bindable var session: ActiveSession
     /// Shown full-screen between Home and the deck: confirm the exercises, then Start workout.
@@ -35,7 +36,11 @@ struct DeckOverview: View {
                         }
                         Spacer()
                         IconButton("plus", label: "Add exercise", tint: Theme.Colors.brass) { picker = .add }
-                        if !confirming {
+                        if confirming {
+                            // This screen replaces Home at the root (not pushed, not a sheet), so it closes the way the
+                            // live run does: an X in the top corner. Nothing is logged yet, so no confirmation.
+                            IconButton("xmark", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
+                        } else {
                             Button { dismiss() } label: {
                                 Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.canvas)
                                     .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
@@ -44,9 +49,7 @@ struct DeckOverview: View {
                             .buttonStyle(PressStyle())
                         }
                     }
-                    if confirming {
-                        Text("Reorder, swap or drop exercises, then start.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                    } else {
+                    if !confirming {
                         ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
                     }
                 }
@@ -54,36 +57,36 @@ struct DeckOverview: View {
 
                 List {
                     ForEach(Array(session.activeBlocks.enumerated()), id: \.element.id) { i, b in
-                        row(b, index: i)
+                        SwipeRow(leading: .swap, trailing: .delete, onLeading: { beginSwap(b) }, onTrailing: { delete(b) }) {
+                            row(b, index: i)
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparatorTint(Theme.Colors.hairline)
+                        .listRowInsets(rowInsets)
+                    }
+                    .onMove { session.move(fromOffsets: $0, toOffset: $1) }
+
+                    if !session.skippedBlocks.isEmpty {
+                        sectionHeader("Skipped", hint: "tap or swipe right to bring back")
+                        ForEach(session.skippedBlocks) { b in
+                            SwipeRow(leading: .restore, trailing: .delete, onLeading: { restore(b) }, onTrailing: { delete(b) }) {
+                                skippedRow(b)
+                            }
                             .listRowBackground(Color.clear)
                             .listRowSeparatorTint(Theme.Colors.hairline)
                             .listRowInsets(rowInsets)
-                    }
-                    .onMove { session.move(fromOffsets: $0, toOffset: $1) }
-                    .onDelete { offsets in
-                        let blocks = session.activeBlocks
-                        for i in offsets { session.remove(blocks[i]) }
+                        }
                     }
 
-                    if !session.skippedBlocks.isEmpty {
-                        HStack {
-                            Overline("Skipped")
-                            Spacer()
-                            Text("tap to bring back").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                        .padding(.top, Theme.Spacing.xl).padding(.bottom, Theme.Spacing.xs)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(rowInsets)
-                        ForEach(session.skippedBlocks) { b in
-                            skippedRow(b)
-                                .listRowBackground(Color.clear)
-                                .listRowSeparatorTint(Theme.Colors.hairline)
-                                .listRowInsets(rowInsets)
-                        }
-                        .onDelete { offsets in
-                            let blocks = session.skippedBlocks
-                            for i in offsets { session.remove(blocks[i]) }
+                    if !session.deletedBlocks.isEmpty {
+                        sectionHeader("Deleted", hint: "swipe right to bring back")
+                        ForEach(session.deletedBlocks) { b in
+                            SwipeRow(leading: .restore, onLeading: { restore(b) }) {
+                                deletedRow(b)
+                            }
+                            .listRowBackground(Color.clear)
+                            .listRowSeparatorTint(Theme.Colors.hairline)
+                            .listRowInsets(rowInsets)
                         }
                     }
                 }
@@ -92,12 +95,8 @@ struct DeckOverview: View {
                 .environment(\.defaultMinListRowHeight, 1)
 
                 if confirming {
-                    VStack(spacing: Theme.Spacing.xs) {
-                        PillButton("Start workout", icon: "play.fill") { session.start() }
-                        Button("Back") { session.cancel() }
-                            .font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textSecondary).frame(minHeight: 44)
-                    }
-                    .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.s)
+                    PillButton("Start workout", icon: "play.fill") { session.start() }
+                        .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.m)
                 } else {
                     PillButton("End workout", icon: "stop.fill", style: .quiet) { confirmEnd = true }
                         .padding(Theme.Spacing.l)
@@ -125,13 +124,43 @@ struct DeckOverview: View {
         return Int((secs / 60).rounded())
     }
 
+    // MARK: Actions (shared by the swipes and their accessibility actions)
+
+    func beginSwap(_ b: PlanBlock) { picker = .swap(b) }
+
+    func delete(_ b: PlanBlock) {
+        withAnimation(Theme.Motion.quick) {
+            if expanded == b.id { expanded = nil }
+            session.delete(b)
+        }
+    }
+
+    func restore(_ b: PlanBlock) {
+        Haptics.play(.swap)
+        withAnimation(Theme.Motion.quick) { session.restore(b) }
+    }
+
+    func sectionHeader(_ title: String, hint: String) -> some View {
+        HStack {
+            Overline(title)
+            Spacer()
+            Text(hint).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .padding(.top, Theme.Spacing.xl).padding(.bottom, Theme.Spacing.xs)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(rowInsets)
+    }
+
     // MARK: Row
 
     func row(_ b: PlanBlock, index: Int) -> some View {
         let done = session.workingSetsDone(b)
-        let isCurrent = session.currentBlock?.id == b.id
+        // Before Start workout nothing is in progress, so no row is marked current.
+        let isCurrent = !confirming && session.currentBlock?.id == b.id
         let complete = session.isComplete(b)
-        let tint = b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(session.plan.dayType)
+        let linked = session.isSupersetLinked(b)
+        let tint = Theme.Colors.day(session.plan.dayType)
         return VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.m) {
                 Group {
@@ -140,13 +169,13 @@ struct DeckOverview: View {
                     } else if isCurrent {
                         IconTile("play.fill", tint: tint, size: 40)
                     } else {
-                        IconTile(b.isSupersetted ? "link" : "\(min(index + 1, 50)).circle", tint: tint, size: 40)
+                        IconTile(linked ? "link" : "\(min(index + 1, 50)).circle", tint: tint, size: 40)
                             .opacity(0.7)
                     }
                 }
-                .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
+                .padding(.leading, linked ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
-                    if b.band == .heavy || b.isSupersetted {
+                    if b.band == .heavy || linked {
                         Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
@@ -160,6 +189,13 @@ struct DeckOverview: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { withAnimation(Theme.Motion.quick) { expanded = expanded == b.id ? nil : b.id } }
+            // Swap and delete are swipes; these give them to anyone who can't swipe (VoiceOver, Switch Control, Voice Control).
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("\(b.band == .heavy ? "Heavy, " : "")\(b.exerciseName), \(summary(b, done: done))")
+            .accessibilityHint(expanded == b.id ? "Hides the editors" : "Shows weight, sets and reps editors")
+            .accessibilityAction(named: "Swap exercise") { beginSwap(b) }
+            .accessibilityAction(named: "Delete exercise") { delete(b) }
 
             if expanded == b.id { editors(b, done: done) }
         }
@@ -188,10 +224,32 @@ struct DeckOverview: View {
         }
         .padding(.vertical, Theme.Spacing.m)
         .contentShape(Rectangle())
-        .onTapGesture { Haptics.play(.swap); withAnimation(Theme.Motion.quick) { session.restore(b) } }
+        .onTapGesture { restore(b) }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Restore \(b.exerciseName)")
+        .accessibilityAction(named: "Delete exercise") { delete(b) }
+    }
+
+    /// A deleted exercise: dimmed and struck through, kept here so a mis-swipe isn't final. Swipe right to restore.
+    func deletedRow(_ b: PlanBlock) -> some View {
+        let done = session.workingSetsDone(b)
+        return HStack(spacing: Theme.Spacing.m) {
+            IconTile("trash", tint: Theme.Colors.textTertiary, size: 40).opacity(0.6)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(b.exerciseName).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textTertiary).strikethrough()
+                Text(done > 0 ? "\(done) of \(b.sets) done · \(summary(b, done: done))" : summary(b, done: done))
+                    .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+            }
+            Spacer()
+            Image(systemName: "arrow.right").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .padding(.vertical, Theme.Spacing.m)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(b.exerciseName), deleted")
+        .accessibilityHint("Swipe right to restore")
+        .accessibilityAction(named: "Restore exercise") { restore(b) }
     }
 
     func summary(_ b: PlanBlock, done: Int) -> String {
@@ -200,6 +258,7 @@ struct DeckOverview: View {
         return "\(load)\(b.sets) × \(range) · \(session.restSeconds(for: b))s rest"
     }
 
+    /// Weight / sets / reps, plus undo for a logged set. Swap and delete are swipes on the row, not buttons here.
     @ViewBuilder func editors(_ b: PlanBlock, done: Int) -> some View {
         VStack(spacing: Theme.Spacing.s) {
             if b.weight != nil {
@@ -214,20 +273,113 @@ struct DeckOverview: View {
                      value: Binding(get: { Double(b.repLow) }, set: { session.shiftReps(b, by: Int($0) - b.repLow) }),
                      in: 1...300, step: b.measure == .seconds ? 5 : 1)
             restAdjuster(b)
-            HStack(spacing: Theme.Spacing.s) {
-                IconControl("arrow.triangle.2.circlepath", label: "Swap") { picker = .swap(b) }
-                if !session.isComplete(b) {
-                    IconControl("forward.end", label: "Skip") {
-                        withAnimation(Theme.Motion.quick) { expanded = nil; session.skip(b) }
-                    }
-                }
-                if done > 0 { IconControl("arrow.uturn.backward", label: "Undo last set") { session.undoLast(block: b) } }
-                Spacer()
-                IconControl("trash", label: "Delete", tint: Theme.Colors.destructive) {
-                    withAnimation(Theme.Motion.quick) { expanded = nil; session.remove(b) }
+            if done > 0 {
+                HStack(spacing: Theme.Spacing.s) {
+                    IconControl("arrow.uturn.backward", label: "Undo last set") { session.undoLast(block: b) }
+                    Spacer()
                 }
             }
         }
+    }
+}
+
+/// What a swipe on a `SwipeRow` does: the stamp it shows and whether the row leaves when it lands.
+struct SwipeRowAction {
+    let label: String
+    let icon: String
+    let color: Color
+    /// Whether the row leaves the screen when the swipe lands (delete, restore) or springs back (swap).
+    let flies: Bool
+
+    static let delete = SwipeRowAction(label: "Delete", icon: "trash", color: Theme.Colors.swipeSkip, flies: true)
+    static let swap = SwipeRowAction(label: "Swap", icon: "arrow.triangle.2.circlepath", color: Theme.Colors.swipeRate, flies: false)
+    static let restore = SwipeRowAction(label: "Restore", icon: "arrow.uturn.backward", color: Theme.Colors.brass, flies: true)
+}
+
+/// A list row that acts on a sideways swipe, with the deck cards' tint-and-stamp feedback (`SwipeFeedback`).
+/// Right reveals `leading`, left reveals `trailing`; a direction with no action only rubber-bands. The row commits
+/// at `RowSwipe`'s threshold (a flick counts a little momentum), flying off for an action that removes it from this
+/// section and springing back otherwise. Vertical and diagonal drags are left to the list, so scrolling and
+/// long-press reorder keep working.
+struct SwipeRow<Content: View>: View {
+    let leading: SwipeRowAction?
+    let trailing: SwipeRowAction?
+    let onLeading: () -> Void
+    let onTrailing: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var travel: CGFloat = 0
+    @State private var lock: RowSwipe.Lock?
+    @State private var armed = false
+    @State private var flying = false
+    private let swipe = RowSwipe()
+
+    init(leading: SwipeRowAction? = nil, trailing: SwipeRowAction? = nil, onLeading: @escaping () -> Void = {}, onTrailing: @escaping () -> Void = {},
+         @ViewBuilder content: @escaping () -> Content) {
+        self.leading = leading; self.trailing = trailing; self.onLeading = onLeading; self.onTrailing = onTrailing; self.content = content
+    }
+
+    private var allowed: Set<RowSwipe.Direction> {
+        var d = Set<RowSwipe.Direction>()
+        if leading != nil { d.insert(.right) }
+        if trailing != nil { d.insert(.left) }
+        return d
+    }
+
+    private func action(_ direction: RowSwipe.Direction) -> SwipeRowAction? { direction == .right ? leading : trailing }
+
+    var body: some View {
+        content()
+            .overlay {
+                if let p = swipe.pending(width: Double(travel), allowing: allowed), let a = action(p.direction) {
+                    SwipeFeedback(label: a.label, icon: a.icon, color: a.color, strength: p.strength,
+                                  placement: p.direction == .right ? .leading : .trailing, compact: true)
+                }
+            }
+            .offset(x: travel)
+            .gesture(drag)
+    }
+
+    private var drag: some Gesture {
+        DragGesture(minimumDistance: 16)
+            .onChanged { v in
+                guard !flying else { return }
+                let w = Double(v.translation.width), h = Double(v.translation.height)
+                if lock == nil { lock = swipe.lock(width: w, height: h) }
+                guard lock == .horizontal else { return }
+                travel = CGFloat(swipe.travel(width: w, allowing: allowed))
+                let crossed = (swipe.pending(width: Double(travel), allowing: allowed)?.strength ?? 0) >= 1
+                if crossed != armed {
+                    armed = crossed
+                    if crossed { Haptics.play(.swap) }
+                }
+            }
+            .onEnded { v in
+                let ended = lock
+                lock = nil; armed = false
+                guard !flying, ended == .horizontal,
+                      let direction = swipe.resolve(width: Double(v.translation.width), predictedWidth: Double(v.predictedEndTranslation.width), allowing: allowed),
+                      let a = action(direction)
+                else {
+                    withAnimation(Theme.Motion.spring) { travel = 0 }
+                    return
+                }
+                let perform = direction == .right ? onLeading : onTrailing
+                if a.flies {
+                    flying = true
+                    Haptics.play(.exerciseDone)
+                    withAnimation(.easeOut(duration: 0.22)) { travel = direction == .right ? 640 : -640 }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.23) {
+                        perform()
+                        travel = 0
+                        flying = false
+                    }
+                } else {
+                    Haptics.play(.swap)
+                    withAnimation(Theme.Motion.spring) { travel = 0 }
+                    perform()
+                }
+            }
     }
 }
 

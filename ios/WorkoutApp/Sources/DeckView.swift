@@ -245,31 +245,41 @@ struct StepCard: View {
     }
 }
 
-/// Mid-drag feedback shared by every swipeable card: a wash over the card in the action's colour, deepening
-/// toward the threshold, plus a tilted stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+/// Mid-drag feedback shared by every swipeable card and overview row: a wash in the action's colour, deepening
+/// toward the threshold, plus a stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+/// `compact` is the row-sized variant: a smaller stamp with its icon, level and vertically centred on the side
+/// the row is moving toward, instead of tilted in a top corner.
 struct SwipeFeedback: View {
     enum Placement { case leading, trailing, top }
     let label: String
+    var icon: String? = nil
     let color: Color
     let strength: Double
     let placement: Placement
+    var compact = false
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-        let alignment: Alignment = switch placement { case .leading: .topLeading; case .trailing: .topTrailing; case .top: .top }
-        let tilt: Double = switch placement { case .leading: -12; case .trailing: 12; case .top: 0 }
+        let shape = RoundedRectangle(cornerRadius: compact ? Theme.Radius.control : Theme.Radius.card, style: .continuous)
+        let alignment: Alignment = switch placement {
+        case .leading: compact ? .leading : .topLeading
+        case .trailing: compact ? .trailing : .topTrailing
+        case .top: .top
+        }
+        let tilt: Double = switch placement { case .leading: compact ? 0 : -12; case .trailing: compact ? 0 : 12; case .top: 0 }
         shape.fill(color.opacity(0.08 + 0.14 * strength))
             .overlay(shape.strokeBorder(color.opacity(0.35 + 0.65 * strength), lineWidth: 1.5))
             .overlay(alignment: alignment) {
-                Text(label.uppercased())
-                    .font(.system(size: 24, weight: .bold)).tracking(3)
-                    .foregroundStyle(color)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: 3))
-                    .rotationEffect(.degrees(tilt))
-                    .scaleEffect(0.85 + 0.15 * strength)
-                    .opacity(0.45 + 0.55 * strength)
-                    .padding(Theme.Spacing.l)
+                HStack(spacing: 6) {
+                    if let icon { Image(systemName: icon).font(.system(size: compact ? 14 : 22, weight: .bold)) }
+                    Text(label.uppercased()).font(.system(size: compact ? 13 : 24, weight: .bold)).tracking(compact ? 1.5 : 3)
+                }
+                .foregroundStyle(color)
+                .padding(.horizontal, compact ? 10 : 14).padding(.vertical, compact ? 6 : 8)
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: compact ? 2 : 3))
+                .rotationEffect(.degrees(tilt))
+                .scaleEffect(0.85 + 0.15 * strength)
+                .opacity(0.45 + 0.55 * strength)
+                .padding(compact ? Theme.Spacing.m : Theme.Spacing.l)
             }
             .allowsHitTesting(false)
     }

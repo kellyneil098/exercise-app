@@ -78,6 +78,32 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(back?.plan?.blocks.count, plan.blocks.count)
     }
 
+    /// Closing Today's plan with its X soft-deletes the unstarted session, so a relaunch goes to Home rather than
+    /// resuming it; an open deck is still what resumes. Mirrors `AppModel.cancel` and `restoreActiveSession`.
+    func testCancelledUnstartedSessionDoesNotResume() throws {
+        let store = try WorkoutStore.inMemory()
+        let catalog = try SeedLoader.loadBundled()
+        let inventory = LocationInventory(locationKey: "crunch_union_square", name: "Crunch", available: Set(catalog.equipmentTypes.map(\.key)), dumbbellMaxWeight: nil, plateIncrement: 2.5)
+        let plan = Planner(catalog: catalog).generate(PlannerInput(dayType: .push, durationMinutes: 60, location: inventory, heavyRotation: HeavyRotation(sequence: ["horizontal_press"])))
+        var cancelled = SessionRow(userId: "u1", dayType: .push, locationId: "loc", durationMin: 60, plan: plan)
+        try store.save(cancelled)
+        let resumable = { try store.db.read {
+            try SessionRow.filter(Column("userId") == "u1" && Column("completedAt") == nil && Column("abandoned") == false && Column("deleted") == false)
+                .order(Column("startedAt").desc).fetchOne($0)
+        } }
+        XCTAssertEqual(try resumable()?.id, cancelled.id)
+
+        cancelled.deleted = true
+        try store.save(cancelled)
+        XCTAssertNil(try resumable(), "a cancelled deck is not resumed")
+        let ops = try store.db.read { try Row.fetchAll($0, sql: "SELECT op FROM outbox WHERE id = ?", arguments: [cancelled.id]) }
+        XCTAssertEqual(ops.count, 1, "the tombstone still syncs")
+
+        let open = SessionRow(userId: "u1", dayType: .pull, locationId: "loc", durationMin: 45, startedAt: Date().addingTimeInterval(60), plan: plan)
+        try store.save(open)
+        XCTAssertEqual(try resumable()?.id, open.id)
+    }
+
     /// The overview's rest stepper persists through the session row and drives the restored deck's rest.
     func testEditedRestPersistsInSessionPlan() throws {
         let catalog = try SeedLoader.loadBundled()

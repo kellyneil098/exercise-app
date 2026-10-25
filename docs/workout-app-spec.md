@@ -537,7 +537,9 @@ The overview is the management surface for the whole workout, reached from the h
 
 - **Reorder** by long-press drag (the machine is taken, do this one later).
 - **Edit** a block: working weight (plate / dumbbell increments), number of sets (fewer than prescribed re-prescribes; more are padding and don't gate progression), rep range, rest time (−/+ 10 s per tap, 10 s–10 min; drives the rest card after that exercise's sets — a superset partner edits its host's rest).
-- **Swap** the exercise (same slot, same superset link, weight re-estimated), **do later**, **skip**, **restore**, **undo last set**.
+- **Swipe a row** right to **swap** the exercise (blue; opens the picker — same slot, same superset link, weight re-estimated) or left to **delete** it (red). Deleted blocks aren't lost: they sit under **Deleted** at the bottom, and a swipe right there (or on a **Skipped** block) **restores** it to the end of the deck. Rows also expose Swap / Delete / Restore as accessibility actions for anyone who can't swipe.
+- **Undo last set** from the expanded row.
+- Before the workout starts the same screen is "Today's plan": it replaces Home at the root, so it closes with an **X** in the header (like the live run), not a back chevron or bottom bar; nothing is logged yet, so there's no confirmation.
 - **End workout** — finish and save progress, or discard (discarded sessions soft-delete their set logs so charts never see them).
 
 ### Rest timer
