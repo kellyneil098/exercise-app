@@ -82,9 +82,13 @@ public struct GreetingHeader<Trailing: View>: View {
                 Text("\(greeting.phrase),").font(Self.phraseFont).foregroundStyle(Theme.Colors.textSecondary)
                 if nameLines == 1 {
                     // Ideal width 0: only the phrase decides whether this arrangement fits; the name takes what's left.
-                    Text(name).font(Self.titleFont).foregroundStyle(Theme.Colors.textPrimary)
-                        .lineLimit(1).minimumScaleFactor(0.8).truncationMode(.tail)
-                        .frame(idealWidth: 0, alignment: .leading)
+                    // The hidden line keeps the full title height when a long name is scaled down.
+                    ZStack(alignment: .leading) {
+                        Text(verbatim: " ").font(Self.titleFont).hidden()
+                        Text(name).font(Self.titleFont).foregroundStyle(Theme.Colors.textPrimary)
+                            .lineLimit(1).minimumScaleFactor(0.8).truncationMode(.tail)
+                    }
+                    .frame(idealWidth: 0, alignment: .leading)
                 } else {
                     Text(name).font(Self.titleFont).foregroundStyle(Theme.Colors.textPrimary)
                         .lineLimit(nameLines).truncationMode(.tail)
