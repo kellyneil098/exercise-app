@@ -34,7 +34,10 @@ public struct PlanBlock: Codable, Sendable, Hashable, Identifiable {
 
     public var isSupersetted: Bool { supersetHostID != nil }
     public var isEstimate: Bool { weightSource != nil && weightSource != .measured }
+}
 
+// In an extension so the memberwise initializer the planner uses survives.
+extension PlanBlock {
     // Plans saved before these flags existed decode with them off.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
