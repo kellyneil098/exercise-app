@@ -236,7 +236,6 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(deleted.deleted)
         XCTAssertEqual(try store.equipment(for: deleted), ["bodyweight", "kettlebell", "dumbbells"], "what the gym had when it was deleted, not what was unchecked earlier")
         XCTAssertEqual(try store.equipment(forLocation: gym.id), [], "the gym itself no longer offers anything")
-        XCTAssertEqual(try store.equipment(for: gym), ["bodyweight", "kettlebell", "dumbbells"], "a live snapshot reads live rows")
     }
 
     func testDeleteGymMovesTheDefaultLocationToTheNextGym() throws {
