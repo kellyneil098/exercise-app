@@ -135,5 +135,30 @@ final class DeckEditsTests: XCTestCase {
         XCTAssertNil(plan.supersetPartner(of: plan.blocks[0]))
         plan.blocks[0].isDeleted = false
         XCTAssertEqual(plan.host(of: plan.blocks[1])?.id, ids[0], "restoring the host pairs them again")
+        plan.blocks[1].isDeleted = true
+        XCTAssertNil(plan.supersetPartner(of: plan.blocks[0]), "a deleted partner isn't glued behind its host")
+        XCTAssertEqual(plan.liveBlocks.count, blocks.count - 1)
+    }
+
+    /// Mirrors `ActiveSession.orderedBlocks`: a block is listed on its own unless it has a live host.
+    func testEveryBlockIsListedWhenEitherSideOfAPairIsDeleted() {
+        var plan = Plan(dayType: .push, durationMinutes: 60, locationKey: "x", blocks: blocks)
+        plan.blocks[1].supersetHostID = plan.blocks[0].id
+        func ordered(_ plan: Plan) -> [UUID] {
+            var out: [UUID] = []
+            for b in plan.blocks where b.isDeleted || plan.host(of: b) == nil {
+                out.append(b.id)
+                if let p = plan.supersetPartner(of: b) { out.append(p.id) }
+            }
+            return out
+        }
+        XCTAssertEqual(ordered(plan), ids)
+        plan.blocks[0].isDeleted = true
+        XCTAssertEqual(Set(ordered(plan)), Set(ids), "deleting the host keeps the partner listed")
+        XCTAssertEqual(ordered(plan).count, ids.count)
+        plan.blocks[0].isDeleted = false
+        plan.blocks[1].isDeleted = true
+        XCTAssertEqual(Set(ordered(plan)), Set(ids), "deleting the partner keeps it listed (under Deleted)")
+        XCTAssertEqual(ordered(plan).count, ids.count)
     }
 }

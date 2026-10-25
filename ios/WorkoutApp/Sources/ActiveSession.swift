@@ -79,9 +79,12 @@ final class ActiveSession: Identifiable {
     // MARK: Ordering
 
     /// Slot order with supersetted blocks right after their host, overridden by any manual order.
+    /// A partner whose host is deleted (or that is deleted itself) is listed on its own, so neither side of a
+    /// pair ever drops out of the deck or the Deleted section while the other is set aside.
     var orderedBlocks: [PlanBlock] {
+        func standalone(_ b: PlanBlock) -> Bool { b.isDeleted || plan.host(of: b) == nil }
         var base: [PlanBlock] = []
-        for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where !b.isSupersetted {
+        for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where standalone(b) {
             base.append(b)
             if let partner = plan.supersetPartner(of: b) { base.append(partner) }
         }
@@ -90,7 +93,7 @@ final class ActiveSession: Identifiable {
             base.sort { (rank[$0.id] ?? .max, $0.slot) < (rank[$1.id] ?? .max, $1.slot) }
             // A partner always sits right behind its host so the pair keeps alternating, wherever it was dragged.
             var glued: [PlanBlock] = []
-            for b in base where !b.isSupersetted {
+            for b in base where standalone(b) {
                 glued.append(b)
                 if let partner = plan.supersetPartner(of: b) { glued.append(partner) }
             }
