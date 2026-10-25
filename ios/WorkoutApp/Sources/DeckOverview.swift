@@ -44,9 +44,7 @@ struct DeckOverview: View {
                             .buttonStyle(PressStyle())
                         }
                     }
-                    if confirming {
-                        Text("Reorder, swap or drop exercises, then start.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                    } else {
+                    if !confirming {
                         ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
                     }
                 }
