@@ -1,5 +1,5 @@
 {
-  "$comment": "Equipment vocabulary: the one master catalog every gym picks its availability from. Every exercise.required_equipment entry must be a key from this file. Keep keys stable — they are foreign keys in location_equipment. category groups the gym equipment editor; categories are ordered by first appearance in this list.",
+  "$comment": "Equipment vocabulary: the one master catalog every gym picks its availability from. Every exercise.required_equipment entry must be a key from this file. Keep keys stable — they are foreign keys in location_equipment. note is for developers and never shown in the app; hint is an optional short user-facing subtitle for the gym equipment editor. category groups the gym equipment editor; categories are ordered by first appearance in this list.",
   "equipment_types": [
     { "key": "bodyweight",                  "category": "Bodyweight",       "label": "Bodyweight only",                             "note": "Always available everywhere. Never gates an exercise." },
     { "key": "barbell",                     "category": "Free weights",     "label": "Barbell + plates",                            "note": "Assumes a standard 45 lb bar." },
@@ -27,7 +27,7 @@
     { "key": "preacher_bench",              "category": "Racks & benches",  "label": "Preacher curl bench",                         "note": null },
     { "key": "ab_wheel",                    "category": "Bodyweight",       "label": "Ab wheel",                                    "note": null },
     { "key": "decline_bench",               "category": "Racks & benches",  "label": "Decline / sit-up bench",                      "note": null },
-    { "key": "treadmill",                   "category": "Cardio",           "label": "Treadmill",                                   "note": "Running only. Not used by the strength generator." }
+    { "key": "treadmill",                   "category": "Cardio",           "label": "Treadmill",                                   "note": "Running only. Not used by the strength generator.", "hint": "For running workouts" }
   ],
 
   "locations": [

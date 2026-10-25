@@ -9,6 +9,12 @@ final class EquipmentAvailabilityTests: XCTestCase {
         Dictionary(uniqueKeysWithValues: c.seededLocations.map { ($0.key, Set(c.defaultEquipment(for: $0))) })
     }
 
+    func testUserFacingHintIsSeparateFromDeveloperNote() {
+        XCTAssertEqual(c.equipmentTypes.first { $0.key == "treadmill" }?.hint, "For running workouts")
+        XCTAssertNil(c.equipmentTypes.first { $0.key == "dumbbells" }?.hint, "developer notes are not user hints")
+        XCTAssertNotNil(c.equipmentTypes.first { $0.key == "dumbbells" }?.note)
+    }
+
     func testEverySeedEquipmentTypeHasACategoryAndCategoriesKeepSeedOrder() {
         XCTAssertEqual(c.equipmentTypes.count, 27)
         for e in c.equipmentTypes { XCTAssertFalse(e.category.trimmingCharacters(in: .whitespaces).isEmpty, e.key) }
