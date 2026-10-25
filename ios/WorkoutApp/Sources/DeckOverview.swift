@@ -147,8 +147,8 @@ struct DeckOverview: View {
                 }
                 .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
-                    if b.isSupersetted {
-                        Overline("Superset", tint: tint)
+                    if b.band == .heavy || b.isSupersetted {
+                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent ? Theme.Colors.brass : Theme.Colors.textPrimary)
