@@ -26,9 +26,14 @@ public struct DeckEdits: Equatable, Sendable {
 
     /// Reorders within the active deck; set-aside blocks keep their place behind it.
     public mutating func move(fromOffsets: IndexSet, toOffset: Int, in ordered: [PlanBlock]) {
-        var ids = active(ordered).map(\.id)
-        ids.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        order = ids + setAside(ordered)
+        // Same semantics as SwiftUI's `move(fromOffsets:toOffset:)` (which isn't in Foundation): `toOffset` indexes
+        // the list before anything is lifted out.
+        let ids = active(ordered).map(\.id)
+        let moving = fromOffsets.sorted().map { ids[$0] }
+        let staying = ids.indices.filter { !fromOffsets.contains($0) }
+        let before = staying.filter { $0 < toOffset }.map { ids[$0] }
+        let after = staying.filter { $0 >= toOffset }.map { ids[$0] }
+        order = before + moving + after + setAside(ordered)
     }
 
     public mutating func skip(_ id: UUID) {
