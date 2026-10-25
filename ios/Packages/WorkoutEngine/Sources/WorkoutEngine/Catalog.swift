@@ -32,8 +32,11 @@ public struct EquipmentType: Codable, Hashable, Sendable {
 }
 
 public struct SeededLocation: Codable, Hashable, Sendable {
+    /// Stable id stamped on the user's row (`Location.seedKey`); never changes when the display name does.
     public let key: String
     public let name: String
+    /// Names this seed shipped with before; rows still carrying one are renamed to `name` on launch.
+    public let previousNames: [String]?
     public let kind: String
     public let defaultAvailable: Bool
     public let dumbbellMaxWeight: Double?

@@ -94,7 +94,7 @@ Locations are shared reference data (two users at the same Crunch see the same l
 Two locations are seeded (`seed/equipment_types.json`):
 
 - **Building Gym** — `available` defaults to **false** for everything; the user checks off what's actually there during setup.
-- **Crunch Union Square** — `available` defaults to **true** for everything; the user unchecks anything missing as they discover it.
+- **Crunch USQ** (Crunch Union Square) — `available` defaults to **true** for everything; the user unchecks anything missing as they discover it.
 
 **`dumbbell_max_weight` is load-bearing, not a nicety.** An apartment gym whose rack stops at 50 lb makes dumbbell bench press *nominally* available but useless once the user's working weight exceeds it. The availability filter must therefore be:
 
