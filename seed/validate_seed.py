@@ -44,6 +44,9 @@ def check_integrity(eq, mp, ex):
             errors.append(f"equipment '{e['key']}': category must be a non-empty string")
         if not isinstance(e.get("label"), str) or not e["label"].strip():
             errors.append(f"equipment '{e['key']}': label must be a non-empty string")
+        hint = e.get("hint")
+        if hint is not None and (not isinstance(hint, str) or not hint.strip() or len(hint) > 40):
+            errors.append(f"equipment '{e['key']}': hint must be a short non-empty string (max 40 chars) or omitted")
     eq_keys_list = [e["key"] for e in eq["equipment_types"]]
     for k in {k for k in eq_keys_list if eq_keys_list.count(k) > 1}:
         errors.append(f"duplicate equipment key: {k}")

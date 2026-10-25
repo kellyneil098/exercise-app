@@ -31,13 +31,16 @@ public struct EquipmentType: Codable, Hashable, Sendable {
     /// Grouping for the gym equipment editor ("Free weights", "Machines", ...). Categories are ordered by first appearance in the seed.
     public let category: String
     public let label: String
+    /// Developer note from the seed; never shown to users.
     public let note: String?
+    /// Optional short user-facing subtitle for the gym equipment editor.
+    public let hint: String?
 
     /// The one piece of equipment every location has; never gates an exercise and cannot be unchecked.
     public static let bodyweightKey = "bodyweight"
 
-    public init(key: String, category: String, label: String, note: String? = nil) {
-        self.key = key; self.category = category; self.label = label; self.note = note
+    public init(key: String, category: String, label: String, note: String? = nil, hint: String? = nil) {
+        self.key = key; self.category = category; self.label = label; self.note = note; self.hint = hint
     }
 }
 

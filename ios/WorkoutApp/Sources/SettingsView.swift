@@ -180,7 +180,7 @@ struct EquipmentEditor: View {
         .presentationBackground(Theme.Colors.canvas)
         .onAppear { dbMax = location.dumbbellMaxWeight ?? 0 }
         .onDisappear { saveDetails() }
-        .confirmationDialog("Delete \(location.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
+        .alert("Delete \(location.name)?", isPresented: $confirmDelete) {
             Button("Delete gym", role: .destructive) { deleteGym() }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -198,11 +198,14 @@ struct EquipmentEditor: View {
             Spacer()
             if model.canDelete(location) {
                 Menu {
-                    Button("Delete gym", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Label("Delete gym", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 17, weight: .bold)).foregroundStyle(Theme.Colors.textSecondary)
                         .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
+                .tint(.red)
                 .accessibilityLabel("Gym options")
             }
         }
@@ -268,7 +271,7 @@ struct EquipmentEditor: View {
     }
 }
 
-/// One catalog item: label, note, and a check that reads as a toggle. Bodyweight is shown locked (always available).
+/// One catalog item: label, optional user-facing hint, and a check that reads as a toggle. Bodyweight is shown locked (always available).
 struct EquipmentRow: View {
     let type: EquipmentType
     let available: Bool
@@ -284,8 +287,8 @@ struct EquipmentRow: View {
                             .foregroundStyle(available ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
                         if locked {
                             Text("Always available").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        } else if let note = type.note {
-                            Text(note).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        } else if let hint = type.hint {
+                            Text(hint).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                         }
                     }
                     Spacer()
