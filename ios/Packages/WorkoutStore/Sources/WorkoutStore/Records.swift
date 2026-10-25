@@ -37,6 +37,40 @@ public struct Location: SyncedRecord {
     }
 }
 
+extension Location {
+    /// Token recording that rows named `previousName` for `seed` have been renamed once on this device.
+    public static func seedRenameToken(_ seed: SeededLocation, from previousName: String) -> String { "\(seed.key):\(previousName)" }
+
+    /// Matches the user's rows against the seed catalog. Rows still named after a seed (current or previous name) are
+    /// stamped with its `seedKey`, and a previous seed name becomes the current one — once per device: renames listed
+    /// in `appliedRenames` are skipped, so a user who later picks an old name keeps it. A name the user typed is never touched.
+    /// Returns the rows that changed (caller saves them, which enqueues sync), the seeds with no row yet, and every
+    /// rename token the caller should persist as applied.
+    public static func reconcile(_ rows: [Location], with seeds: [SeededLocation], appliedRenames: Set<String> = [])
+        -> (changed: [Location], missing: [SeededLocation], renames: Set<String>) {
+        var rows = rows
+        var changed: [Int] = []
+        var missing: [SeededLocation] = []
+        var renames = appliedRenames
+        for seed in seeds {
+            let previous = seed.previousNames ?? []
+            let pending = previous.filter { !appliedRenames.contains(seedRenameToken(seed, from: $0)) }
+            renames.formUnion(previous.map { seedRenameToken(seed, from: $0) })
+            let match = rows.firstIndex { $0.seedKey == seed.key }
+                ?? rows.firstIndex { $0.seedKey == nil && ([seed.name] + previous).contains($0.name) }
+            guard let i = match else { missing.append(seed); continue }
+            var row = rows[i]
+            row.seedKey = seed.key
+            if pending.contains(row.name) { row.name = seed.name }
+            if row.seedKey != rows[i].seedKey || row.name != rows[i].name {
+                rows[i] = row
+                if !changed.contains(i) { changed.append(i) }
+            }
+        }
+        return (changed.map { rows[$0] }, missing, renames)
+    }
+}
+
 public struct LocationEquipment: SyncedRecord {
     public static let tableName = "location_equipment"
     public var id: String
