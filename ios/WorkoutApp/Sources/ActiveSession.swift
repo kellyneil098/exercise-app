@@ -26,13 +26,13 @@ final class ActiveSession: Identifiable {
     private unowned let model: AppModel
     private(set) var logs: [SetLog]
     /// Manual order plus the blocks skipped (swiped away in the deck) or deleted (swiped out of the overview).
-    /// Both kinds stay in the plan and restorable; every change is persisted so the deck survives a relaunch.
+    /// Both kinds stay in the plan and restorable. Order and skipped are device-local (UserDefaults); deleted
+    /// mirrors `PlanBlock.isDeleted`, which lives in the synced plan so another device resumes the same deck.
     private(set) var edits: DeckEdits {
         didSet {
             let defaults = UserDefaults.standard
             defaults.set(edits.order.map(\.uuidString), forKey: "deckOrder-\(row.id)")
             defaults.set(edits.skipped.map(\.uuidString), forKey: "deckSkipped-\(row.id)")
-            defaults.set(edits.deleted.map(\.uuidString), forKey: "deckDeleted-\(row.id)")
         }
     }
     var restEndsAt: Date? {
@@ -63,7 +63,7 @@ final class ActiveSession: Identifiable {
         }
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
         let saved = { (key: String) in (UserDefaults.standard.array(forKey: "\(key)-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? [] }
-        edits = DeckEdits(order: saved("deckOrder"), skipped: Set(saved("deckSkipped")), deleted: Set(saved("deckDeleted")))
+        edits = DeckEdits(order: saved("deckOrder"), skipped: Set(saved("deckSkipped")), deleted: Set(plan.blocks.filter(\.isDeleted).map(\.id)))
         started = !existingLogs.isEmpty || UserDefaults.standard.bool(forKey: "deckStarted-\(row.id)")
     }
 
@@ -280,6 +280,7 @@ final class ActiveSession: Identifiable {
     /// Puts a skipped or deleted block back into the deck, at the end of what's left.
     func restore(_ block: PlanBlock) {
         edits.restore(block.id, in: orderedBlocks)
+        if block.isDeleted { setDeleted(block, false) }
         if case .skipped(let id) = lastAction, id == block.id { lastAction = nil }
     }
 
@@ -290,6 +291,7 @@ final class ActiveSession: Identifiable {
     /// also drops the deck's Undo, which would otherwise point at a row that is no longer in play.
     func delete(_ block: PlanBlock) {
         edits.delete(block.id)
+        setDeleted(block, true)
         switch lastAction {
         case .skipped(let id) where id == block.id: lastAction = nil
         case .logged(let set) where set.slot == block.slot && set.exerciseKey == block.exerciseKey: lastAction = nil
@@ -327,6 +329,12 @@ final class ActiveSession: Identifiable {
         persistPlan()
     }
 
+    private func setDeleted(_ block: PlanBlock, _ deleted: Bool) {
+        guard let i = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return }
+        plan.blocks[i].isDeleted = deleted
+        persistPlan()
+    }
+
     private func persistPlan() {
         row = SessionRow(id: row.id, userId: row.userId, dayType: plan.dayType, locationId: row.locationId, durationMin: row.durationMin,
                          startedAt: row.startedAt, plan: plan)
@@ -336,7 +344,8 @@ final class ActiveSession: Identifiable {
     /// Picker rows. Suggested: when swapping, the block's own pattern; when adding, the day's patterns in slot order
     /// (top few of each). `all` is the whole catalog, A–Z, with availability at this location.
     func pickerSections(replacing block: PlanBlock?) -> (suggested: [Candidate], all: [Candidate]) {
-        let used = Set(plan.blocks.map(\.exerciseKey)).subtracting(block.map { [$0.exerciseKey] } ?? [])
+        // A deleted block doesn't hold its exercise: the user may add it back as a fresh row.
+        let used = Set(plan.liveBlocks.map(\.exerciseKey)).subtracting(block.map { [$0.exerciseKey] } ?? [])
         let dayPatterns = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).map(\.pattern)
         var suggested: [Candidate] = []
         if let block {

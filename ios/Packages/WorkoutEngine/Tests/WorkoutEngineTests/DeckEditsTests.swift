@@ -102,4 +102,38 @@ final class DeckEditsTests: XCTestCase {
         XCTAssertEqual(e.deletedBlocks(reversed).map(\.id), [ids[0]])
         XCTAssertEqual(e.skippedBlocks(reversed).map(\.id), [ids[1]])
     }
+
+    // MARK: Deleted flag in the plan (what syncs)
+
+    func testDeletedFlagDecodesOffForOlderPlans() throws {
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(blocks[0])) as! [String: Any]
+        json.removeValue(forKey: "isDeleted")
+        json.removeValue(forKey: "isCustomAdded")
+        let back = try JSONDecoder().decode(PlanBlock.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertFalse(back.isDeleted)
+        XCTAssertFalse(back.isCustomAdded)
+        XCTAssertEqual(back.id, blocks[0].id)
+    }
+
+    func testDeletedFlagRoundTripsAndEditsHydrateFromIt() throws {
+        var plan = Plan(dayType: .push, durationMinutes: 60, locationKey: "x", blocks: blocks)
+        plan.blocks[1].isDeleted = true
+        let back = try JSONDecoder().decode(Plan.self, from: JSONEncoder().encode(plan))
+        XCTAssertEqual(back.liveBlocks.map(\.id), ids.filter { $0 != ids[1] })
+        let e = DeckEdits(deleted: Set(back.blocks.filter(\.isDeleted).map(\.id)))
+        XCTAssertEqual(e.deletedBlocks(back.blocks).map(\.id), [ids[1]])
+        XCTAssertEqual(e.active(back.blocks).map(\.id), ids.filter { $0 != ids[1] })
+    }
+
+    func testDeletedHostNoLongerPairsItsPartner() {
+        var plan = Plan(dayType: .push, durationMinutes: 60, locationKey: "x", blocks: blocks)
+        plan.blocks[1].supersetHostID = plan.blocks[0].id
+        XCTAssertEqual(plan.host(of: plan.blocks[1])?.id, ids[0])
+        XCTAssertEqual(plan.supersetPartner(of: plan.blocks[0])?.id, ids[1])
+        plan.blocks[0].isDeleted = true
+        XCTAssertNil(plan.host(of: plan.blocks[1]), "partner works standalone while the host is deleted")
+        XCTAssertNil(plan.supersetPartner(of: plan.blocks[0]))
+        plan.blocks[0].isDeleted = false
+        XCTAssertEqual(plan.host(of: plan.blocks[1])?.id, ids[0], "restoring the host pairs them again")
+    }
 }
