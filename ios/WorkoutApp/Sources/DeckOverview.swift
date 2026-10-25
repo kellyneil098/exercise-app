@@ -129,9 +129,10 @@ struct DeckOverview: View {
 
     func row(_ b: PlanBlock, index: Int) -> some View {
         let done = session.workingSetsDone(b)
-        let isCurrent = session.currentBlock?.id == b.id
+        // Before Start workout nothing is in progress, so no row is marked current.
+        let isCurrent = !confirming && session.currentBlock?.id == b.id
         let complete = session.isComplete(b)
-        let tint = b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(session.plan.dayType)
+        let tint = Theme.Colors.day(session.plan.dayType)
         return VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.m) {
                 Group {
@@ -146,8 +147,8 @@ struct DeckOverview: View {
                 }
                 .padding(.leading, b.isSupersetted ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
-                    if b.band == .heavy || b.isSupersetted {
-                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
+                    if b.isSupersetted {
+                        Overline("Superset", tint: tint)
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent ? Theme.Colors.brass : Theme.Colors.textPrimary)
