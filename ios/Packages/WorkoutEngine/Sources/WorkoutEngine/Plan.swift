@@ -82,4 +82,24 @@ public struct Plan: Codable, Sendable, Hashable {
         guard !host.isDeleted else { return nil }
         return blocks.first { $0.supersetHostID == host.id && !$0.isDeleted }
     }
+
+    /// Rest after a working set of `block`. A superset partner rests on its host's clock (host → partner → rest).
+    public func restSeconds(for block: PlanBlock) -> Int {
+        let current = blocks.first { $0.id == block.id } ?? block
+        return host(of: current)?.restSeconds ?? current.restSeconds
+    }
+
+    /// Sets the rest that follows `block`'s sets (its host's, for a superset partner), clamped to
+    /// `config.restSecondsRange`. Like the sets/reps edits, it leaves `estimatedSeconds` alone (§4.2: estimated once, at generation).
+    public mutating func setRest(of block: PlanBlock, to seconds: Int, config: EngineConfig = .default) {
+        guard let current = blocks.first(where: { $0.id == block.id }) else { return }
+        let targetID = current.supersetHostID ?? current.id
+        guard let i = blocks.firstIndex(where: { $0.id == targetID }) else { return }
+        blocks[i].restSeconds = config.clampedRest(seconds)
+    }
+
+    /// One stepper tap: `steps` × `config.restStepSeconds` (−1 = minus, +1 = plus), clamped.
+    public mutating func stepRest(of block: PlanBlock, by steps: Int, config: EngineConfig = .default) {
+        setRest(of: block, to: restSeconds(for: block) + steps * config.restStepSeconds, config: config)
+    }
 }

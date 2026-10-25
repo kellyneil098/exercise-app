@@ -495,8 +495,10 @@ public struct Adjuster: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
-    public init(_ label: String, value: Binding<Double>, in range: ClosedRange<Double>, step: Double = 1) {
-        self.label = label; _value = value; self.range = range; self.step = step
+    /// What the value is, for VoiceOver ("Decrease rest time"); `nil` keeps the plain "Decrease" / "Increase".
+    let name: String?
+    public init(_ label: String, value: Binding<Double>, in range: ClosedRange<Double>, step: Double = 1, name: String? = nil) {
+        self.label = label; _value = value; self.range = range; self.step = step; self.name = name
     }
     public var body: some View {
         HStack {
@@ -519,7 +521,7 @@ public struct Adjuster: View {
             .contentShape(Rectangle())
             .onTapGesture(perform: action)
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel(icon == "minus" ? "Decrease" : "Increase")
+            .accessibilityLabel([icon == "minus" ? "Decrease" : "Increase", name].compactMap { $0 }.joined(separator: " "))
     }
 }
 
