@@ -109,12 +109,12 @@ struct ProgressScreen: View {
         return byWeek.sorted { $0.key < $1.key }.map { Point(who: who, date: $0.key, value: $0.value) }
     }
 
-    /// Exercises with at least one working set for any of `uids`, most-performed first.
+    /// Exercises with at least one working set for any of `uids`, most-performed (by sessions) first.
     func performedKeys(_ uids: [String]) -> [String] {
         let marks = uids.map { _ in "?" }.joined(separator: ", ")
         let sql = """
             SELECT exerciseKey FROM set_log WHERE userId IN (\(marks)) AND isWarmup = 0 AND deleted = 0
-            GROUP BY exerciseKey ORDER BY COUNT(*) DESC, exerciseKey
+            GROUP BY exerciseKey ORDER BY COUNT(DISTINCT sessionId) DESC, COUNT(*) DESC, exerciseKey
             """
         return (try? model.store.db.read { try String.fetchAll($0, sql: sql, arguments: StatementArguments(uids)) }) ?? []
     }
