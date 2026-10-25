@@ -22,7 +22,7 @@ A small-group training app for **strength training and running only**. The core 
 The defining constraints:
 
 - **Location-aware.** Gyms have different equipment. The plan must only contain exercises that are actually performable where the user is standing.
-- **Time-boxed.** The user picks a duration bucket (30 / 40 / 45 / 60 / 90 min) and the plan is fitted to it.
+- **Time-boxed.** The user picks a duration bucket (30 / 45 / 60 / 90 min) and the plan is fitted to it.
 - **Reorderable and swappable mid-workout.** Gyms are busy. The prescribed order is a suggestion, and any exercise can be substituted for an equivalent one.
 - **Offline-first.** Generating a plan and logging sets must work with no signal. The server is only ever touched by background sync.
 - **Beautiful.** This is a product two people will look at several times a week for years. It has to feel like something Apple shipped, not a CRUD app. §8 is binding.
@@ -94,7 +94,7 @@ Locations are shared reference data (two users at the same Crunch see the same l
 Two locations are seeded (`seed/equipment_types.json`):
 
 - **Building Gym** — `available` defaults to **false** for everything; the user checks off what's actually there during setup.
-- **Crunch Union Square** — `available` defaults to **true** for everything; the user unchecks anything missing as they discover it.
+- **Crunch USQ** (Crunch Union Square) — `available` defaults to **true** for everything; the user unchecks anything missing as they discover it.
 
 **`dumbbell_max_weight` is load-bearing, not a nicety.** An apartment gym whose rack stops at 50 lb makes dumbbell bench press *nominally* available but useless once the user's working weight exceeds it. The availability filter must therefore be:
 
@@ -300,7 +300,7 @@ if slot.is_supersetted:
     block_total = 60
 ```
 
-This is the correct model and it has a useful consequence: core becomes nearly free, so it survives time-budget trimming far longer than a standalone block would. A 40-minute session can still include core. If a core set is longer than the host's rest interval, the extra time is real but small — ignore it, well within tolerance.
+This is the correct model and it has a useful consequence: core becomes nearly free, so it survives time-budget trimming far longer than a standalone block would. A 45-minute session can still include core. If a core set is longer than the host's rest interval, the extra time is real but small — ignore it, well within tolerance.
 
 **`rep_seconds` precedence:** the per-exercise value in `exercises.json` wins; the config defaults (3.5 for heavy-slot exercises, 2.5 otherwise) apply only to custom exercises without one. All constants live in a single `EngineConfig` so they can be tuned without touching engine logic.
 

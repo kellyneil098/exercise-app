@@ -616,27 +616,15 @@ struct ExercisePicker: View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                 Overline(replacing.map { "Swap \($0.exerciseName)" } ?? "Add exercise")
-                HStack(spacing: Theme.Spacing.s) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.Colors.textTertiary)
-                    TextField("Search exercises", text: $query)
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    if !query.isEmpty {
-                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .foregroundStyle(Theme.Colors.textTertiary).accessibilityLabel("Clear search")
-                    }
-                }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+                ExerciseSearchField(text: $query)
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if !suggested.isEmpty {
-                            Overline("Suggested").padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.xs)
+                            ExercisePickerHeader(title: "Suggested", topPadding: Theme.Spacing.s)
                             ForEach(suggested, id: \.exercise.key) { row($0) }
                         }
-                        Overline(suggested.isEmpty ? "Exercises" : "All exercises").padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xs)
+                        ExercisePickerHeader(title: suggested.isEmpty ? "Exercises" : "All exercises")
                         if all.isEmpty {
                             Text("No matches").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary).padding(.vertical, 12)
                         }
@@ -690,21 +678,11 @@ struct ExercisePicker: View {
     }
 
     func row(_ c: Candidate) -> some View {
-        Button { pick(c.exercise) } label: {
-            VStack(spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(c.exercise.name).font(Theme.Fonts.body).foregroundStyle(c.isAvailable ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
-                        Text(reason(c.exclusion) ?? patternLabel(c.exercise)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                    }
-                    Spacer()
-                    if let e = c.estimate, c.isAvailable { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
-                }
-                .padding(.vertical, 12)
-                Hairline()
-            }
+        ExercisePickerRow(name: c.exercise.name, detail: reason(c.exclusion) ?? patternLabel(c.exercise), dimmed: !c.isAvailable) {
+            pick(c.exercise)
+        } trailing: {
+            if let e = c.estimate, c.isAvailable { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
         }
-        .buttonStyle(PressStyle())
         .disabled(!c.isAvailable)
     }
 

@@ -47,7 +47,7 @@ struct HomeView: View {
             mode = ActiveRunClock.resumableRunID() != nil ? .running : .strength(model.resumeDayType ?? model.nextDayType)
             model.resumeDayType = nil
             let split = model.splitState
-            duration = split.defaultDurationMin
+            duration = EngineConfig.default.durationBucket(nearest: split.defaultDurationMin)
             model.ensureSeededLocations()
             location = model.locations.first { $0.id == split.defaultLocationId } ?? model.locations.first
             model.restoreActiveSession()
