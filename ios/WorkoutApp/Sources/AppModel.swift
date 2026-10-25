@@ -178,11 +178,13 @@ final class AppModel {
     }
 
     /// Every seeded location exists for this user so Home can offer all of them; installs that predate a seed
-    /// entry get it on first launch, and rows still showing a seed's former default name get its current one.
+    /// entry get it on first launch, and rows still showing a seed's former default name get its current one (once per device).
     /// Equipment defaults mirror onboarding.
     func ensureSeededLocations() {
-        let (changed, missing) = Location.reconcile(locations, with: catalog.seededLocations)
+        let applied = store.appliedSeedRenames
+        let (changed, missing, renames) = Location.reconcile(locations, with: catalog.seededLocations, appliedRenames: applied)
         if !changed.isEmpty { try? store.save(changed) }
+        if renames != applied { try? store.setAppliedSeedRenames(renames) }
         for seed in missing {
             let i = catalog.seededLocations.firstIndex(of: seed) ?? catalog.seededLocations.count
             let loc = Location(userId: userId, name: seed.name, seedKey: seed.key, dumbbellMaxWeight: seed.dumbbellMaxWeight,

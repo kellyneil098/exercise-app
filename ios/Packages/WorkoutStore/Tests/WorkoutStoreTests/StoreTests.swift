@@ -82,23 +82,37 @@ final class StoreTests: XCTestCase {
         let seeds = try SeedLoader.loadBundled().seededLocations
         let stamped = Location(userId: "u1", name: "Crunch Union Square", seedKey: "crunch_union_square", sortOrder: 1)
         let legacy = Location(userId: "u1", name: "Building Gym", sortOrder: 0)
-        var (changed, missing) = Location.reconcile([legacy, stamped], with: seeds)
+        var (changed, missing, renames) = Location.reconcile([legacy, stamped], with: seeds)
         XCTAssertTrue(missing.isEmpty)
         XCTAssertEqual(Set(changed.map(\.id)), [stamped.id, legacy.id])
         XCTAssertEqual(changed.first { $0.id == stamped.id }?.name, "Crunch USQ")
         XCTAssertEqual(changed.first { $0.id == legacy.id }?.name, "The Victoria")
         XCTAssertEqual(changed.first { $0.id == legacy.id }?.seedKey, "building_gym")
+        XCTAssertEqual(renames, ["crunch_union_square:Crunch Union Square", "building_gym:Building Gym"])
+
+        // Once applied, a user who deliberately picks the old name keeps it.
+        (changed, missing, _) = Location.reconcile([stamped], with: seeds, appliedRenames: renames)
+        XCTAssertTrue(changed.isEmpty)
+        XCTAssertEqual(missing.map(\.key), ["building_gym"])
 
         // A name the user chose stays, and already-current rows need no write.
         let custom = Location(userId: "u1", name: "Crunch 14th St", seedKey: "crunch_union_square")
         let current = Location(userId: "u1", name: "The Victoria", seedKey: "building_gym")
-        (changed, missing) = Location.reconcile([current, custom], with: seeds)
+        (changed, missing, _) = Location.reconcile([current, custom], with: seeds)
         XCTAssertTrue(changed.isEmpty)
         XCTAssertTrue(missing.isEmpty)
 
         // Seeds with no row are reported for insertion; an unrelated gym is left alone.
-        (changed, missing) = Location.reconcile([Location(userId: "u1", name: "Hotel gym")], with: seeds)
+        (changed, missing, _) = Location.reconcile([Location(userId: "u1", name: "Hotel gym")], with: seeds)
         XCTAssertTrue(changed.isEmpty)
         XCTAssertEqual(missing.map(\.key), ["building_gym", "crunch_union_square"])
+    }
+
+    func testAppliedSeedRenamesPersist() throws {
+        let store = try WorkoutStore.inMemory()
+        XCTAssertEqual(store.appliedSeedRenames, [])
+        try store.setAppliedSeedRenames(["crunch_union_square:Crunch Union Square"])
+        XCTAssertEqual(store.appliedSeedRenames, ["crunch_union_square:Crunch Union Square"])
+        XCTAssertEqual(try store.db.read { try Int.fetchOne($0, sql: "SELECT count(*) FROM outbox") }, 0)
     }
 }
