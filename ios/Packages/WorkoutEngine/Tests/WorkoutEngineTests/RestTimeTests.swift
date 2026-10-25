@@ -51,18 +51,16 @@ final class RestTimeTests: XCTestCase {
         XCTAssertEqual(p.restSeconds(for: b), 10)
     }
 
-    func testOnlyRestAndEstimateChange() {
+    func testOnlyRestChanges() {
         let before = plan()
         var p = before
         let b = standalone(p)
         p.stepRest(of: b, by: 1)
         let i = p.blocks.firstIndex { $0.id == b.id }!
         XCTAssertEqual(p.blocks[i].restSeconds, b.restSeconds + 10)
-        XCTAssertEqual(p.blocks[i].estimatedSeconds, b.estimatedSeconds + Double((b.sets - 1) * 10), accuracy: 0.001)
         var reverted = p.blocks[i]
         reverted.restSeconds = b.restSeconds
-        reverted.estimatedSeconds = b.estimatedSeconds
-        XCTAssertEqual(reverted, b, "weight, sets, reps, warm-ups untouched")
+        XCTAssertEqual(reverted, b, "weight, sets, reps, warm-ups, time estimate untouched")
         for (old, new) in zip(before.blocks, p.blocks) where old.id != b.id { XCTAssertEqual(old, new) }
         XCTAssertEqual(p.dayType, before.dayType)
         XCTAssertEqual(p.durationMinutes, before.durationMinutes)

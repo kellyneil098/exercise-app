@@ -56,16 +56,12 @@ public struct Plan: Codable, Sendable, Hashable {
     }
 
     /// Sets the rest that follows `block`'s sets (its host's, for a superset partner), clamped to
-    /// `config.restSecondsRange`. The block's time estimate moves with it: `(sets - 1) × rest` (§4.2).
+    /// `config.restSecondsRange`. Like the sets/reps edits, it leaves `estimatedSeconds` alone (§4.2: estimated once, at generation).
     public mutating func setRest(of block: PlanBlock, to seconds: Int, config: EngineConfig = .default) {
         guard let current = blocks.first(where: { $0.id == block.id }) else { return }
         let targetID = current.supersetHostID ?? current.id
         guard let i = blocks.firstIndex(where: { $0.id == targetID }) else { return }
-        let new = config.clampedRest(seconds)
-        let delta = new - blocks[i].restSeconds
-        guard delta != 0 else { return }
-        blocks[i].restSeconds = new
-        blocks[i].estimatedSeconds = max(0, blocks[i].estimatedSeconds + Double(max(0, blocks[i].sets - 1) * delta))
+        blocks[i].restSeconds = config.clampedRest(seconds)
     }
 
     /// One stepper tap: `steps` × `config.restStepSeconds` (−1 = minus, +1 = plus), clamped.
