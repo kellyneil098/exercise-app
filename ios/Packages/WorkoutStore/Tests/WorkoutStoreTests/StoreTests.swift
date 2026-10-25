@@ -223,6 +223,22 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(try outboxOps(store, table: "session"), [])
     }
 
+    func testDeletedGymKeepsItsInventoryForAWorkoutStillRunningThere() throws {
+        let store = try WorkoutStore.inMemory()
+        let gym = Location(userId: "u1", name: "Hotel gym")
+        try store.save(gym)
+        try store.save(["bodyweight", "kettlebell", "dumbbells", "treadmill"].map { LocationEquipment(userId: "u1", locationId: gym.id, equipmentType: $0) })
+        try store.setEquipment("treadmill", available: false, forLocation: gym.id, userId: "u1", now: Date(timeIntervalSince1970: 1_000))
+
+        try store.deleteLocation(gym, now: Date(timeIntervalSince1970: 2_000))
+
+        let deleted = try XCTUnwrap(store.db.read { try Location.fetchOne($0, key: gym.id) })
+        XCTAssertTrue(deleted.deleted)
+        XCTAssertEqual(try store.equipment(for: deleted), ["bodyweight", "kettlebell", "dumbbells"], "what the gym had when it was deleted, not what was unchecked earlier")
+        XCTAssertEqual(try store.equipment(forLocation: gym.id), [], "the gym itself no longer offers anything")
+        XCTAssertEqual(try store.equipment(for: gym), ["bodyweight", "kettlebell", "dumbbells"], "a live snapshot reads live rows")
+    }
+
     func testDeleteGymMovesTheDefaultLocationToTheNextGym() throws {
         let store = try WorkoutStore.inMemory()
         let first = Location(userId: "u1", name: "The Victoria", seedKey: "building_gym", sortOrder: 0)

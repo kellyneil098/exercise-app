@@ -121,10 +121,11 @@ final class AppModel {
         }) ?? []
     }
 
-    /// Equipment stored as available at a gym (plus bodyweight, which every gym has).
+    /// Equipment stored as available at a gym (plus bodyweight, which every gym has). For a gym deleted mid-workout this is
+    /// what it had at deletion, so the resumed deck can still swap and add exercises.
     func equipment(for location: Location) -> Set<String> {
         _ = dataVersion
-        return ((try? store.equipment(forLocation: location.id)) ?? []).union([EquipmentType.bodyweightKey])
+        return ((try? store.equipment(for: location)) ?? []).union([EquipmentType.bodyweightKey])
     }
 
     /// The gym's checked/unchecked split of the one master catalog (`catalog.equipmentTypes`); identical choices for every gym.
@@ -257,7 +258,7 @@ final class AppModel {
               }),
               let plan = row.plan,
               let dayType = DayType(rawValue: row.dayType),
-              // Any row, even a gym deleted since the deck was built: the deck already holds its inventory.
+              // Any row, even a gym deleted since the deck was built: `equipment(for:)` keeps that gym's inventory.
               let location = try? store.db.read({ try Location.fetchOne($0, key: row.locationId) })
         else { return }
         let input = plannerInput(dayType: dayType, duration: row.durationMin, location: location)

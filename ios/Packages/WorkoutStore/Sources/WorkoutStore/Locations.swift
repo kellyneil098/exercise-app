@@ -26,6 +26,17 @@ extension WorkoutStore {
         return Set(rows.map(\.equipmentType))
     }
 
+    /// Equipment available at a location as the app should see it: live rows for a live gym; for a deleted gym, the rows
+    /// `deleteLocation` tombstoned with it (they share its `updatedAt`), so a workout still running there keeps its inventory.
+    /// Equipment the user had unchecked before the deletion stays out.
+    public func equipment(for location: Location) throws -> Set<String> {
+        guard location.deleted else { return try equipment(forLocation: location.id) }
+        let rows = try db.read {
+            try LocationEquipment.filter(Column("locationId") == location.id && Column("deleted") == true && Column("updatedAt") == location.updatedAt).fetchAll($0)
+        }
+        return Set(rows.map(\.equipmentType))
+    }
+
     /// Marks one equipment type available or not at one location, persisting and enqueueing in a single transaction.
     /// Re-adding revives that location's tombstoned row rather than growing a new one; removing tombstones every live row
     /// for the key. Other locations are never touched.
