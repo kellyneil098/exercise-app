@@ -36,7 +36,11 @@ struct DeckOverview: View {
                         }
                         Spacer()
                         IconButton("plus", label: "Add exercise", tint: Theme.Colors.brass) { picker = .add }
-                        if !confirming {
+                        if confirming {
+                            // This screen replaces Home at the root (not pushed, not a sheet), so it closes the way the
+                            // live run does: an X in the top corner. Nothing is logged yet, so no confirmation.
+                            IconButton("xmark", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
+                        } else {
                             Button { dismiss() } label: {
                                 Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.canvas)
                                     .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
@@ -91,12 +95,8 @@ struct DeckOverview: View {
                 .environment(\.defaultMinListRowHeight, 1)
 
                 if confirming {
-                    VStack(spacing: Theme.Spacing.xs) {
-                        PillButton("Start workout", icon: "play.fill") { session.start() }
-                        Button("Back") { session.cancel() }
-                            .font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textSecondary).frame(minHeight: 44)
-                    }
-                    .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.s)
+                    PillButton("Start workout", icon: "play.fill") { session.start() }
+                        .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.m)
                 } else {
                     PillButton("End workout", icon: "stop.fill", style: .quiet) { confirmEnd = true }
                         .padding(Theme.Spacing.l)
