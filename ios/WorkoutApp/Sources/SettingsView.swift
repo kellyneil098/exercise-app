@@ -24,11 +24,10 @@ struct SettingsView: View {
                             Text(model.settings?.displayName ?? "").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                         }
                     }
-                    .padding(.top, Theme.Spacing.s)
+                    .padding(.top, Theme.Spacing.xl)
 
                     account
                     gyms
-                    rotation
                     prefs
                 }
                 .padding(.horizontal, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xl)
@@ -98,24 +97,6 @@ struct SettingsView: View {
                 let loc = Location(userId: model.userId, name: "New gym", sortOrder: model.locations.count)
                 try? model.store.save(loc)
                 editingLocation = loc
-            }
-        }
-    }
-
-    var rotation: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-            SectionHeader("Heavy rotation", icon: "flame", tint: Theme.Colors.push)
-            ForEach(DayType.allCases, id: \.self) { d in
-                let rot = model.splitState.heavyRotations[d]
-                HStack(alignment: .top, spacing: Theme.Spacing.m) {
-                    Glyph(d.symbol, tint: Theme.Colors.day(d))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(d.label).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
-                        Text((rot?.sequence ?? []).map { $0.replacingOccurrences(of: "_", with: " ").capitalized }.joined(separator: " → "))
-                            .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-                    }
-                    Spacer()
-                }
             }
         }
     }
