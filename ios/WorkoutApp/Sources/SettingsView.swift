@@ -1,4 +1,3 @@
-import GRDB
 import SwiftUI
 import WorkoutEngine
 import WorkoutStore
@@ -83,7 +82,7 @@ struct SettingsView: View {
                         Glyph(model.catalog.seededLocations.first { $0.key == loc.seedKey }?.kind == "home_gym" ? "house" : "building.2", tint: Theme.Colors.textSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(loc.name).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
-                            Text("\(model.equipment(for: loc).count) pieces of equipment").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                            Text(equipmentCaption(loc)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
@@ -99,6 +98,11 @@ struct SettingsView: View {
                 editingLocation = loc
             }
         }
+    }
+
+    func equipmentCaption(_ loc: Location) -> String {
+        let p = model.equipmentPartition(for: loc)
+        return "\(p.selectedCount) of \(p.totalCount) equipment types"
     }
 
     var prefs: some View {
@@ -151,62 +155,154 @@ struct PrefLabel: View {
     }
 }
 
+/// One gym's equipment: what it has, then everything else in the master catalog, each row a toggle that persists at once.
+/// Every gym sees the same catalog (`catalog.equipmentTypes`); only the checked subset differs.
 struct EquipmentEditor: View {
     @State var location: Location
     @Environment(AppModel.self) private var model
-    @State private var selected: Set<String> = []
+    @Environment(\.dismiss) private var dismiss
     @State private var dbMax: Double = 0
+    @State private var confirmDelete = false
+    @State private var deleted = false
 
     var body: some View {
         Screen {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Overline("Gym")
-                        TextField("Gym name", text: $location.name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                    }
-                    .padding(.top, Theme.Spacing.s)
-                    Group {
-                        Adjuster(dbMax == 0 ? "Dumbbells: no limit" : "Dumbbells up to \(dbMax.formatted()) lb", value: $dbMax, in: 0...150, step: 5)
-                    }
-                    Group {
-                        VStack(spacing: 0) {
-                            Hairline()
-                            ForEach(Array(model.catalog.equipmentTypes.enumerated()), id: \.element.key) { i, eq in
-                                let on = selected.contains(eq.key)
-                                Button { Haptics.play(.swap); if on { selected.remove(eq.key) } else { selected.insert(eq.key) } } label: {
-                                    HStack(spacing: Theme.Spacing.m) {
-                                        Text(eq.label).font(on ? Theme.Fonts.bodyMedium : Theme.Fonts.body)
-                                            .foregroundStyle(on ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
-                                        Spacer()
-                                        Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
-                                            .foregroundStyle(on ? Theme.Colors.brass : Theme.Colors.textTertiary)
-                                    }
-                                    .padding(.horizontal, Theme.Spacing.s).frame(minHeight: 48)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(PressStyle())
-                                Hairline()
-                            }
-                        }
-                    }
-                    PillButton("Save", icon: "checkmark") { save() }
+                    header
+                    Adjuster(dbMax == 0 ? "Dumbbells: no limit" : "Dumbbells up to \(dbMax.formatted()) lb", value: $dbMax, in: 0...150, step: 5)
+                    equipment
+                    PillButton("Done", icon: "checkmark") { dismiss() }
                 }
                 .padding(.horizontal, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xl)
             }
         }
         .presentationBackground(Theme.Colors.canvas)
-        .onAppear { selected = model.equipment(for: location); dbMax = location.dumbbellMaxWeight ?? 0 }
+        .onAppear { dbMax = location.dumbbellMaxWeight ?? 0 }
+        .onDisappear { saveDetails() }
+        .confirmationDialog("Delete \(location.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete gym", role: .destructive) { deleteGym() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its equipment list goes with it; workouts you logged there are kept. This can't be undone.")
+        }
     }
 
-    @Environment(\.dismiss) private var dismiss
-    func save() {
-        location.dumbbellMaxWeight = dbMax == 0 ? nil : dbMax
-        try? model.store.save(location)
-        let existing = (try? model.store.db.read { try LocationEquipment.filter(Column("locationId") == location.id && Column("deleted") == false).fetchAll($0) }) ?? []
-        for row in existing where !selected.contains(row.equipmentType) { try? model.store.delete(row) }
-        let have = Set(existing.map(\.equipmentType))
-        try? model.store.save(selected.subtracting(have).map { LocationEquipment(userId: model.userId, locationId: location.id, equipmentType: $0) })
+    var header: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.m) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Overline("Gym")
+                TextField("Gym name", text: $location.name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    .submitLabel(.done).onSubmit { saveDetails() }
+            }
+            Spacer()
+            if model.canDelete(location) {
+                Menu {
+                    Button("Delete gym", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 17, weight: .bold)).foregroundStyle(Theme.Colors.textSecondary)
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .accessibilityLabel("Gym options")
+            }
+        }
+        .padding(.top, Theme.Spacing.s)
+    }
+
+    /// Checked items first, then the rest of the catalog; both grouped by seed category, labels A–Z.
+    var equipment: some View {
+        let partition = model.equipmentPartition(for: location)
+        return VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
+            FlatSection("Available at this gym", detail: "\(partition.selectedCount) of \(partition.totalCount)") {
+                if partition.selectedKeys == [EquipmentType.bodyweightKey] {
+                    emptyNote("Nothing checked yet. Check equipment below to add it here.")
+                }
+                sections(partition.selected, available: true)
+            }
+            FlatSection("Not at this gym") {
+                if partition.unselected.isEmpty {
+                    emptyNote("Everything in the catalog is available here.")
+                } else {
+                    sections(partition.unselected, available: false)
+                }
+            }
+        }
+    }
+
+    func sections(_ sections: [EquipmentSection], available: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(sections) { section in
+                Text(section.category).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                    .padding(.top, Theme.Spacing.m).padding(.bottom, Theme.Spacing.xs)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(section.items, id: \.key) { eq in
+                    EquipmentRow(type: eq, available: available, locked: eq.key == EquipmentType.bodyweightKey) {
+                        Haptics.play(.swap)
+                        withAnimation(Theme.Motion.quick) { model.setEquipment(eq.key, available: !available, for: location) }
+                    }
+                }
+            }
+        }
+    }
+
+    func emptyNote(_ text: String) -> some View {
+        Text(text).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary).padding(.vertical, Theme.Spacing.s)
+    }
+
+    /// Name and dumbbell ceiling save on Done, submit, or swipe-down; equipment toggles save as they happen.
+    func saveDetails() {
+        guard !deleted else { return }
+        var loc = location
+        loc.name = location.name.trimmingCharacters(in: .whitespaces)
+        if loc.name.isEmpty { loc.name = model.locations.first { $0.id == location.id }?.name ?? "Gym" }
+        loc.dumbbellMaxWeight = dbMax == 0 ? nil : dbMax
+        location = loc
+        try? model.store.save(loc)
+    }
+
+    func deleteGym() {
+        guard model.deleteLocation(location) else { return }
+        deleted = true
+        Haptics.play(.warning)
         dismiss()
+    }
+}
+
+/// One catalog item: label, note, and a check that reads as a toggle. Bodyweight is shown locked (always available).
+struct EquipmentRow: View {
+    let type: EquipmentType
+    let available: Bool
+    var locked = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                HStack(spacing: Theme.Spacing.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(type.label).font(available ? Theme.Fonts.bodyMedium : Theme.Fonts.body)
+                            .foregroundStyle(available ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
+                        if locked {
+                            Text("Always available").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        } else if let note = type.note {
+                            Text(note).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                    }
+                    Spacer()
+                    Image(systemName: available ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
+                        .foregroundStyle(locked ? Theme.Colors.textTertiary : available ? Theme.Colors.brass : Theme.Colors.textTertiary)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, Theme.Spacing.s).padding(.vertical, 10).frame(minHeight: 48)
+                .contentShape(Rectangle())
+                Hairline()
+            }
+        }
+        .buttonStyle(PressStyle())
+        .disabled(locked)
+        .accessibilityLabel(type.label)
+        .accessibilityValue(available ? "Available" : "Not available")
+        .accessibilityHint(locked ? "Always available at every gym" : available ? "Removes it from this gym" : "Adds it to this gym")
+        .accessibilityAddTraits(available ? .isSelected : [])
     }
 }

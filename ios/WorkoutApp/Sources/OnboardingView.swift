@@ -154,8 +154,7 @@ struct OnboardingView: View {
             let loc = Location(userId: uid, name: seed.name, seedKey: seed.key, dumbbellMaxWeight: seed.dumbbellMaxWeight,
                                dumbbellIncrement: 5, barbellIncrement: seed.plateIncrement, sortOrder: i)
             try? model.store.save(loc)
-            let equipment = seed.defaultAvailable ? model.catalog.equipmentTypes.map(\.key) : AppModel.homeGymEquipment
-            try? model.store.save(equipment.map { LocationEquipment(userId: uid, locationId: loc.id, equipmentType: $0) })
+            try? model.store.save(model.catalog.defaultEquipment(for: seed).map { LocationEquipment(userId: uid, locationId: loc.id, equipmentType: $0) })
         }
         for (key, w) in baselines where w > 0 {
             try? model.store.save(ExerciseStateRow(userId: uid, state: ExerciseState(exerciseKey: key, workingWeight: w, weightSource: .measured)))

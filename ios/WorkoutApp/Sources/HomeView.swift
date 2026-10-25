@@ -52,6 +52,12 @@ struct HomeView: View {
             location = model.locations.first { $0.id == split.defaultLocationId } ?? model.locations.first
             model.restoreActiveSession()
         }
+        .onChange(of: model.locations.map(\.id)) { _, ids in
+            // The chosen gym was deleted in Settings: fall back to the default, then the first remaining gym.
+            if let location, !ids.contains(location.id) {
+                self.location = model.locations.first { $0.id == model.splitState.defaultLocationId } ?? model.locations.first
+            }
+        }
         .sheet(isPresented: $showProgress) { ProgressScreen() }
         .sheet(isPresented: $showSettings) { SettingsView() }
     }
