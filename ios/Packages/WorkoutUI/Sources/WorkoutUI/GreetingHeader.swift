@@ -5,8 +5,9 @@ import WorkoutEngine
 ///
 /// The layout adapts to the name and the text size with no width thresholds: `ViewThatFits` picks the first
 /// arrangement whose natural width fits.
-/// 1. **Inline** — "Good morning, Neil" on one title line beside the controls (the regular case).
-/// 2. **Split** — the phrase drops to a smaller secondary line above the name, still beside the controls.
+/// 1. **Inline** — "Good morning, Neil" on one title line beside the controls, whenever it fits at full size.
+/// 2. **Split** — the phrase drops to a smaller secondary line above the name, still beside the controls (typical
+///    on 375–390-pt phones, where the controls leave the greeting roughly 210 pt).
 /// 3. **Stacked** — the controls share the date's row and the greeting gets the full width; the name wraps over two
 ///    lines and truncates only past that (pathological names, accessibility text sizes).
 ///
