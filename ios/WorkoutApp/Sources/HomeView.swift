@@ -26,8 +26,11 @@ struct HomeView: View {
         Screen {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                    header
-                    momentum
+                    // The header sets its own gap to momentum (tighter when a long name takes two lines).
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                        momentum
+                    }
                     modePicker
                     switch mode {
                     case .strength(let dayType): strength(dayType)
@@ -52,6 +55,12 @@ struct HomeView: View {
             location = model.locations.first { $0.id == split.defaultLocationId } ?? model.locations.first
             model.restoreActiveSession()
         }
+        .onChange(of: model.locations.map(\.id)) { _, ids in
+            // The chosen gym was deleted in Settings: fall back to the default, then the first remaining gym.
+            if let location, !ids.contains(location.id) {
+                self.location = model.locations.first { $0.id == model.splitState.defaultLocationId } ?? model.locations.first
+            }
+        }
         .sheet(isPresented: $showProgress) { ProgressScreen() }
         .sheet(isPresented: $showSettings) { SettingsView() }
     }
@@ -59,12 +68,9 @@ struct HomeView: View {
     // MARK: Header
 
     var header: some View {
-        HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                Overline(Date.now.formatted(.dateTime.weekday(.wide).month().day()))
-                Text(greeting).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary).lineLimit(1).minimumScaleFactor(0.75)
-            }
-            Spacer()
+        GreetingHeader(overline: Date.now.formatted(.dateTime.weekday(.wide).month().day()),
+                       greeting: Greeting(displayName: model.settings?.displayName ?? ""),
+                       spacingBelow: Theme.Spacing.xl, compactSpacingBelow: Theme.Spacing.s) {
             IconButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
             Button { showSettings = true } label: { Avatar(name: model.settings?.displayName ?? "") }
                 .buttonStyle(PressStyle())
@@ -81,13 +87,6 @@ struct HomeView: View {
             return d.formatted(.dateTime.weekday(.wide))
         }
         return d.formatted(.dateTime.day().month(.abbreviated))
-    }
-
-    var greeting: String {
-        let hour = Calendar.current.component(.hour, from: .now)
-        let part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
-        let name = model.settings?.displayName.split(separator: " ").first.map(String.init) ?? ""
-        return name.isEmpty ? part : "\(part), \(name)"
     }
 
     /// This week at a glance, set straight on the canvas: two numbers, no box.

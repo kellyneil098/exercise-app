@@ -38,6 +38,18 @@ def check_integrity(eq, mp, ex):
     errors, warnings = [], []
 
     equipment_keys = {e["key"] for e in eq["equipment_types"]}
+    # The equipment list is the master catalog every gym selects from; the app groups it by category.
+    for e in eq["equipment_types"]:
+        if not isinstance(e.get("category"), str) or not e["category"].strip():
+            errors.append(f"equipment '{e['key']}': category must be a non-empty string")
+        if not isinstance(e.get("label"), str) or not e["label"].strip():
+            errors.append(f"equipment '{e['key']}': label must be a non-empty string")
+        hint = e.get("hint")
+        if hint is not None and (not isinstance(hint, str) or not hint.strip() or len(hint) > 40):
+            errors.append(f"equipment '{e['key']}': hint must be a short non-empty string (max 40 chars) or omitted")
+    eq_keys_list = [e["key"] for e in eq["equipment_types"]]
+    for k in {k for k in eq_keys_list if eq_keys_list.count(k) > 1}:
+        errors.append(f"duplicate equipment key: {k}")
     pattern_keys = {p["key"] for p in mp["movement_patterns"]}
     exercise_keys = set()
 
@@ -107,6 +119,12 @@ def check_integrity(eq, mp, ex):
     for k in {k for k in loc_keys if loc_keys.count(k) > 1}:
         errors.append(f"duplicate location key: {k}")
     current_names = {loc["name"] for loc in eq["locations"]}
+    for loc in eq["locations"]:
+        for k in loc.get("default_equipment", []):
+            if k not in equipment_keys:
+                errors.append(f"location {loc['key']}: default_equipment '{k}' is not an equipment key")
+        if loc.get("default_available") and "default_equipment" in loc:
+            errors.append(f"location {loc['key']}: default_available gyms start with everything; drop default_equipment")
     for loc in eq["locations"]:
         prev = loc.get("previous_names", [])
         if not isinstance(prev, list) or not all(isinstance(n, str) and n for n in prev):

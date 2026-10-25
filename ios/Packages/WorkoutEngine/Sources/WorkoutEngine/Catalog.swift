@@ -25,10 +25,23 @@ public enum Measure: String, Codable, Sendable, Hashable {
     case reps, seconds
 }
 
+/// One entry of the equipment vocabulary (seed/equipment_types.json): the master catalog every gym selects from.
 public struct EquipmentType: Codable, Hashable, Sendable {
     public let key: String
+    /// Grouping for the gym equipment editor ("Free weights", "Machines", ...). Categories are ordered by first appearance in the seed.
+    public let category: String
     public let label: String
+    /// Developer note from the seed; never shown to users.
     public let note: String?
+    /// Optional short user-facing subtitle for the gym equipment editor.
+    public let hint: String?
+
+    /// The one piece of equipment every location has; never gates an exercise and cannot be unchecked.
+    public static let bodyweightKey = "bodyweight"
+
+    public init(key: String, category: String, label: String, note: String? = nil, hint: String? = nil) {
+        self.key = key; self.category = category; self.label = label; self.note = note; self.hint = hint
+    }
 }
 
 public struct SeededLocation: Codable, Hashable, Sendable {
@@ -39,6 +52,9 @@ public struct SeededLocation: Codable, Hashable, Sendable {
     public let previousNames: [String]?
     public let kind: String
     public let defaultAvailable: Bool
+    /// Starting equipment for a gym that does not default to everything (`default_available: false`).
+    /// A seeding template only; the gym still chooses from the whole catalog.
+    public let defaultEquipment: [String]?
     public let dumbbellMaxWeight: Double?
     public let plateIncrement: Double
 }

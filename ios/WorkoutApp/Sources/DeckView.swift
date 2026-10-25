@@ -245,33 +245,61 @@ struct StepCard: View {
     }
 }
 
-/// Mid-drag feedback shared by every swipeable card: a wash over the card in the action's colour, deepening
-/// toward the threshold, plus a tilted stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+/// Mid-drag feedback shared by every swipeable card and overview row: a wash in the action's colour, deepening
+/// toward the threshold, plus a stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+/// `compact` is the row-sized variant: a smaller stamp with its icon, level and vertically centred on the side
+/// the row is moving toward, instead of tilted in a top corner. `showsStamp: false` draws only the wash, for a row
+/// that puts its `SwipeStamp` in the space it reveals instead.
 struct SwipeFeedback: View {
     enum Placement { case leading, trailing, top }
     let label: String
+    var icon: String? = nil
     let color: Color
     let strength: Double
     let placement: Placement
+    var compact = false
+    var showsStamp = true
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-        let alignment: Alignment = switch placement { case .leading: .topLeading; case .trailing: .topTrailing; case .top: .top }
-        let tilt: Double = switch placement { case .leading: -12; case .trailing: 12; case .top: 0 }
+        let shape = RoundedRectangle(cornerRadius: compact ? Theme.Radius.control : Theme.Radius.card, style: .continuous)
+        let alignment: Alignment = switch placement {
+        case .leading: compact ? .leading : .topLeading
+        case .trailing: compact ? .trailing : .topTrailing
+        case .top: .top
+        }
+        let tilt: Double = switch placement { case .leading: compact ? 0 : -12; case .trailing: compact ? 0 : 12; case .top: 0 }
         shape.fill(color.opacity(0.08 + 0.14 * strength))
             .overlay(shape.strokeBorder(color.opacity(0.35 + 0.65 * strength), lineWidth: 1.5))
             .overlay(alignment: alignment) {
-                Text(label.uppercased())
-                    .font(.system(size: 24, weight: .bold)).tracking(3)
-                    .foregroundStyle(color)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: 3))
-                    .rotationEffect(.degrees(tilt))
-                    .scaleEffect(0.85 + 0.15 * strength)
-                    .opacity(0.45 + 0.55 * strength)
-                    .padding(Theme.Spacing.l)
+                if showsStamp {
+                    SwipeStamp(label: label, icon: icon, color: color, strength: strength, compact: compact)
+                        .rotationEffect(.degrees(tilt))
+                        .padding(compact ? Theme.Spacing.m : Theme.Spacing.l)
+                }
             }
             .allowsHitTesting(false)
+    }
+}
+
+/// The outlined label inside `SwipeFeedback`: icon + uppercased action, growing and firming up toward the threshold.
+struct SwipeStamp: View {
+    let label: String
+    var icon: String? = nil
+    let color: Color
+    let strength: Double
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon { Image(systemName: icon).font(.system(size: compact ? 14 : 22, weight: .bold)) }
+            Text(label.uppercased()).font(.system(size: compact ? 13 : 24, weight: .bold)).tracking(compact ? 1.5 : 3)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, compact ? 10 : 14).padding(.vertical, compact ? 6 : 8)
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: compact ? 2 : 3))
+        .scaleEffect(0.85 + 0.15 * strength)
+        .opacity(0.45 + 0.55 * strength)
+        .allowsHitTesting(false)
     }
 }
 
@@ -292,6 +320,7 @@ private extension View {
 struct SetCard: View {
     let step: DeckStep
     let session: ActiveSession
+    @State private var showingGuide = false
     var b: PlanBlock { step.block }
 
     var body: some View {
@@ -299,6 +328,8 @@ struct SetCard: View {
             // Three groups, top to bottom: picture + name, the weight (hero, centred in the remaining space),
             // set dots pinned to the bottom edge. Spacing is tight inside a group and loose between groups.
             VStack(alignment: .leading, spacing: 0) {
+                // Tapping the picture opens the technique sheet. A plain tap gesture (not a Button) so a swipe that
+                // starts on the picture still reaches the card's drag gesture; a Button would swallow it.
                 ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
                     .frame(maxHeight: 150)
                     .frame(maxWidth: .infinity)
@@ -306,6 +337,18 @@ struct SetCard: View {
                         RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
                             .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     )
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "info.circle").font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.textTertiary).padding(Theme.Spacing.sm)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                    .onTapGesture { showingGuide = true }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(b.exerciseName) technique")
+                    .accessibilityHint("Shows the demonstration and form cues")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { showingGuide = true }
+                    .sheet(isPresented: $showingGuide) { ExerciseGuideView(block: b) }
                 VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                     HStack(spacing: Theme.Spacing.s) {
                         Text(kind.uppercased()).font(Theme.Fonts.overline).tracking(1.2).foregroundStyle(tint)
