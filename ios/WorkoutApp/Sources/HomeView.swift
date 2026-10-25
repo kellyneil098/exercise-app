@@ -64,7 +64,7 @@ struct HomeView: View {
     var header: some View {
         GreetingHeader(overline: Date.now.formatted(.dateTime.weekday(.wide).month().day()),
                        greeting: Greeting(displayName: model.settings?.displayName ?? ""),
-                       spacingBelow: Theme.Spacing.xl, compactSpacingBelow: Theme.Spacing.sm) {
+                       spacingBelow: Theme.Spacing.xl, compactSpacingBelow: Theme.Spacing.s) {
             IconButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
             Button { showSettings = true } label: { Avatar(name: model.settings?.displayName ?? "") }
                 .buttonStyle(PressStyle())

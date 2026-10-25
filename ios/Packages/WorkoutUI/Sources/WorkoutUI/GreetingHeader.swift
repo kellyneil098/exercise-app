@@ -6,13 +6,16 @@ import WorkoutEngine
 /// The layout adapts to the name and the text size with no width thresholds: `ViewThatFits` picks the first
 /// arrangement whose natural width fits.
 /// 1. **Inline** — "Good morning, Neil" on one title line beside the controls, whenever it fits at full size.
-/// 2. **Split** — the phrase drops to a smaller secondary line above the name, still beside the controls (typical
-///    on 375–390-pt phones, where the controls leave the greeting roughly 210 pt).
-/// 3. **Stacked** — the controls share the date's row and the greeting gets the full width; the name wraps over two
-///    lines and truncates only past that (pathological names, accessibility text sizes).
+/// 2. **Split** — the phrase drops to a smaller secondary line tucked under the date, the name stays title-size,
+///    still beside the controls (typical on 375–390-pt phones, where the controls leave the greeting ~230 pt). A name
+///    too long for the line eases down to 80% and then truncates (VoiceOver still reads it whole), so even a
+///    pathological name costs no extra height at ordinary text sizes.
+/// 3. **Stacked** — when even the phrase can't sit beside the controls (accessibility text sizes): the controls share
+///    the date's row and the greeting gets the full width, the name wrapping over up to two lines.
 ///
-/// The header owns the space below it so the taller fallbacks can pay for their extra line: inline keeps
-/// `spacingBelow`, the fallbacks use `compactSpacingBelow`, keeping the screen's content where it was.
+/// The header owns the space below it so the split form can pay for its extra line: inline keeps `spacingBelow`, the
+/// fallbacks use `compactSpacingBelow`. With Home's 32/8 that puts the content below exactly where the one-line
+/// header left it.
 /// VoiceOver always reads the whole greeting as one heading, whichever layout is on screen.
 public struct GreetingHeader<Trailing: View>: View {
     let overline: String
@@ -22,7 +25,7 @@ public struct GreetingHeader<Trailing: View>: View {
     let trailing: Trailing
 
     public init(overline: String, greeting: Greeting, spacingBelow: CGFloat = Theme.Spacing.xl,
-                compactSpacingBelow: CGFloat = Theme.Spacing.sm, @ViewBuilder trailing: () -> Trailing) {
+                compactSpacingBelow: CGFloat = Theme.Spacing.s, @ViewBuilder trailing: () -> Trailing) {
         self.overline = overline; self.greeting = greeting
         self.spacingBelow = spacingBelow; self.compactSpacingBelow = compactSpacingBelow
         self.trailing = trailing()
@@ -30,23 +33,23 @@ public struct GreetingHeader<Trailing: View>: View {
 
     public var body: some View {
         ViewThatFits(in: .horizontal) {
-            besideControls { inlineGreeting }
+            besideControls(spacing: Theme.Spacing.xs) { inlineGreeting }
                 .padding(.bottom, spacingBelow)
-            besideControls { splitGreeting(nameLines: 1) }
+            besideControls(spacing: 0) { splitGreeting(nameLines: 1) }
                 .padding(.bottom, compactSpacingBelow)
             stacked
                 .padding(.bottom, compactSpacingBelow)
         }
     }
 
-    /// Same row as before the adaptive header: text column, spacer, controls.
-    func besideControls<G: View>(@ViewBuilder _ greetingView: () -> G) -> some View {
+    /// Same row as before the adaptive header: text column (taking all the width the controls leave), controls.
+    func besideControls<G: View>(spacing: CGFloat, @ViewBuilder _ greetingView: () -> G) -> some View {
         HStack(alignment: .center, spacing: Theme.Spacing.sm) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            VStack(alignment: .leading, spacing: spacing) {
                 date
                 greetingView()
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             trailing
         }
     }
@@ -55,7 +58,6 @@ public struct GreetingHeader<Trailing: View>: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             HStack(alignment: .center, spacing: Theme.Spacing.sm) {
                 date
-                Spacer()
                 trailing
             }
             splitGreeting(nameLines: 2)
@@ -78,8 +80,15 @@ public struct GreetingHeader<Trailing: View>: View {
         if let name = greeting.name {
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(greeting.phrase),").font(Self.phraseFont).foregroundStyle(Theme.Colors.textSecondary)
-                Text(name).font(Self.titleFont).foregroundStyle(Theme.Colors.textPrimary)
-                    .lineLimit(nameLines).truncationMode(.tail)
+                if nameLines == 1 {
+                    // Ideal width 0: only the phrase decides whether this arrangement fits; the name takes what's left.
+                    Text(name).font(Self.titleFont).foregroundStyle(Theme.Colors.textPrimary)
+                        .lineLimit(1).minimumScaleFactor(0.8).truncationMode(.tail)
+                        .frame(idealWidth: 0, alignment: .leading)
+                } else {
+                    Text(name).font(Self.titleFont).foregroundStyle(Theme.Colors.textPrimary)
+                        .lineLimit(nameLines).truncationMode(.tail)
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
             .greetingElement(greeting)

@@ -39,12 +39,23 @@ final class GreetingHeaderLayoutTests: XCTestCase {
         }
     }
 
-    func testPathologicalNameFallsBackToAStackedHeader() {
+    /// At ordinary text sizes a pathological name truncates inside the two-line form instead of growing the header.
+    func testPathologicalNameCostsNoExtraHeight() {
         for width in Self.widths {
-            XCTAssertGreaterThan(measure("Wolfeschlegelsteinhausenbergerdorff", width: width).height,
-                                 measure("Neil", width: width).height + 20, "\(width)pt")
+            XCTAssertEqual(measure("Wolfeschlegelsteinhausenbergerdorff", width: width).height,
+                           measure("Bartholomew", width: width).height, accuracy: 1, "\(width)pt")
         }
     }
+
+    #if os(iOS)
+    /// Accessibility sizes move the controls up to the date's row, so the header grows rather than squeezing.
+    func testAccessibilityTextStacksTheHeader() {
+        for width in Self.widths {
+            XCTAssertGreaterThan(measure("Bartholomew", width: width, textSize: .accessibility5).height,
+                                 measure("Bartholomew", width: width).height + 44, "\(width)pt")
+        }
+    }
+    #endif
 
     func testLargerTextNeverShrinksTheHeader() {
         for width in Self.widths {
@@ -60,7 +71,7 @@ final class GreetingHeaderLayoutTests: XCTestCase {
     /// controls down on an iPhone 12 at the default text size.
     func testTwoLineFallbackKeepsTheVerticalBudget() {
         let short = measure("Neil", width: 342).height
-        for name in ["Bartholomew", "Maximiliano", "Anna-Katharina"] {
+        for name in ["Bartholomew", "Maximiliano", "Anna-Katharina", "Wolfeschlegelsteinhausenbergerdorff"] {
             XCTAssertEqual(measure(name, width: 342).height, short, accuracy: 4, name)
         }
     }
