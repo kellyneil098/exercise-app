@@ -292,6 +292,7 @@ private extension View {
 struct SetCard: View {
     let step: DeckStep
     let session: ActiveSession
+    @State private var showingGuide = false
     var b: PlanBlock { step.block }
 
     var body: some View {
@@ -299,13 +300,26 @@ struct SetCard: View {
             // Three groups, top to bottom: picture + name, the weight (hero, centred in the remaining space),
             // set dots pinned to the bottom edge. Spacing is tight inside a group and loose between groups.
             VStack(alignment: .leading, spacing: 0) {
-                ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
-                    .frame(maxHeight: 150)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-                            .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    )
+                // Tapping the picture opens the technique sheet; the swipe gestures on the card are unaffected
+                // because the drag needs 12 pt of travel before it starts.
+                Button { showingGuide = true } label: {
+                    ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
+                        .frame(maxHeight: 150)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                                .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        )
+                        .overlay(alignment: .topTrailing) {
+                            Image(systemName: "info.circle").font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Theme.Colors.textTertiary).padding(Theme.Spacing.sm)
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                }
+                .buttonStyle(PressStyle())
+                .accessibilityLabel("\(b.exerciseName) technique")
+                .accessibilityHint("Shows the demonstration and form cues")
+                .sheet(isPresented: $showingGuide) { ExerciseGuideView(block: b) }
                 VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                     HStack(spacing: Theme.Spacing.s) {
                         Text(kind.uppercased()).font(Theme.Fonts.overline).tracking(1.2).foregroundStyle(tint)
