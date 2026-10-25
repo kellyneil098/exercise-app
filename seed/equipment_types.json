@@ -34,6 +34,7 @@
     {
       "key": "building_gym",
       "name": "The Victoria",
+      "previous_names": ["Building Gym"],
       "kind": "home_gym",
       "$comment": "Everything defaults to UNAVAILABLE. Check off what is actually there during onboarding, and set dumbbell_max_weight — that number materially changes what the generator prescribes.",
       "default_available": false,
@@ -42,7 +43,8 @@
     },
     {
       "key": "crunch_union_square",
-      "name": "Crunch Union Square",
+      "name": "Crunch USQ",
+      "previous_names": ["Crunch Union Square"],
       "kind": "commercial",
       "$comment": "Everything defaults to AVAILABLE. Uncheck anything missing as you discover it.",
       "default_available": true,

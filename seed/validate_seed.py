@@ -101,6 +101,21 @@ def check_integrity(eq, mp, ex):
             if base not in exercise_keys:
                 warnings.append(f"ratio_table target '{tgt}' is not an exercise key")
 
+    # Seeded locations: keys are stable ids stamped on user rows; a former name must not be any seed's current name,
+    # or the app's rename-on-launch (previous_names -> name) would fight itself.
+    loc_keys = [loc["key"] for loc in eq["locations"]]
+    for k in {k for k in loc_keys if loc_keys.count(k) > 1}:
+        errors.append(f"duplicate location key: {k}")
+    current_names = {loc["name"] for loc in eq["locations"]}
+    for loc in eq["locations"]:
+        prev = loc.get("previous_names", [])
+        if not isinstance(prev, list) or not all(isinstance(n, str) and n for n in prev):
+            errors.append(f"location {loc['key']}: previous_names must be a list of non-empty strings")
+            continue
+        for n in prev:
+            if n in current_names:
+                errors.append(f"location {loc['key']}: previous name '{n}' is a current location name")
+
     return errors, warnings, by_pattern
 
 
@@ -176,7 +191,7 @@ def main():
     all_equipment = {e["key"] for e in eq["equipment_types"]}
     gaps = []
     if args.gym in ("all", "both"):
-        gaps += check_coverage(mp, ex, all_equipment, 120, "Crunch Union Square (everything)")
+        gaps += check_coverage(mp, ex, all_equipment, 120, "Crunch USQ (everything)")
     if args.gym in ("minimal", "both"):
         gaps += check_coverage(mp, ex, MINIMAL_GYM, MINIMAL_GYM_DUMBBELL_MAX,
                                "The Victoria (assumed minimal)")

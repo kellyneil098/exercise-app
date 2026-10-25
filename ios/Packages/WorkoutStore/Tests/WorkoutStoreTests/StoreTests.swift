@@ -77,4 +77,28 @@ final class StoreTests: XCTestCase {
         let back = try store.db.read { try SessionRow.fetchOne($0, key: row.id) }
         XCTAssertEqual(back?.plan?.blocks.count, plan.blocks.count)
     }
+
+    func testReconcileRenamesFormerSeedNamesAndKeepsUserNames() throws {
+        let seeds = try SeedLoader.loadBundled().seededLocations
+        let stamped = Location(userId: "u1", name: "Crunch Union Square", seedKey: "crunch_union_square", sortOrder: 1)
+        let legacy = Location(userId: "u1", name: "Building Gym", sortOrder: 0)
+        var (changed, missing) = Location.reconcile([legacy, stamped], with: seeds)
+        XCTAssertTrue(missing.isEmpty)
+        XCTAssertEqual(Set(changed.map(\.id)), [stamped.id, legacy.id])
+        XCTAssertEqual(changed.first { $0.id == stamped.id }?.name, "Crunch USQ")
+        XCTAssertEqual(changed.first { $0.id == legacy.id }?.name, "The Victoria")
+        XCTAssertEqual(changed.first { $0.id == legacy.id }?.seedKey, "building_gym")
+
+        // A name the user chose stays, and already-current rows need no write.
+        let custom = Location(userId: "u1", name: "Crunch 14th St", seedKey: "crunch_union_square")
+        let current = Location(userId: "u1", name: "The Victoria", seedKey: "building_gym")
+        (changed, missing) = Location.reconcile([current, custom], with: seeds)
+        XCTAssertTrue(changed.isEmpty)
+        XCTAssertTrue(missing.isEmpty)
+
+        // Seeds with no row are reported for insertion; an unrelated gym is left alone.
+        (changed, missing) = Location.reconcile([Location(userId: "u1", name: "Hotel gym")], with: seeds)
+        XCTAssertTrue(changed.isEmpty)
+        XCTAssertEqual(missing.map(\.key), ["building_gym", "crunch_union_square"])
+    }
 }

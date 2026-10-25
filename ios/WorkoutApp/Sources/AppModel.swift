@@ -178,25 +178,18 @@ final class AppModel {
     }
 
     /// Every seeded location exists for this user so Home can offer all of them; installs that predate a seed
-    /// entry (or its current name) get it on first launch. Equipment defaults mirror onboarding.
+    /// entry get it on first launch, and rows still showing a seed's former default name get its current one.
+    /// Equipment defaults mirror onboarding.
     func ensureSeededLocations() {
-        var existing = locations
-        for (i, seed) in catalog.seededLocations.enumerated() where !existing.contains(where: { $0.seedKey == seed.key }) {
-            // Rows from before `seedKey` existed are recognised by their seed name (incl. the old "Building Gym") and stamped.
-            let legacyNames: [String] = [seed.name] + (seed.key == "building_gym" ? ["Building Gym"] : [])
-            if let j = existing.firstIndex(where: { $0.seedKey == nil && legacyNames.contains($0.name) }) {
-                existing[j].seedKey = seed.key
-                if existing[j].name == "Building Gym" { existing[j].name = seed.name }
-                existing[j].updatedAt = Date()
-                try? store.save(existing[j])
-                continue
-            }
+        let (changed, missing) = Location.reconcile(locations, with: catalog.seededLocations)
+        if !changed.isEmpty { try? store.save(changed) }
+        for seed in missing {
+            let i = catalog.seededLocations.firstIndex(of: seed) ?? catalog.seededLocations.count
             let loc = Location(userId: userId, name: seed.name, seedKey: seed.key, dumbbellMaxWeight: seed.dumbbellMaxWeight,
                                dumbbellIncrement: 5, barbellIncrement: seed.plateIncrement, sortOrder: i)
             try? store.save(loc)
             let equipment = seed.defaultAvailable ? catalog.equipmentTypes.map(\.key) : Self.homeGymEquipment
             try? store.save(equipment.map { LocationEquipment(userId: userId, locationId: loc.id, equipmentType: $0) })
-            existing.append(loc)
         }
         dataVersion += 1
     }

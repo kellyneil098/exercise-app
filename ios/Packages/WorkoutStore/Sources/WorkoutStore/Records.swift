@@ -37,6 +37,31 @@ public struct Location: SyncedRecord {
     }
 }
 
+extension Location {
+    /// Matches the user's rows against the seed catalog. Rows still named after a seed (current or previous name) are
+    /// stamped with its `seedKey` and given its current name; a name the user typed is never touched.
+    /// Returns the rows that changed (caller saves them, which enqueues sync) and the seeds with no row yet.
+    public static func reconcile(_ rows: [Location], with seeds: [SeededLocation]) -> (changed: [Location], missing: [SeededLocation]) {
+        var rows = rows
+        var changed: [Int] = []
+        var missing: [SeededLocation] = []
+        for seed in seeds {
+            let seedNames = [seed.name] + (seed.previousNames ?? [])
+            let match = rows.firstIndex { $0.seedKey == seed.key }
+                ?? rows.firstIndex { $0.seedKey == nil && seedNames.contains($0.name) }
+            guard let i = match else { missing.append(seed); continue }
+            var row = rows[i]
+            row.seedKey = seed.key
+            if seed.previousNames?.contains(row.name) == true { row.name = seed.name }
+            if row.seedKey != rows[i].seedKey || row.name != rows[i].name {
+                rows[i] = row
+                if !changed.contains(i) { changed.append(i) }
+            }
+        }
+        return (changed.map { rows[$0] }, missing)
+    }
+}
+
 public struct LocationEquipment: SyncedRecord {
     public static let tableName = "location_equipment"
     public var id: String
