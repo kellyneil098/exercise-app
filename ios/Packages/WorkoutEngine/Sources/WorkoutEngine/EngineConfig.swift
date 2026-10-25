@@ -12,6 +12,9 @@ public struct EngineConfig: Sendable, Hashable {
     public var minSupersetHostRest: Int = 90
     public var paddingSlackThreshold: Double = 180
     public var shortRestFloorSeconds: Double = 30
+    /// Plan-editor rest stepper: each tap moves rest by this much, within `restSecondsRange`.
+    public var restStepSeconds: Int = 10
+    public var restSecondsRange: ClosedRange<Int> = 10...600
     public var barWeight: Double = 45
     public var dumbbellIncrement: Double = 5
     public var defaultPlateIncrement: Double = 5
@@ -30,6 +33,10 @@ public struct EngineConfig: Sendable, Hashable {
     /// Snaps a saved duration (e.g. a retired 40-minute bucket) to the nearest offered bucket; ties go to the shorter one.
     public func durationBucket(nearest minutes: Int) -> Int {
         durationBuckets.min { (abs($0 - minutes), $0) < (abs($1 - minutes), $1) } ?? minutes
+    }
+
+    public func clampedRest(_ seconds: Int) -> Int {
+        min(restSecondsRange.upperBound, max(restSecondsRange.lowerBound, seconds))
     }
 }
 

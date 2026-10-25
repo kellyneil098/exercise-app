@@ -197,7 +197,7 @@ struct DeckOverview: View {
     func summary(_ b: PlanBlock, done: Int) -> String {
         let range = b.measure == .seconds ? "\(b.repLow)–\(b.repHigh)s" : "\(b.repLow)–\(b.repHigh)"
         let load = b.weight.map { "\($0.formatted()) lb · " } ?? ""
-        return "\(load)\(b.sets) × \(range) · \(b.restSeconds)s rest"
+        return "\(load)\(b.sets) × \(range) · \(session.restSeconds(for: b))s rest"
     }
 
     @ViewBuilder func editors(_ b: PlanBlock, done: Int) -> some View {
@@ -213,6 +213,7 @@ struct DeckOverview: View {
             Adjuster("\(b.repLow)–\(b.repHigh) \(b.measure == .seconds ? "sec" : "reps")",
                      value: Binding(get: { Double(b.repLow) }, set: { session.shiftReps(b, by: Int($0) - b.repLow) }),
                      in: 1...300, step: b.measure == .seconds ? 5 : 1)
+            restAdjuster(b)
             HStack(spacing: Theme.Spacing.s) {
                 IconControl("arrow.triangle.2.circlepath", label: "Swap") { picker = .swap(b) }
                 if !session.isComplete(b) {
@@ -227,6 +228,22 @@ struct DeckOverview: View {
                 }
             }
         }
+    }
+}
+
+extension DeckOverview {
+    /// Rest time, after Weight / Sets / Reps. Each tap is one engine step (10 s); the engine clamps and, for a
+    /// superset partner, edits the host's rest it actually runs on.
+    func restAdjuster(_ b: PlanBlock) -> some View {
+        let config = EngineConfig.default
+        let rest = session.restSeconds(for: b)
+        return Adjuster("\(rest)s rest",
+                        value: Binding(get: { Double(rest) }, set: { new in
+                            // Direction only: the Adjuster may pre-clamp a partial step (15 → 10); the engine re-clamps.
+                            if new != Double(rest) { session.stepRest(b, by: new > Double(rest) ? 1 : -1) }
+                        }),
+                        in: Double(config.restSecondsRange.lowerBound)...Double(config.restSecondsRange.upperBound),
+                        step: Double(config.restStepSeconds), name: "rest time")
     }
 }
 
