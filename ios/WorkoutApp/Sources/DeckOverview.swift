@@ -308,6 +308,8 @@ struct SwipeRow<Content: View>: View {
     let onTrailing: () -> Void
     @ViewBuilder let content: () -> Content
 
+    /// The list row's horizontal inset: the revealed gap starts at the screen edge, not at the row content.
+    private let revealInset: CGFloat = Theme.Spacing.l
     @State private var travel: CGFloat = 0
     @State private var lock: RowSwipe.Lock?
     @State private var armed = false
@@ -329,15 +331,32 @@ struct SwipeRow<Content: View>: View {
     private func action(_ direction: RowSwipe.Direction) -> SwipeRowAction? { direction == .right ? leading : trailing }
 
     var body: some View {
+        let pending = swipe.pending(width: Double(travel), allowing: allowed)
         content()
             .overlay {
-                if let p = swipe.pending(width: Double(travel), allowing: allowed), let a = action(p.direction) {
+                if let p = pending, let a = action(p.direction) {
                     SwipeFeedback(label: a.label, icon: a.icon, color: a.color, strength: p.strength,
-                                  placement: p.direction == .right ? .leading : .trailing, compact: true)
+                                  placement: p.direction == .right ? .leading : .trailing, compact: true, showsStamp: false)
                 }
             }
             .offset(x: travel)
+            .background {
+                if let p = pending, let a = action(p.direction) { revealedStamp(a, strength: p.strength, direction: p.direction) }
+            }
             .gesture(drag)
+    }
+
+    /// The stamp sits in the gap the row opens (row inset included), hugging the row's moving edge so it slides in
+    /// with the row and flies off with it; it is never drawn over the row's own content.
+    private func revealedStamp(_ a: SwipeRowAction, strength: Double, direction: RowSwipe.Direction) -> some View {
+        let towardRow: Alignment = direction == .right ? .trailing : .leading
+        let screenEdge: Alignment = direction == .right ? .leading : .trailing
+        return SwipeStamp(label: a.label, icon: a.icon, color: a.color, strength: strength, compact: true)
+            .fixedSize()
+            .padding(direction == .right ? .trailing : .leading, Theme.Spacing.s)
+            .frame(width: max(0, abs(travel) + revealInset), alignment: towardRow)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: screenEdge)
+            .padding(.horizontal, -revealInset)
     }
 
     private var drag: some Gesture {

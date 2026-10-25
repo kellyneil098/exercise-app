@@ -248,7 +248,8 @@ struct StepCard: View {
 /// Mid-drag feedback shared by every swipeable card and overview row: a wash in the action's colour, deepening
 /// toward the threshold, plus a stamp naming what letting go will do. `strength` is 0…1 at the threshold.
 /// `compact` is the row-sized variant: a smaller stamp with its icon, level and vertically centred on the side
-/// the row is moving toward, instead of tilted in a top corner.
+/// the row is moving toward, instead of tilted in a top corner. `showsStamp: false` draws only the wash, for a row
+/// that puts its `SwipeStamp` in the space it reveals instead.
 struct SwipeFeedback: View {
     enum Placement { case leading, trailing, top }
     let label: String
@@ -257,6 +258,7 @@ struct SwipeFeedback: View {
     let strength: Double
     let placement: Placement
     var compact = false
+    var showsStamp = true
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: compact ? Theme.Radius.control : Theme.Radius.card, style: .continuous)
@@ -269,19 +271,35 @@ struct SwipeFeedback: View {
         shape.fill(color.opacity(0.08 + 0.14 * strength))
             .overlay(shape.strokeBorder(color.opacity(0.35 + 0.65 * strength), lineWidth: 1.5))
             .overlay(alignment: alignment) {
-                HStack(spacing: 6) {
-                    if let icon { Image(systemName: icon).font(.system(size: compact ? 14 : 22, weight: .bold)) }
-                    Text(label.uppercased()).font(.system(size: compact ? 13 : 24, weight: .bold)).tracking(compact ? 1.5 : 3)
+                if showsStamp {
+                    SwipeStamp(label: label, icon: icon, color: color, strength: strength, compact: compact)
+                        .rotationEffect(.degrees(tilt))
+                        .padding(compact ? Theme.Spacing.m : Theme.Spacing.l)
                 }
-                .foregroundStyle(color)
-                .padding(.horizontal, compact ? 10 : 14).padding(.vertical, compact ? 6 : 8)
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: compact ? 2 : 3))
-                .rotationEffect(.degrees(tilt))
-                .scaleEffect(0.85 + 0.15 * strength)
-                .opacity(0.45 + 0.55 * strength)
-                .padding(compact ? Theme.Spacing.m : Theme.Spacing.l)
             }
             .allowsHitTesting(false)
+    }
+}
+
+/// The outlined label inside `SwipeFeedback`: icon + uppercased action, growing and firming up toward the threshold.
+struct SwipeStamp: View {
+    let label: String
+    var icon: String? = nil
+    let color: Color
+    let strength: Double
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon { Image(systemName: icon).font(.system(size: compact ? 14 : 22, weight: .bold)) }
+            Text(label.uppercased()).font(.system(size: compact ? 13 : 24, weight: .bold)).tracking(compact ? 1.5 : 3)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, compact ? 10 : 14).padding(.vertical, compact ? 6 : 8)
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: compact ? 2 : 3))
+        .scaleEffect(0.85 + 0.15 * strength)
+        .opacity(0.45 + 0.55 * strength)
+        .allowsHitTesting(false)
     }
 }
 

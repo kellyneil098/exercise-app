@@ -357,8 +357,9 @@ final class ActiveSession: Identifiable {
     /// Picker rows. Suggested: when swapping, the block's own pattern; when adding, the day's patterns in slot order
     /// (top few of each). `all` is the whole catalog, A–Z, with availability at this location.
     func pickerSections(replacing block: PlanBlock?) -> (suggested: [Candidate], all: [Candidate]) {
-        // A deleted block doesn't hold its exercise: the user may add it back as a fresh row.
-        let used = Set(plan.liveBlocks.map(\.exerciseKey)).subtracting(block.map { [$0.exerciseKey] } ?? [])
+        // A deleted block doesn't hold its exercise: the user may add it back as a fresh row. The block being
+        // swapped does, so it never suggests itself.
+        let used = Set(plan.liveBlocks.map(\.exerciseKey))
         let dayPatterns = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).map(\.pattern)
         var suggested: [Candidate] = []
         if let block {
