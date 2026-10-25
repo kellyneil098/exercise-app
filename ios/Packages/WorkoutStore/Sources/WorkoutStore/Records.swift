@@ -57,7 +57,7 @@ extension Location {
             let pending = previous.filter { !appliedRenames.contains(seedRenameToken(seed, from: $0)) }
             renames.formUnion(previous.map { seedRenameToken(seed, from: $0) })
             let match = rows.firstIndex { $0.seedKey == seed.key }
-                ?? rows.firstIndex { $0.seedKey == nil && ([seed.name] + pending).contains($0.name) }
+                ?? rows.firstIndex { $0.seedKey == nil && ([seed.name] + previous).contains($0.name) }
             guard let i = match else { missing.append(seed); continue }
             var row = rows[i]
             row.seedKey = seed.key

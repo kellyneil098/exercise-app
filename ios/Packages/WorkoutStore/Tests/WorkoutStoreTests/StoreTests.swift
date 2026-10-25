@@ -95,6 +95,14 @@ final class StoreTests: XCTestCase {
         XCTAssertTrue(changed.isEmpty)
         XCTAssertEqual(missing.map(\.key), ["building_gym"])
 
+        // An unstamped legacy row (e.g. pulled after an account switch) is still recognised, never duplicated.
+        let legacyCrunch = Location(userId: "u2", name: "Crunch Union Square")
+        (changed, missing, _) = Location.reconcile([legacyCrunch], with: seeds, appliedRenames: renames)
+        XCTAssertEqual(changed.map(\.id), [legacyCrunch.id])
+        XCTAssertEqual(changed.first?.seedKey, "crunch_union_square")
+        XCTAssertEqual(changed.first?.name, "Crunch Union Square")
+        XCTAssertEqual(missing.map(\.key), ["building_gym"])
+
         // A name the user chose stays, and already-current rows need no write.
         let custom = Location(userId: "u1", name: "Crunch 14th St", seedKey: "crunch_union_square")
         let current = Location(userId: "u1", name: "The Victoria", seedKey: "building_gym")
