@@ -1,17 +1,23 @@
-"""Generates the app icon ("Hunny-pot kettlebell": a Hundred-Acre-Wood honey pot with a kettlebell handle).
+"""Generates the app icons. Two variants, one per app theme:
 
-    python3 tools/icon/app_icon.py            # writes the 1024x1024 PNG into the AppIcon asset catalog
-    python3 tools/icon/app_icon.py out.png    # or anywhere else
-    python3 tools/icon/app_icon.py --svg      # prints the SVG instead (handy for tweaking in a browser)
+  * classic (Default theme)  -> AppIcon.appiconset/AppIcon.png
+    "Kettlebell buddy": a brass #D4B275 kettlebell with the mannequin's eyes, brows and smile on near-black #0B0B0C
+    (the Theme.swift canvas/brass tokens).
+  * hunny (Winnie the Pooh theme) -> AppIcon-Hunny.appiconset/AppIcon-Hunny.png, shipped as an alternate icon
+    (ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in project.yml; swapped at runtime by AppIconSwitcher.swift).
+    "Hunny-pot kettlebell": original storybook ink-line art of a round-bellied paper-white pot with a honey
+    kettlebell handle, honey dripping over the rim, a rotated "HUNNY" label and one bee on a dotted flight path, on
+    parchment with a soft honey watercolour wash. Palette = the Hundred Acre Wood tokens: parchment #FBF3E1,
+    paper #FFFBF2, ink #3B2A1A, honey #F2B134 / #E59A1C / #FFD56B, sky #A9D3EA.
 
-The drawing is original vector art in a storybook ink-line style: a round-bellied paper-white pot with a honey
-kettlebell handle, honey dripping over the rim, a rotated "HUNNY" label and one bee on a dotted flight path, on
-parchment with a soft honey watercolour wash. Palette = the Hundred Acre Wood theme tokens: parchment #FBF3E1,
-paper #FFFBF2, ink #3B2A1A, honey #F2B134 / #E59A1C / #FFD56B, sky #A9D3EA.
+    python3 tools/icon/app_icon.py                       # regenerates both PNGs in the asset catalog
+    python3 tools/icon/app_icon.py --variant hunny       # just one of them
+    python3 tools/icon/app_icon.py --variant hunny out.png
+    python3 tools/icon/app_icon.py --variant hunny --svg # prints the SVG (handy for tweaking in a browser)
 
 The SVG is rendered with headless Chrome (google-chrome / chromium on PATH, or the macOS app bundle); if no Chrome
-is found it falls back to rsvg-convert or cairosvg. iOS applies its own rounded mask, so the PNG is square,
-full-bleed and opaque (no alpha, no pre-rounded corners).
+is found it falls back to rsvg-convert or cairosvg. iOS applies its own rounded mask, so each PNG is 1024x1024,
+square, full-bleed and opaque (no alpha, no pre-rounded corners).
 """
 from __future__ import annotations
 
@@ -20,17 +26,36 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUT = ROOT / "ios/WorkoutApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+ASSETS = ROOT / "ios/WorkoutApp/Resources/Assets.xcassets"
 SIZE = 1024
+CANVAS, BRASS = "#0B0B0C", "#D4B275"
 CREAM, PAPER, INK = "#FBF3E1", "#FFFBF2", "#3B2A1A"
 HONEY, HONEY_DEEP, HONEY_LIGHT, SKY = "#F2B134", "#E59A1C", "#FFD56B", "#A9D3EA"
 FONT = "'Chalkboard SE','Marker Felt','Comic Sans MS',cursive"
 CHROME_CANDIDATES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
                      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+
+
+def classic_svg() -> str:
+    cx, cy, r = 512, 630, 296       # body
+    stroke = CANVAS
+    face = (
+        f'<circle cx="{cx - 92}" cy="{cy - 44}" r="38" fill="{stroke}"/>'
+        f'<circle cx="{cx + 92}" cy="{cy - 44}" r="38" fill="{stroke}"/>'
+        f'<path d="M{cx - 156} {cy - 122} Q{cx - 92} {cy - 156} {cx - 28} {cy - 122}" fill="none" stroke="{stroke}" stroke-width="32" stroke-linecap="round"/>'
+        f'<path d="M{cx + 28} {cy - 122} Q{cx + 92} {cy - 156} {cx + 156} {cy - 122}" fill="none" stroke="{stroke}" stroke-width="32" stroke-linecap="round"/>'
+        f'<path d="M{cx - 78} {cy + 70} Q{cx} {cy + 150} {cx + 78} {cy + 70}" fill="none" stroke="{stroke}" stroke-width="32" stroke-linecap="round"/>'
+    )
+    handle = (f'<path d="M{cx - 178} {cy - 200} C{cx - 250} {cy - 580} {cx + 250} {cy - 580} {cx + 178} {cy - 200}" '
+              f'fill="none" stroke="{BRASS}" stroke-width="92" stroke-linecap="round"/>')
+    body = f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{BRASS}"/>'
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">'
+            f'<rect width="{SIZE}" height="{SIZE}" fill="{CANVAS}"/>{handle}{body}{face}</svg>')
 
 
 def bee(x: int, y: int) -> str:
@@ -45,7 +70,7 @@ def bee(x: int, y: int) -> str:
             f'<path d="M44 0 L62 -6" stroke="{INK}" stroke-width="7" stroke-linecap="round"/></g>')
 
 
-def icon_svg() -> str:
+def hunny_svg() -> str:
     defs = (f'<radialGradient id="paper" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="{PAPER}"/>'
             f'<stop offset="1" stop-color="{CREAM}"/></radialGradient>'
             '<filter id="wash" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="38"/></filter>')
@@ -75,6 +100,12 @@ def icon_svg() -> str:
             f'{wash}{art}{flight}{bee(850, 160)}</svg>')
 
 
+VARIANTS: dict[str, tuple[Callable[[], str], str, Path]] = {   # name -> (svg, page background, default output)
+    "classic": (classic_svg, CANVAS, ASSETS / "AppIcon.appiconset/AppIcon.png"),
+    "hunny": (hunny_svg, CREAM, ASSETS / "AppIcon-Hunny.appiconset/AppIcon-Hunny.png"),
+}
+
+
 def find_chrome() -> str | None:
     for c in CHROME_CANDIDATES:
         if Path(c).is_file() or shutil.which(c):
@@ -82,12 +113,12 @@ def find_chrome() -> str | None:
     return None
 
 
-def render(svg: str, out: Path) -> None:
+def render(svg: str, out: Path, background: str) -> None:
     with tempfile.TemporaryDirectory() as td:
         shot = Path(td) / "shot.png"
         if chrome := find_chrome():
             page = Path(td) / "icon.html"
-            page.write_text(f'<html><body style="margin:0;background:{CREAM}">{svg}</body></html>')
+            page.write_text(f'<html><body style="margin:0;background:{background}">{svg}</body></html>')
             subprocess.run([chrome, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
                             f"--user-data-dir={td}/profile", f"--window-size={SIZE},{SIZE}", f"--screenshot={shot}",
                             f"file://{page}"], check=True, capture_output=True, timeout=120)
@@ -103,10 +134,25 @@ def render(svg: str, out: Path) -> None:
         im.save(out, "PNG", optimize=True)
 
 
+def main(argv: list[str]) -> None:
+    args = list(argv)
+    want_svg = "--svg" in args
+    if want_svg:
+        args.remove("--svg")
+    names = list(VARIANTS)
+    if "--variant" in args:
+        i = args.index("--variant")
+        names = [args[i + 1]]
+        del args[i:i + 2]
+    if want_svg:
+        print(VARIANTS[names[0]][0]())
+        return
+    for name in names:
+        svg, background, default_out = VARIANTS[name]
+        target = Path(args[0]) if args else default_out
+        render(svg(), target, background)
+        print(target)
+
+
 if __name__ == "__main__":
-    if "--svg" in sys.argv:
-        print(icon_svg())
-        sys.exit(0)
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUT
-    render(icon_svg(), target)
-    print(target)
+    main(sys.argv[1:])
