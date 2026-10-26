@@ -147,6 +147,8 @@ def main(argv: list[str]) -> None:
     if want_svg:
         print(VARIANTS[names[0]][0]())
         return
+    if args and len(names) > 1:
+        sys.exit("an output path needs --variant classic|hunny (otherwise both renders would land in the same file)")
     for name in names:
         svg, background, default_out = VARIANTS[name]
         target = Path(args[0]) if args else default_out
