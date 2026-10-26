@@ -358,6 +358,18 @@ public struct WalkingFootprints: View {
     }
 }
 
+// MARK: - Bear figure geometry
+
+/// Head geometry shared by the exercise pictograms (`FigureRenderer`) and its JS mirror in tools/pictograms.
+public enum BearFigure {
+    /// Ear centres on the crown. `up` is the unit neck→head direction and `side` the unit vector across the face, so
+    /// the ears ride on top of the skull and turn with it in every pose (lying, hinged, inverted). Radius ≈ 0.3 r.
+    public static func earCentres(head h: CGPoint, up u: CGPoint, side f: CGPoint, r: CGFloat) -> [CGPoint] {
+        [-1.0, 1.0].map { s in CGPoint(x: h.x + u.x * r * 0.65 + f.x * r * 0.65 * s, y: h.y + u.y * r * 0.65 + f.y * r * 0.65 * s) }
+    }
+    public static let earRadiusRatio: CGFloat = 0.3
+}
+
 // MARK: - Confetti
 
 /// Bees and honey drops bursting out from the centre once, for the finish screen.

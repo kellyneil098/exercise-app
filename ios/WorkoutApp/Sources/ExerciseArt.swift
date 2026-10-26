@@ -675,11 +675,11 @@ struct FigureRenderer {
         let h = sk.head, r = Self.headR
         let ang = sk.headAngle
         let f = frontNormal(ang), u = CGPoint(x: cos(ang * .pi / 180), y: sin(ang * .pi / 180))
-        // Storybook: two small round ears on the crown (opposite the mouth), behind the head.
-        for side in storybook ? [-1.0, 1.0] as [CGFloat] : [] {
-            let ear = CGPoint(x: h.x - u.x * r * 0.72 + f.x * r * 0.62 * side, y: h.y - u.y * r * 0.72 + f.y * r * 0.62 * side)
-            circle(&ctx, ear, r * 0.36, fill: brass, stroke: card, w: 1.0)
-            circle(&ctx, ear, r * 0.16, fill: card)
+        // Storybook: two small round ears on the crown, behind the head. `u` is the neck→head direction, so the
+        // ears follow the skull in every pose (lying, hinged, inverted) instead of sitting at a fixed screen offset.
+        for ear in storybook ? BearFigure.earCentres(head: h, up: u, side: f, r: r) : [] {
+            circle(&ctx, ear, r * 0.3, fill: brass, stroke: card, w: 1.0)
+            circle(&ctx, ear, r * 0.13, fill: card)
         }
         circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let eye = CGPoint(x: h.x + f.x * r * 0.5 + u.x * r * 0.12, y: h.y + f.y * r * 0.5 + u.y * r * 0.12)

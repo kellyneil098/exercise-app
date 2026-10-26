@@ -241,11 +241,12 @@
       // head
       const hd = sk.head, r = HEAD_R, ang = sk.headAngle;
       const f = frontNormal(ang), u = [Math.cos(rad(ang)), Math.sin(rad(ang))];
-      // Storybook theme: two small round ears on the crown (opposite the mouth), behind the head (`colors.ears`).
+      // Storybook theme: two small round ears on the crown, behind the head (`colors.ears`). `u` is the neck→head
+      // direction, so the ears follow the skull in every pose (mirror of BearFigure.earCentres in WorkoutUI).
       for (const side of colors.ears === false ? [] : [-1, 1]) {
-        const ear = [hd[0] - u[0] * r * 0.72 + f[0] * r * 0.62 * side, hd[1] - u[1] * r * 0.72 + f[1] * r * 0.62 * side];
-        circle(ear, r * 0.36, brass, card, 1.0);
-        circle(ear, r * 0.16, card);
+        const ear = [hd[0] + u[0] * r * 0.65 + f[0] * r * 0.65 * side, hd[1] + u[1] * r * 0.65 + f[1] * r * 0.65 * side];
+        circle(ear, r * 0.3, brass, card, 1.0);
+        circle(ear, r * 0.13, card);
       }
       circle(hd, r, brass, card, 1.1);
       const eye = [hd[0] + f[0] * r * 0.5 + u[0] * r * 0.12, hd[1] + f[1] * r * 0.5 + u[1] * r * 0.12];
