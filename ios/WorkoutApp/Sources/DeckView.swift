@@ -783,7 +783,8 @@ struct ExercisePicker: View {
     }
 
     func row(_ c: Candidate) -> some View {
-        ExercisePickerRow(name: c.exercise.name, detail: reason(c.exclusion) ?? patternLabel(c.exercise), dimmed: !c.isAvailable) {
+        ExercisePickerRow(name: c.exercise.name, detail: reason(c.exclusion) ?? patternLabel(c.exercise), dimmed: !c.isAvailable,
+                          art: (c.exercise.key, c.exercise.movementPattern)) {
             pick(c.exercise)
         } trailing: {
             if let e = c.estimate, c.isAvailable { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }

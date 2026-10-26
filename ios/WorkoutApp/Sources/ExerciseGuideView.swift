@@ -47,25 +47,35 @@ struct ExerciseGuideView: View {
                         Spacer()
                         Aside(guide.familyName)
                     }
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Text(guide.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    if Theme.storybook {
+                        storybookHeader
+                        demonstration
+                        storybookCues("Getting ready", guide.cues.setUp)
+                        storybookCues("The doing of it", guide.cues.execute)
+                        botherBox
+                        tipBox
+                        Quip("General technique guidance, not medical advice. Work within the range you control and stop if something hurts.")
+                    } else {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                            Text(guide.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(scopeLine).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                        }
+                        demonstration
+                        Hairline()
+                        cueSection("Set up", guide.cues.setUp)
+                        cueSection("Execute", guide.cues.execute)
+                        cueSection("Avoid", guide.cues.avoid)
+                        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                            Glyph("wind", tint: Theme.Colors.textTertiary, width: 20)
+                            Text(guide.cues.breathing).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Hairline()
+                        Text("General technique guidance, not medical advice. Work within the range you control and stop if something hurts.")
+                            .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(scopeLine).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                     }
-                    demonstration
-                    Hairline()
-                    cueSection("Set up", guide.cues.setUp)
-                    cueSection("Execute", guide.cues.execute)
-                    cueSection("Avoid", guide.cues.avoid)
-                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                        Glyph("wind", tint: Theme.Colors.textTertiary, width: 20)
-                        Text(guide.cues.breathing).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Hairline()
-                    Text("General technique guidance, not medical advice. Work within the range you control and stop if something hurts.")
-                        .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.m).padding(.bottom, Theme.Spacing.xl)
             }
@@ -97,7 +107,10 @@ struct ExerciseGuideView: View {
                     if Theme.storybook {
                         RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.paper)
                             .overlay(WashBlob(color: Theme.Colors.honey, opacity: 0.25).padding(Theme.Spacing.l))
-                            .inkOutline(Theme.Radius.control, opacity: 0.35)
+                            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control - 5, style: .continuous)
+                                .strokeBorder(Theme.Colors.ink.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [3, 4])).padding(6))
+                            .inkOutline(Theme.Radius.control, opacity: 0.4)
+                            .shadow(color: Theme.Colors.shadow, radius: 10, y: 4)
                     } else {
                         RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
                     }
@@ -143,7 +156,11 @@ struct ExerciseGuideView: View {
         } label: {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 HStack(spacing: Theme.Spacing.xs) {
-                    Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(active ? Theme.Colors.honeyInk : Theme.Colors.textTertiary)
+                    if Theme.storybook {
+                        PotNumeral(i + 1, active: active)
+                    } else {
+                        Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(active ? Theme.Colors.honeyInk : Theme.Colors.textTertiary)
+                    }
                     Text(s.name).font(active ? Theme.Fonts.bodyMedium : Theme.Fonts.body).lineLimit(1).minimumScaleFactor(0.85)
                         .foregroundStyle(active ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
                 }
@@ -175,6 +192,80 @@ struct ExerciseGuideView: View {
         }
     }
 
+    // MARK: Storybook
+
+    /// "How one does a Dumbbell Bench Press, properly" with Pooh at his stoutness exercises looking on.
+    var storybookHeader: some View {
+        HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text("How one does a \(guide.exerciseName), properly")
+                    .font(Theme.Fonts.titleSmall).foregroundStyle(Theme.Colors.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Quip(scopeLine)
+            }
+            .layoutPriority(1)
+            Spacer(minLength: Theme.Spacing.s)
+            Illustration(.poohDancing, wash: Theme.Colors.honey, washOpacity: 0.3)
+                .frame(maxWidth: 92, maxHeight: 84)
+        }
+    }
+
+    /// Numbered steps: honey-pot numerals, cues in the storybook's italic voice.
+    func storybookCues(_ title: String, _ lines: [String]) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            SectionTitle(title)
+            Hairline()
+            ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                    PotNumeral(i + 1, active: true).alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 5 }
+                    Text(line).font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.ink.opacity(0.85))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// The faults to avoid, as Eeyore would put it.
+    var botherBox: some View {
+        storyBox(title: "Oh, bother", wash: Theme.Colors.eeyore, washOpacity: 0.28) {
+            Illustration(.eeyoreSad, tint: Theme.Colors.ink).frame(width: 44, height: 34)
+        } content: {
+            ForEach(guide.cues.avoid, id: \.self) { line in
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
+                    Text("—").font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.ink.opacity(0.5))
+                    Text(line).font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.ink.opacity(0.85))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Breathing, as the one thing worth remembering.
+    var tipBox: some View {
+        storyBox(title: "Pooh's tip", wash: Theme.Colors.honey, washOpacity: 0.3) {
+            Bee(size: 18)
+        } content: {
+            Text(guide.cues.breathing).font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.ink.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    func storyBox<Ornament: View, Content: View>(title: String, wash: Color, washOpacity: Double,
+                                                  @ViewBuilder ornament: () -> Ornament, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+            HStack(spacing: Theme.Spacing.s) {
+                Text(title).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.ink)
+                Spacer(minLength: 0)
+                ornament()
+            }
+            content()
+        }
+        .padding(Theme.Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(wash.opacity(washOpacity), in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+        .inkOutline(Theme.Radius.control, opacity: 0.35)
+    }
+
     /// Says plainly how specific this content is, instead of implying every exercise has its own write-up.
     var scopeLine: String {
         let family = guide.familyName.lowercased()
@@ -183,5 +274,21 @@ struct ExerciseGuideView: View {
         case (.exercise, .family): return "Technique for the \(guide.exerciseName.lowercased()); the figure shows the standard \(family) movement."
         case (.family, _): return "General guidance for \(family) exercises; your setup may differ."
         }
+    }
+}
+
+/// A small honey pot with a number on its belly: storybook step and stage numerals.
+struct PotNumeral: View {
+    let n: Int
+    let active: Bool
+    init(_ n: Int, active: Bool) { self.n = n; self.active = active }
+    var body: some View {
+        ZStack {
+            HoneyPot(fill: active ? 0.7 : 0.25, drip: false, label: nil)
+            Text("\(n)").font(.system(size: 11, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.ink).offset(y: 2)
+        }
+        .frame(width: 24, height: 24)
+        .opacity(active ? 1 : 0.6)
+        .accessibilityHidden(true)
     }
 }

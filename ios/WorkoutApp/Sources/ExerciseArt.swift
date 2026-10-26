@@ -15,6 +15,8 @@ import WorkoutUI
 struct ExerciseArt: View {
     let exerciseKey: String
     let pattern: String
+    /// Off for list thumbnails: one still frame instead of a looping canvas per row.
+    var animated = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let repPeriod: TimeInterval = 2.8
@@ -23,9 +25,9 @@ struct ExerciseArt: View {
         let renderer = FigureRenderer(motion: Motion.for(exerciseKey: exerciseKey, pattern: pattern))
         ZStack {
             if !Theme.storybook { RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card) }
-            TimelineView(.animation(paused: reduceMotion)) { timeline in
+            TimelineView(.animation(paused: reduceMotion || !animated)) { timeline in
                 Canvas(rendersAsynchronously: true) { ctx, size in
-                    let t = reduceMotion ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
+                    let t = reduceMotion || !animated ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
                     renderer.draw(in: &ctx, size: size, phase: t)
                 }
             }
@@ -729,6 +731,27 @@ struct FigureRenderer {
                 line(&ctx, off(h, -3.2, 0), off(h, 3.2, 0), 1.6, gear)
                 for x: CGFloat in [-3.2, 3.2] { line(&ctx, off(h, x, -2.4), off(h, x, 2.4), 2.6, gear) }
             }
+        }
+        // Storybook: the load is a little honey pot (belly, rim, label dash), upright at the hand.
+        func pot(_ c: CGPoint, _ r: CGFloat) {
+            circle(&ctx, c, r, fill: far, stroke: card, w: 1.1)
+            line(&ctx, off(c, -r * 0.7, -r * 0.95), off(c, r * 0.7, -r * 0.95), 1.6, card)
+            line(&ctx, off(c, -r * 0.35, r * 0.1), off(c, r * 0.35, r * 0.1), 0.9, card)
+        }
+        if storybook {
+            switch sk.pose.implement {
+            case .none: break
+            case .barbell, .barbellNarrow, .shortBar, .trapBar: pot(hand, Self.plateR[sk.pose.implement]! * 0.9)
+            case .barbellOnHips: pot(sk.hip, Self.plateR[.barbellOnHips]! * 0.9)
+            case .dumbbell, .dumbbellVertical: for a in sk.arms { pot(a.hand, 2.6) }
+            case .dumbbellFirst: pot(hand, 2.6)
+            case .handle: line(&ctx, off(hand, -2.6, 0), off(hand, 2.6, 0), 2.2, gear)
+            case .kettlebell:
+                line(&ctx, hand, off(hand, 0, 2.5), 1.6, gear)
+                pot(off(hand, 0, 5.5), 3.2)
+            case .wheel: circle(&ctx, CGPoint(x: hand.x, y: floorY - 2.6), 2.6, fill: gearFill, stroke: gear, w: 1.6)
+            }
+            return
         }
         switch sk.pose.implement {
         case .none: break

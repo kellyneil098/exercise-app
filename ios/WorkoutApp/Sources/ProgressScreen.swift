@@ -274,7 +274,8 @@ struct ProgressExercisePicker: View {
                             ForEach(Array(sections.enumerated()), id: \.element.id) { i, section in
                                 ExercisePickerHeader(title: section.title, topPadding: i == 0 ? Theme.Spacing.s : Theme.Spacing.l)
                                 ForEach(section.entries) { entry in
-                                    ExercisePickerRow(name: entry.name, detail: entry.detail, selected: entry.key == selected, action: {
+                                    ExercisePickerRow(name: entry.name, detail: entry.detail, selected: entry.key == selected,
+                                                      art: model.catalog.exercises[entry.key].map { ($0.key, $0.movementPattern) }, action: {
                                         onPick(entry.key)
                                         dismiss()
                                     })

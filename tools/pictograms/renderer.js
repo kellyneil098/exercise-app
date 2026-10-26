@@ -212,7 +212,20 @@
         if (vertical) { line(off(hh, 0, -3.2), off(hh, 0, 3.2), 1.6, gear); for (const y of [-3.2, 3.2]) line(off(hh, -2.4, y), off(hh, 2.4, y), 2.6, gear); }
         else { line(off(hh, -3.2, 0), off(hh, 3.2, 0), 1.6, gear); for (const x of [-3.2, 3.2]) line(off(hh, x, -2.4), off(hh, x, 2.4), 2.6, gear); }
       };
-      switch (impl) {
+      // Storybook theme (`colors.pots`): the load is a little honey pot (belly, rim, label dash), upright at the hand.
+      const pot = (c, r) => { circle(c, r, far, card, 1.1); line(off(c, -r * 0.7, -r * 0.95), off(c, r * 0.7, -r * 0.95), 1.6, card); line(off(c, -r * 0.35, r * 0.1), off(c, r * 0.35, r * 0.1), 0.9, card); };
+      if (colors.pots) {
+        switch (impl) {
+          case 'none': break;
+          case 'barbell': case 'barbellNarrow': case 'shortBar': case 'trapBar': pot(hand, PLATE_R[impl] * 0.9); break;
+          case 'barbellOnHips': pot(sk.hip, PLATE_R.barbellOnHips * 0.9); break;
+          case 'dumbbell': case 'dumbbellVertical': for (const a of sk.arms) pot(a[1], 2.6); break;
+          case 'dumbbellFirst': pot(hand, 2.6); break;
+          case 'handle': line(off(hand, -2.6, 0), off(hand, 2.6, 0), 2.2, gear); break;
+          case 'kettlebell': line(hand, off(hand, 0, 2.5), 1.6, gear); pot(off(hand, 0, 5.5), 3.2); break;
+          case 'wheel': circle([hand[0], FLOOR - 2.6], 2.6, gearFill, gear, 1.6); break;
+        }
+      } else switch (impl) {
         case 'none': break;
         case 'barbell': case 'barbellNarrow': case 'shortBar': plate(hand, PLATE_R[impl]); break;
         case 'barbellOnHips': plate(sk.hip, PLATE_R.barbellOnHips); break;
