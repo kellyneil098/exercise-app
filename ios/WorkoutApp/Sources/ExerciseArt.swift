@@ -15,6 +15,8 @@ import WorkoutUI
 struct ExerciseArt: View {
     let exerciseKey: String
     let pattern: String
+    /// Off for list thumbnails: one still frame instead of a looping canvas per row.
+    var animated = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let repPeriod: TimeInterval = 2.8
@@ -22,10 +24,10 @@ struct ExerciseArt: View {
     var body: some View {
         let renderer = FigureRenderer(motion: Motion.for(exerciseKey: exerciseKey, pattern: pattern))
         ZStack {
-            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
-            TimelineView(.animation(paused: reduceMotion)) { timeline in
+            if !Theme.storybook { RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card) }
+            TimelineView(.animation(paused: reduceMotion || !animated)) { timeline in
                 Canvas(rendersAsynchronously: true) { ctx, size in
-                    let t = reduceMotion ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
+                    let t = reduceMotion || !animated ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
                     renderer.draw(in: &ctx, size: size, phase: t)
                 }
             }
@@ -505,10 +507,13 @@ struct FigureRenderer {
     static let headR: CGFloat = 5.4, torsoW: CGFloat = 5.0, limbW: CGFloat = 3.4, outline: CGFloat = 1.4
     static let plateR: [Pose.Implement: CGFloat] = [.barbell: 5.0, .barbellOnHips: 5.0, .trapBar: 5.0, .barbellNarrow: 3.6, .shortBar: 3.0]
 
-    let brass = Theme.Colors.brass, card = Theme.Colors.card
-    let far = Theme.Colors.brass.opacity(0.55)
-    let gear = Theme.Colors.textPrimary.opacity(0.6), gearFill = Theme.Colors.textPrimary.opacity(0.1)
-    let propColor = Theme.Colors.brass.opacity(0.38)
+    // Classic: brass figure outlined in the card colour. Storybook: a little honey-coloured bear drawn in ink, far
+    // limbs paler, props in bark, two round ears.
+    let storybook = Theme.storybook
+    let brass = Theme.Colors.brass, card = Theme.storybook ? Theme.Colors.ink : Theme.Colors.card
+    let far = Theme.storybook ? Theme.Colors.honeyLight : Theme.Colors.brass.opacity(0.55)
+    let gear = Theme.Colors.textPrimary.opacity(Theme.storybook ? 0.7 : 0.6), gearFill = Theme.Colors.textPrimary.opacity(Theme.storybook ? 0.08 : 0.1)
+    let propColor = Theme.storybook ? Theme.Colors.bark.opacity(0.55) : Theme.Colors.brass.opacity(0.38)
 
     let keyframes: [Pose]
     let anchor: Motion.Anchor
@@ -670,9 +675,15 @@ struct FigureRenderer {
 
     private func drawHead(_ ctx: inout GraphicsContext, _ sk: Skeleton) {
         let h = sk.head, r = Self.headR
-        circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let ang = sk.headAngle
         let f = frontNormal(ang), u = CGPoint(x: cos(ang * .pi / 180), y: sin(ang * .pi / 180))
+        // Storybook: two small round ears on the crown, behind the head. `u` is the neck→head direction, so the
+        // ears follow the skull in every pose (lying, hinged, inverted) instead of sitting at a fixed screen offset.
+        for ear in storybook ? BearFigure.earCentres(head: h, up: u, side: f, r: r) : [] {
+            circle(&ctx, ear, r * 0.3, fill: brass, stroke: card, w: 1.0)
+            circle(&ctx, ear, r * 0.13, fill: card)
+        }
+        circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let eye = CGPoint(x: h.x + f.x * r * 0.5 + u.x * r * 0.12, y: h.y + f.y * r * 0.5 + u.y * r * 0.12)
         circle(&ctx, eye, r * 0.19, fill: card)
         let a = CGPoint(x: eye.x - f.x * r * 0.12 + u.x * r * 0.34, y: eye.y - f.y * r * 0.12 + u.y * r * 0.34)
@@ -720,6 +731,27 @@ struct FigureRenderer {
                 line(&ctx, off(h, -3.2, 0), off(h, 3.2, 0), 1.6, gear)
                 for x: CGFloat in [-3.2, 3.2] { line(&ctx, off(h, x, -2.4), off(h, x, 2.4), 2.6, gear) }
             }
+        }
+        // Storybook: the load is a little honey pot (belly, rim, label dash), upright at the hand.
+        func pot(_ c: CGPoint, _ r: CGFloat) {
+            circle(&ctx, c, r, fill: far, stroke: card, w: 1.1)
+            line(&ctx, off(c, -r * 0.7, -r * 0.95), off(c, r * 0.7, -r * 0.95), 1.6, card)
+            line(&ctx, off(c, -r * 0.35, r * 0.1), off(c, r * 0.35, r * 0.1), 0.9, card)
+        }
+        if storybook {
+            switch sk.pose.implement {
+            case .none: break
+            case .barbell, .barbellNarrow, .shortBar, .trapBar: pot(hand, Self.plateR[sk.pose.implement]! * 0.9)
+            case .barbellOnHips: pot(sk.hip, Self.plateR[.barbellOnHips]! * 0.9)
+            case .dumbbell, .dumbbellVertical: for a in sk.arms { pot(a.hand, 2.6) }
+            case .dumbbellFirst: pot(hand, 2.6)
+            case .handle: line(&ctx, off(hand, -2.6, 0), off(hand, 2.6, 0), 2.2, gear)
+            case .kettlebell:
+                line(&ctx, hand, off(hand, 0, 2.5), 1.6, gear)
+                pot(off(hand, 0, 5.5), 3.2)
+            case .wheel: circle(&ctx, CGPoint(x: hand.x, y: floorY - 2.6), 2.6, fill: gearFill, stroke: gear, w: 1.6)
+            }
+            return
         }
         switch sk.pose.implement {
         case .none: break

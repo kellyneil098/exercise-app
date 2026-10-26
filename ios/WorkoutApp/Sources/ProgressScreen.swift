@@ -19,9 +19,21 @@ struct ProgressScreen: View {
         Screen {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                        Overline("Progress")
-                        Text("Your numbers").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    HStack(alignment: .bottom, spacing: Theme.Spacing.m) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                            if Theme.storybook {
+                                Text("Your numbers").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                                Quip("Every pot on the shelf, counted.")
+                            } else {
+                                Overline("Progress")
+                                Text("Your numbers").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                            }
+                        }
+                        .layoutPriority(1)
+                        Spacer(minLength: Theme.Spacing.s)
+                        Illustration(.honeyShelf, wash: Theme.Colors.honey, washOpacity: 0.25)
+                            .frame(maxWidth: 136, maxHeight: 76)
+                            .storybookOnly()
                     }
                     .padding(.top, Theme.Spacing.xl)
                     summary
@@ -51,7 +63,10 @@ struct ProgressScreen: View {
         let miles = mileageSeries(model.userId).reduce(0) { $0 + $1.value }
         return VStack(spacing: Theme.Spacing.m) {
             HStack(alignment: .top) {
-                Stat("\(week.count)", label: "this week", tint: Theme.Colors.brass)
+                HStack(alignment: .top, spacing: Theme.Spacing.xs) {
+                    HoneyPot(fill: min(1, Double(week.count) / 3), drip: week.count > 0, label: nil).frame(width: 30, height: 30).storybookOnly()
+                    Stat("\(week.count)", label: "this week", tint: Theme.Colors.honeyInk)
+                }
                 Spacer()
                 Stat(compact(thisWeek), unit: "lb", label: "volume")
                 Spacer()
@@ -68,7 +83,7 @@ struct ProgressScreen: View {
     }
 
     var userIds: [(String, Color)] {
-        var ids = [(model.userId, Theme.Colors.brass)]
+        var ids = [(model.userId, Theme.storybook ? Theme.Colors.honeyDeep : Theme.Colors.brass)]
         if let partnerId { ids.append((partnerId, Theme.Colors.partner)) }
         return ids
     }
@@ -76,8 +91,10 @@ struct ProgressScreen: View {
     struct Point: Identifiable { var id: String { "\(who)-\(date.timeIntervalSince1970)" }; var who: String; var date: Date; var value: Double }
 
     func weightSeries(_ uid: String) -> [Point] {
+        // Resolved before the read: `selectedKey` itself queries the database, and GRDB reads are not reentrant.
+        let key = selectedKey
         let rows = (try? model.store.db.read {
-            try SetLog.filter(Column("userId") == uid && Column("exerciseKey") == selectedKey && Column("isWarmup") == false && Column("deleted") == false)
+            try SetLog.filter(Column("userId") == uid && Column("exerciseKey") == key && Column("isWarmup") == false && Column("deleted") == false)
                 .order(Column("completedAt")).fetchAll($0)
         }) ?? []
         var byDay: [Date: Double] = [:]
@@ -134,8 +151,8 @@ struct ProgressScreen: View {
     var weightChart: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.sm) {
-                Glyph("scalemass", tint: Theme.Colors.brass, width: 20)
-                Overline("Working weight", tint: Theme.Colors.textSecondary)
+                Glyph("scalemass", tint: Theme.Colors.honeyInk, width: 20)
+                SectionTitle("Working weight")
             }
             Hairline()
             exerciseButton
@@ -159,7 +176,7 @@ struct ProgressScreen: View {
                     Text(caption).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                 }
                 Spacer()
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.brass)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.Colors.honeyInk)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -175,8 +192,8 @@ struct ProgressScreen: View {
     var volumeChart: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.sm) {
-                Glyph("chart.bar", tint: Theme.Colors.push, width: 20)
-                Overline("Weekly volume", tint: Theme.Colors.textSecondary)
+                Glyph("chart.bar", tint: Theme.storybook ? Theme.Colors.honeyInk : Theme.Colors.push, width: 20)
+                SectionTitle("Weekly volume")
             }
             Hairline()
             chart(userIds.flatMap { volumeSeries($0.0) }, unit: "lb", lines: false)
@@ -186,8 +203,8 @@ struct ProgressScreen: View {
     var mileageChart: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.sm) {
-                Glyph("figure.run", tint: Theme.Colors.pull, width: 20)
-                Overline("Weekly mileage", tint: Theme.Colors.textSecondary)
+                Glyph("figure.run", tint: Theme.storybook ? Theme.Colors.pigletDeep : Theme.Colors.pull, width: 20)
+                SectionTitle("Weekly mileage")
             }
             Hairline()
             chart(userIds.flatMap { mileageSeries($0.0) }, unit: "mi", lines: false)
@@ -196,19 +213,30 @@ struct ProgressScreen: View {
 
     @ViewBuilder func chart(_ points: [Point], unit: String, lines: Bool) -> some View {
         if points.isEmpty {
-            HStack(spacing: Theme.Spacing.s) {
-                Image(systemName: "waveform.path.ecg").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
-                Text("Your first session draws the first point.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+            HStack(spacing: Theme.storybook ? Theme.Spacing.m : Theme.Spacing.s) {
+                if Theme.storybook {
+                    Illustration(.eeyoreLying, wash: Theme.Colors.eeyore, washOpacity: 0.35).frame(width: 96, height: 48)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Quip("Nothing yet. Thanks for noticing me.")
+                        Text("Your first session draws the first point.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                    }
+                } else {
+                    Image(systemName: "waveform.path.ecg").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.Colors.textTertiary)
+                    Text("Your first session draws the first point.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading).frame(height: 56)
+            .frame(maxWidth: .infinity, alignment: .leading).frame(height: Theme.storybook ? 64 : 56)
         } else {
+            let latest = Theme.storybook ? points.filter { $0.who == model.userId }.last?.id : nil
             Chart(points) { p in
                 if lines {
-                    AreaMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).interpolationMethod(.monotone).opacity(0.12)
+                    AreaMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).interpolationMethod(.monotone).opacity(Theme.storybook ? 0.18 : 0.12)
                     LineMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).interpolationMethod(.monotone).lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-                    PointMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).symbolSize(40)
+                    PointMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).symbolSize(p.id == latest ? 64 : 40)
+                        .annotation(position: .top, spacing: 2) { if p.id == latest { Bee(size: 15) } }
                 } else {
-                    BarMark(x: .value("Week", p.date, unit: .weekOfYear), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).position(by: .value("Who", p.who)).cornerRadius(4)
+                    BarMark(x: .value("Week", p.date, unit: .weekOfYear), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).position(by: .value("Who", p.who)).cornerRadius(Theme.storybook ? 5 : 4)
+                        .annotation(position: .top, spacing: 2) { if p.id == latest, p.value > 0 { Bee(size: 13) } }
                 }
             }
             .chartForegroundStyleScale(domain: userIds.map(\.0), range: userIds.map(\.1))
@@ -234,7 +262,7 @@ struct ProgressExercisePicker: View {
         let sections = model.catalog.browseSections(keys: keys, query: query)
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Overline("Working weight")
+                if Theme.storybook { Text("Working weight").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.ink) } else { Overline("Working weight") }
                 ExerciseSearchField(text: $query)
 
                 ScrollViewReader { proxy in
@@ -246,7 +274,8 @@ struct ProgressExercisePicker: View {
                             ForEach(Array(sections.enumerated()), id: \.element.id) { i, section in
                                 ExercisePickerHeader(title: section.title, topPadding: i == 0 ? Theme.Spacing.s : Theme.Spacing.l)
                                 ForEach(section.entries) { entry in
-                                    ExercisePickerRow(name: entry.name, detail: entry.detail, selected: entry.key == selected, action: {
+                                    ExercisePickerRow(name: entry.name, detail: entry.detail, selected: entry.key == selected,
+                                                      art: model.catalog.exercises[entry.key].map { ($0.key, $0.movementPattern) }, action: {
                                         onPick(entry.key)
                                         dismiss()
                                     })

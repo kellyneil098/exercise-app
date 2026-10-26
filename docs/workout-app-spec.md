@@ -598,6 +598,36 @@ The rules below are binding. The visual language itself (exact palette, type cho
 
 ---
 
+## 8a. Themes and the Hundred Acre Wood theme
+
+The design system is switchable (Profile → Appearance). `AppTheme.classic` ("Default") is the dark brass system of §8,
+unchanged and still the default for every user. `AppTheme.hundredAcreWood` ("Winnie the Pooh") is a light storybook
+look; picking it also swaps the app icon to `AppIcon-Hunny`. Every token lives in a `ThemeSpec` (`WorkoutUI/Theme.swift`)
+exposed through `@Environment(\.theme)`; the static `Theme.Colors.*` / `Theme.Fonts.*` names resolve through the
+active spec, and the root re-identifies its subtree on a switch so the whole app re-renders live. Storybook-only
+decoration is gated on `ThemeSpec.storybook`; a new theme is one more case plus its spec. §8's rules on the deck's
+gestures, big legible numbers and one accent hold in both. The rest of this section describes the storybook theme.
+
+- **Paper.** Parchment canvas `#FBF3E1`, cream cards `#FFFBF2` with a 1.5-pt ink outline, honey-tinted shadows, an
+  aged-paper wash `#F3E6C8` for tracks and inputs. Cards that matter (set, rest, rate, run) carry a dashed inner
+  border like a storybook plate. Dividers are dashed ink lines.
+- **Ink.** `#3B2A1A` for all text and line art, at 100 / 70 / 45 %. Honey is never used for body text on cream;
+  honey-on-text accents use the darker `honeyInk` `#9C6410`.
+- **Honey** `#F2B134` (deep `#E59A1C`, light `#FFD56B`) is the one accent: CTAs, progress fills, the user's own
+  data. Progress bars end in a drip; segments are honeycomb cells; counts sit on honey pots.
+- **Washes** sit behind illustrations and name the day types: Push → honey (Pooh), Pull → carrot `#E8894A`
+  (Rabbit), Legs → leaf `#8FAE6B` (Kanga and Roo), Full body → sky `#A9D3EA` (Christopher Robin), Run → Piglet
+  pink `#F2B7C4`; Eeyore grey-blue `#9BA7B4` for partner data and empty states. Swipe cues stay semantic but
+  muted: Done leaf `#6FA866` ("Hooray!"), Skip jam `#D2614F` ("Oh, bother"), Rate sky `#5B9BD5` ("Think, think").
+- **Type.** System serif (New York) for headlines, card titles, stamps and the italic greeting/quips; SF Rounded for
+  body, labels and the big monospaced numbers (60–72 pt on cards). No bundled fonts.
+- **Art.** Public-domain 1926 E.H. Shepard plates (`Assets.xcassets/Illustrations`, template-tinted ink, on
+  watercolour blobs) plus original SwiftUI-drawn props in `WorkoutUI/HoneyKit.swift`: honey pot, bee, balloon,
+  cloud, drips, footprints, stamps. No Disney likenesses. The exercise pictogram is the same mannequin with a
+  honey body, ink outline and two bear ears (`tools/pictograms/renderer.js` mirrors the geometry).
+- **Motion** is small and honours Reduce Motion: balloons bob, bees fly a figure-eight, clouds drift, honey waves in
+  the pot, stamps slam in, the finish bursts bees and honey drops. Card dismissal springs are unchanged.
+
 ## 9. The plan is fixed once generated
 
 **There is no automatic mid-workout re-planning.** The time budget is a sizing input consumed at generation time and then discarded.

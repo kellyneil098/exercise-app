@@ -45,7 +45,6 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIRequiresFullScreen: true   # portrait-only: opt out of iPad multitasking (App Store check 90474)
         ITSAppUsesNonExemptEncryption: false   # HTTPS only (exempt) — skips the export-compliance prompt on every TestFlight build
-        UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
         API_BASE_URL: $(API_BASE_URL)
@@ -58,7 +57,6 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-Hunny   # Pooh theme icon, applied via AppIconSwitcher
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         API_BASE_URL: https://exercise-app-api.fly.dev
       configs:
         Debug:

@@ -16,15 +16,22 @@ struct SettingsView: View {
         Screen {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                    HStack(spacing: Theme.Spacing.m) {
-                        Avatar(name: model.settings?.displayName ?? "", size: 56)
+                    HStack(alignment: .center, spacing: Theme.Spacing.m) {
+                        Avatar(name: model.settings?.displayName ?? "", size: Theme.storybook ? 64 : 56)
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Overline("You")
+                            Aside(Theme.storybook ? "This is you" : "You")
                             Text(model.settings?.displayName ?? "").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                        }
+                        if Theme.storybook {
+                            Spacer(minLength: Theme.Spacing.s)
+                            Illustration(.owl, wash: Theme.Colors.sky, washOpacity: 0.3)
+                                .frame(maxWidth: 112, maxHeight: 72)
+                                .padding(.top, Theme.Spacing.s)
                         }
                     }
                     .padding(.top, Theme.Spacing.xl)
 
+                    ThemePicker()
                     account
                     gyms
                     prefs
@@ -39,7 +46,7 @@ struct SettingsView: View {
 
     @ViewBuilder var account: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-            SectionHeader("Account", icon: "icloud", tint: Theme.Colors.brass)
+            SectionHeader("Account", icon: "icloud", tint: Theme.storybook ? Theme.Colors.sky : Theme.Colors.brass)
             // Shown signed in or out: a refused account switch (unsent changes from the previous account) reports here.
             if let e = model.lastSyncError { Text(e).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.destructive) }
             if model.isSignedIn {
@@ -52,7 +59,7 @@ struct SettingsView: View {
                     ForEach(shares.canViewMe, id: \.id) { Text("\($0.displayName) can see you").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
                 }
                 if let newInvite {
-                    Text(newInvite.code).font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.brass).textSelection(.enabled)
+                    Text(newInvite.code).font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.honeyInk).textSelection(.enabled)
                     Text("Share this code. Expires \(newInvite.expiresAt.formatted(.relative(presentation: .named))).").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
                 }
                 PillButton("Invite someone", icon: "person.badge.plus", style: .quiet) { Task { newInvite = try? await model.createInvite(viewMe: true, viewThem: true) } }
@@ -79,7 +86,12 @@ struct SettingsView: View {
             ForEach(model.locations) { loc in
                 Button { editingLocation = loc } label: {
                     HStack(spacing: Theme.Spacing.m) {
-                        Glyph(model.catalog.seededLocations.first { $0.key == loc.seedKey }?.kind == "home_gym" ? "house" : "building.2", tint: Theme.Colors.textSecondary)
+                        let isHome = model.catalog.seededLocations.first { $0.key == loc.seedKey }?.kind == "home_gym"
+                        if Theme.storybook {
+                            IconTile(isHome ? "house" : "building.2", tint: Theme.Colors.leaf, size: 36)
+                        } else {
+                            Glyph(isHome ? "house" : "building.2", tint: Theme.Colors.textSecondary)
+                        }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(loc.name).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                             Text(equipmentCaption(loc)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
@@ -107,22 +119,22 @@ struct SettingsView: View {
 
     var prefs: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-            SectionHeader("Preferences", icon: "slider.horizontal.3", tint: Theme.Colors.pull)
+            SectionHeader("Preferences", icon: "slider.horizontal.3", tint: Theme.storybook ? Theme.Colors.honey : Theme.Colors.pull)
             Toggle(isOn: Binding(
                 get: { model.settings?.keepScreenAwake ?? true },
                 set: { v in if var s = model.settings { s.keepScreenAwake = v; try? model.store.save(s) } }
             )) { PrefLabel("Keep screen awake", detail: "During workouts", icon: "sun.max") }
-            .tint(Theme.Colors.brass)
+            .tint(Theme.storybook ? Theme.Colors.honeyDeep : Theme.Colors.brass)
             Toggle(isOn: Binding(
                 get: { model.settings?.restTimerSoundOn ?? true },
                 set: { v in if var s = model.settings { s.restTimerSoundOn = v; try? model.store.save(s) } }
             )) { PrefLabel("Rest timer sound", detail: "Chime when rest ends", icon: "speaker.wave.2") }
-            .tint(Theme.Colors.brass)
+            .tint(Theme.storybook ? Theme.Colors.honeyDeep : Theme.Colors.brass)
         }
     }
 }
 
-/// Section heading on the canvas: a tinted glyph beside an overline, ruled beneath.
+/// Section heading on the page: a glyph on its wash tile beside a serif title, dashed rule beneath.
 struct SectionHeader: View {
     let title: String
     let icon: String
@@ -131,8 +143,8 @@ struct SectionHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack(spacing: Theme.Spacing.sm) {
-                Glyph(icon, tint: tint, width: 20)
-                Overline(title, tint: Theme.Colors.textSecondary)
+                if Theme.storybook { IconTile(icon, tint: tint, size: 28) } else { Glyph(icon, tint: tint, width: 20) }
+                SectionTitle(title)
             }
             Hairline()
         }
@@ -191,7 +203,7 @@ struct EquipmentEditor: View {
     var header: some View {
         HStack(alignment: .top, spacing: Theme.Spacing.m) {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                Overline("Gym")
+                Aside("Gym")
                 TextField("Gym name", text: $location.name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                     .submitLabel(.done).onSubmit { saveDetails() }
             }
@@ -205,7 +217,7 @@ struct EquipmentEditor: View {
                     Image(systemName: "ellipsis").font(.system(size: 17, weight: .bold)).foregroundStyle(Theme.Colors.textSecondary)
                         .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
-                .tint(.red)
+                .tint(Theme.storybook ? Theme.Colors.jam : .red)
                 .accessibilityLabel("Gym options")
             }
         }
@@ -293,7 +305,7 @@ struct EquipmentRow: View {
                     }
                     Spacer()
                     Image(systemName: available ? "checkmark.circle.fill" : "circle").font(.system(size: 22))
-                        .foregroundStyle(locked ? Theme.Colors.textTertiary : available ? Theme.Colors.brass : Theme.Colors.textTertiary)
+                        .foregroundStyle(locked ? Theme.Colors.textTertiary : available ? Theme.Colors.honeyInk : Theme.Colors.textTertiary)
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, Theme.Spacing.s).padding(.vertical, 10).frame(minHeight: 48)
