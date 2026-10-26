@@ -26,13 +26,8 @@ struct ThemePicker: View {
         guard theme != model.theme else { return }
         Haptics.play(.swap)
         withAnimation(Theme.Motion.spring) { model.theme = theme }
-        #if os(iOS)
-        let app = UIApplication.shared
-        // The Simulator reports support but has no alternate icons; a failure here is harmless.
-        if app.supportsAlternateIcons, app.alternateIconName != theme.alternateIconName {
-            app.setAlternateIconName(theme.alternateIconName) { _ in }
-        }
-        #endif
+        // From the tap, while the app is foreground-active: setAlternateIconName is ignored otherwise.
+        AppIconSwitcher.apply(theme.alternateIconName)
     }
 }
 
