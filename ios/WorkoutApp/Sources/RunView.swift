@@ -25,13 +25,19 @@ struct RunContent: View {
                 Group {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         if Theme.storybook {
-                            HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
-                                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                                    Text("This week's runs").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.ink)
-                                    Quip(state.isDeloadWeek ? "A lighter week, for resting and humming." : "Piglet keeps up. So will you.")
+                            // Pooh and Piglet tracking the Woozle, with a trail of prints walking across the page under them.
+                            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                                HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                                        Text("Off for a walk").font(Theme.Fonts.titleSmall).foregroundStyle(Theme.Colors.ink)
+                                        Quip(state.isDeloadWeek ? "A lighter week, for resting and humming." : "Piglet keeps up. So will you.")
+                                    }
+                                    .layoutPriority(1)
+                                    Spacer(minLength: Theme.Spacing.s)
+                                    Illustration(.tracking, wash: Theme.Colors.piglet, washOpacity: 0.45)
+                                        .frame(maxWidth: 156, maxHeight: 104)
                                 }
-                                Spacer()
-                                Illustration(.walkingTrail, wash: Theme.Colors.piglet, washOpacity: 0.4).frame(width: 132, height: 56)
+                                WalkingFootprints(tint: Theme.Colors.pigletDeep).frame(height: 36)
                             }
                         } else {
                             HStack(spacing: Theme.Spacing.sm) {

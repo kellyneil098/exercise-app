@@ -180,14 +180,23 @@ struct HomeView: View {
 
     /// Label on the left, text options trailing; options scroll if a gym name is long.
     func optionRow<Options: View>(_ label: String, icon: String, @ViewBuilder options: () -> Options) -> some View {
-        HStack(alignment: .center, spacing: Theme.Spacing.m) {
+        let sb = Theme.storybook
+        return HStack(alignment: .center, spacing: sb ? Theme.Spacing.sm : Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.s) {
                 Glyph(icon, tint: Theme.Colors.textTertiary, width: 20)
                 Overline(label, tint: Theme.Colors.textSecondary)
             }
-            .frame(width: 104, alignment: .leading)
+            .frame(width: sb ? 96 : 104, alignment: .leading)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Theme.Spacing.l) { options() }
+                HStack(spacing: sb ? Theme.Spacing.sm : Theme.Spacing.l) { options() }
+                    .padding(.trailing, sb ? Theme.Spacing.m : 0)
+            }
+            // The page edge fades the last chip so a long gym list reads as scrollable.
+            .mask {
+                HStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: sb ? 18 : 0)
+                }
             }
         }
     }

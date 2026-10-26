@@ -23,8 +23,10 @@ struct SettingsView: View {
                             Text(model.settings?.displayName ?? "").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                         }
                         if Theme.storybook {
-                            Spacer(minLength: 0)
-                            Illustration(.owl, wash: Theme.Colors.sky, washOpacity: 0.3).frame(width: 130, height: 78)
+                            Spacer(minLength: Theme.Spacing.s)
+                            Illustration(.owl, wash: Theme.Colors.sky, washOpacity: 0.3)
+                                .frame(maxWidth: 112, maxHeight: 72)
+                                .padding(.top, Theme.Spacing.s)
                         }
                     }
                     .padding(.top, Theme.Spacing.xl)

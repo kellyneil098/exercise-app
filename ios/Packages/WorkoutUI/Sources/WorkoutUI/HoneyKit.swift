@@ -327,6 +327,37 @@ public struct Footprints: View {
     }
 }
 
+/// Paw prints laid down one at a time across the width, as if someone just walked past; the trail fades and
+/// starts over. Reduce Motion shows the finished trail.
+public struct WalkingFootprints: View {
+    let count: Int
+    let tint: Color
+    let period: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    public init(count: Int = 11, tint: Color = Theme.Colors.ink, period: Double = 9) { self.count = count; self.tint = tint; self.period = period }
+    public var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 12, paused: reduceMotion)) { ctx in
+            Canvas { g, size in
+                let t = reduceMotion ? 0.7 : ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
+                let laying = min(1, t / 0.72)
+                let fade = t > 0.82 ? max(0, 1 - (t - 0.82) / 0.18) : 1
+                let shown = min(count, Int((Double(count) * laying).rounded(.down)) + (t < 0.72 ? 1 : 0))
+                let paw = min(size.height * 0.42, 16)
+                for i in 0..<shown {
+                    let u = CGFloat(i) / CGFloat(max(count - 1, 1))
+                    let x = size.width * (0.04 + 0.92 * u)
+                    let y = size.height / 2 + sin(u * .pi * 1.5) * size.height * 0.18 + (i % 2 == 0 ? -size.height * 0.16 : size.height * 0.16)
+                    let tangent = cos(u * .pi * 1.5) * size.height * 0.18 * .pi * 1.5 / size.width
+                    let fresh = i == shown - 1 && t < 0.72
+                    let pop = fresh ? 1 + 0.25 * (1 - (Double(count) * laying - Double(i))) : 1
+                    Footprints.paw(in: &g, at: CGPoint(x: x, y: y), size: paw * pop, angle: atan(tangent) + .pi / 2, tint: tint.opacity(0.8 * fade))
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Confetti
 
 /// Bees and honey drops bursting out from the centre once, for the finish screen.

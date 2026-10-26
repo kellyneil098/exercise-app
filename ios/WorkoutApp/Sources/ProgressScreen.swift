@@ -29,8 +29,11 @@ struct ProgressScreen: View {
                                 Text("Your numbers").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                             }
                         }
-                        Spacer(minLength: 0)
-                        Illustration(.honeyShelf, wash: Theme.Colors.honey, washOpacity: 0.25).frame(width: 150, height: 82).storybookOnly()
+                        .layoutPriority(1)
+                        Spacer(minLength: Theme.Spacing.s)
+                        Illustration(.honeyShelf, wash: Theme.Colors.honey, washOpacity: 0.25)
+                            .frame(maxWidth: 136, maxHeight: 76)
+                            .storybookOnly()
                     }
                     .padding(.top, Theme.Spacing.xl)
                     summary
@@ -229,11 +232,11 @@ struct ProgressScreen: View {
                 if lines {
                     AreaMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).interpolationMethod(.monotone).opacity(Theme.storybook ? 0.18 : 0.12)
                     LineMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).interpolationMethod(.monotone).lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
-                    PointMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).symbolSize(p.id == latest ? 0 : 40)
-                        .annotation(position: .overlay) { if p.id == latest { Bee(size: 15) } }
+                    PointMark(x: .value("Date", p.date), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).symbolSize(p.id == latest ? 64 : 40)
+                        .annotation(position: .top, spacing: 2) { if p.id == latest { Bee(size: 15) } }
                 } else {
                     BarMark(x: .value("Week", p.date, unit: .weekOfYear), y: .value(unit, p.value)).foregroundStyle(by: .value("Who", p.who)).position(by: .value("Who", p.who)).cornerRadius(Theme.storybook ? 5 : 4)
-                        .annotation(position: .overlay) { if p.id == latest, p.value > 0 { Bee(size: 13).offset(y: -4) } }
+                        .annotation(position: .top, spacing: 2) { if p.id == latest, p.value > 0 { Bee(size: 13) } }
                 }
             }
             .chartForegroundStyleScale(domain: userIds.map(\.0), range: userIds.map(\.1))
