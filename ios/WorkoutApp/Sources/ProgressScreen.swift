@@ -88,8 +88,10 @@ struct ProgressScreen: View {
     struct Point: Identifiable { var id: String { "\(who)-\(date.timeIntervalSince1970)" }; var who: String; var date: Date; var value: Double }
 
     func weightSeries(_ uid: String) -> [Point] {
+        // Resolved before the read: `selectedKey` itself queries the database, and GRDB reads are not reentrant.
+        let key = selectedKey
         let rows = (try? model.store.db.read {
-            try SetLog.filter(Column("userId") == uid && Column("exerciseKey") == selectedKey && Column("isWarmup") == false && Column("deleted") == false)
+            try SetLog.filter(Column("userId") == uid && Column("exerciseKey") == key && Column("isWarmup") == false && Column("deleted") == false)
                 .order(Column("completedAt")).fetchAll($0)
         }) ?? []
         var byDay: [Date: Double] = [:]
