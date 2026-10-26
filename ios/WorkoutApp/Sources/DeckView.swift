@@ -137,6 +137,8 @@ struct StepCard: View {
     private enum Direction { case left, right, up }
     private enum SwipeAction { case done, skip, rate, back }
     private let threshold: CGFloat = 110
+    /// How far an up-swipe lifts the card before rubber-banding (≈ a third of the card).
+    private let liftCap: CGFloat = 150
 
     var body: some View {
         Group {
@@ -187,9 +189,10 @@ struct StepCard: View {
         switch a { case .done: return "Done"; case .skip: return "Skip"; case .rate: return "Rate"; case .back: return "Back" }
     }
 
-    /// Done sits top-left (the card is moving right), skip top-right, rate top-centre.
+    /// Done sits top-left (the card is moving right), skip top-right, rate in the middle of the card (the card is
+    /// moving up, so the top edge is the first thing to leave the screen).
     private func placement(_ a: SwipeAction) -> SwipeFeedback.Placement {
-        switch a { case .done, .back: .leading; case .skip: .trailing; case .rate: .top }
+        switch a { case .done, .back: .leading; case .skip: .trailing; case .rate: .center }
     }
 
     var dragGesture: some Gesture {
@@ -200,8 +203,11 @@ struct StepCard: View {
                 if axis == .horizontal {
                     drag = CGSize(width: w, height: h * 0.15)
                 } else {
-                    // Up moves freely (that's the gesture); down only rubber-bands.
-                    drag = CGSize(width: w * 0.15, height: h < 0 ? h : h * 0.25)
+                    // Up follows the finger to `liftCap` (past the threshold), then rubber-bands so the card and its
+                    // stamp stay on screen; down only rubber-bands.
+                    let lift = -h
+                    let up = lift <= liftCap ? lift : liftCap + (lift - liftCap) * 0.18
+                    drag = CGSize(width: w * 0.15, height: h < 0 ? -up : h * 0.25)
                 }
                 let crossed = (pending?.strength ?? 0) >= 1
                 if crossed != armed {
@@ -255,7 +261,7 @@ struct StepCard: View {
 /// the row is moving toward, instead of tilted in a top corner. `showsStamp: false` draws only the wash, for a row
 /// that puts its `SwipeStamp` in the space it reveals instead.
 struct SwipeFeedback: View {
-    enum Placement { case leading, trailing, top }
+    enum Placement { case leading, trailing, top, center }
     let label: String
     var icon: String? = nil
     let color: Color
@@ -270,8 +276,9 @@ struct SwipeFeedback: View {
         case .leading: compact ? .leading : .topLeading
         case .trailing: compact ? .trailing : .topTrailing
         case .top: .top
+        case .center: .center
         }
-        let tilt: Double = switch placement { case .leading: compact ? 0 : -12; case .trailing: compact ? 0 : 12; case .top: 0 }
+        let tilt: Double = switch placement { case .leading: compact ? 0 : -12; case .trailing: compact ? 0 : 12; case .top, .center: 0 }
         shape.fill(color.opacity(0.08 + 0.14 * strength))
             .overlay(shape.strokeBorder(color.opacity(0.35 + 0.65 * strength), lineWidth: 1.5))
             .overlay(alignment: alignment) {
