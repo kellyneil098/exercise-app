@@ -365,7 +365,10 @@ public enum BearFigure {
     /// Ear centres on the crown. `up` is the unit neck→head direction and `side` the unit vector across the face, so
     /// the ears ride on top of the skull and turn with it in every pose (lying, hinged, inverted). Radius ≈ 0.3 r.
     public static func earCentres(head h: CGPoint, up u: CGPoint, side f: CGPoint, r: CGFloat) -> [CGPoint] {
-        [-1.0, 1.0].map { s in CGPoint(x: h.x + u.x * r * 0.65 + f.x * r * 0.65 * s, y: h.y + u.y * r * 0.65 + f.y * r * 0.65 * s) }
+        let d = r * 0.65
+        let crownX = h.x + u.x * d, crownY = h.y + u.y * d
+        let sideX = f.x * d, sideY = f.y * d
+        return [CGPoint(x: crownX - sideX, y: crownY - sideY), CGPoint(x: crownX + sideX, y: crownY + sideY)]
     }
     public static let earRadiusRatio: CGFloat = 0.3
 }
