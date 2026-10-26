@@ -15,9 +15,6 @@ public enum AppTheme: String, CaseIterable, Identifiable, Sendable {
     public var displayName: String {
         switch self { case .classic: "Default"; case .hundredAcreWood: "Winnie the Pooh" }
     }
-    public var subtitle: String {
-        switch self { case .classic: "Dark, brass, matter-of-fact"; case .hundredAcreWood: "A storybook in your pocket" }
-    }
     /// Alternate app icon that goes with the theme (`nil` = the primary icon).
     public var alternateIconName: String? {
         switch self { case .classic: nil; case .hundredAcreWood: "AppIcon-Hunny" }
@@ -27,9 +24,13 @@ public enum AppTheme: String, CaseIterable, Identifiable, Sendable {
     }
 
     public static let defaultsKey = "appTheme"
-    /// Existing users keep `classic` until they pick something else.
-    public static func load(from defaults: UserDefaults = .standard) -> AppTheme {
-        defaults.string(forKey: defaultsKey).flatMap(AppTheme.init(rawValue:)) ?? .classic
+    /// Fresh installs open the storybook; installs that were onboarded before themes existed keep `classic`.
+    /// Whichever applies is written back the first time, so the answer stays put once the user has onboarded.
+    public static func load(from defaults: UserDefaults = .standard, onboarded: Bool) -> AppTheme {
+        if let raw = defaults.string(forKey: defaultsKey) { return AppTheme(rawValue: raw) ?? .classic }
+        let theme: AppTheme = onboarded ? .classic : .hundredAcreWood
+        theme.save(to: defaults)
+        return theme
     }
     public func save(to defaults: UserDefaults = .standard) { defaults.set(rawValue, forKey: Self.defaultsKey) }
 }

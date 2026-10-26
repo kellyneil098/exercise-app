@@ -31,14 +31,15 @@ final class AppModel {
 
     /// The design system in use (Default or Winnie the Pooh). Persisted in UserDefaults; `Theme.current` follows it
     /// so the static `Theme.*` tokens resolve through the chosen look.
-    var theme: AppTheme = AppTheme.load() {
+    var theme: AppTheme = .classic {
         didSet { theme.save(); Theme.current = theme.spec }
     }
+    /// Onboarding's answers so far. Kept here rather than in view @State because picking a theme rebuilds the view tree.
+    var onboardingDraft = OnboardingDraft()
     /// Presented from the root (outside the theme-keyed subtree) so the Profile sheet stays up while switching.
     var showSettings = false
 
     init(store: WorkoutStore, catalog: Catalog, api: APIClient, userId: String) {
-        Theme.current = AppTheme.load().spec
         self.store = store
         self.seedCatalog = catalog
         self.catalog = catalog
@@ -47,6 +48,9 @@ final class AppModel {
         self.rebaseliner = Rebaseliner(catalog: catalog)
         self.api = api
         self.userId = userId
+        // Property observers don't fire inside init, so mirror `didSet` by hand.
+        theme = AppTheme.load(onboarded: isOnboarded)
+        Theme.current = theme.spec
         reloadCatalogIfNeeded()
         observer = DatabaseRegionObservation(tracking: .fullDatabase).start(in: store.db, onError: { _ in }) { [weak self] _ in
             Task { @MainActor in self?.dataVersion &+= 1; self?.reloadCatalogIfNeeded() }

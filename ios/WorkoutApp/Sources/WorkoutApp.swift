@@ -20,7 +20,7 @@ struct RootView: View {
         @Bindable var model = model
         Group {
             if !model.isOnboarded {
-                OnboardingView()
+                OnboardingView(draft: model.onboardingDraft)
             } else if let session = model.activeSession {
                 if session.started { DeckView(session: session) } else { DeckOverview(session: session, confirming: true) }
             } else {

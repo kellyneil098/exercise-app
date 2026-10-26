@@ -35,15 +35,33 @@ final class ThemeSpecTests: XCTestCase {
         XCTAssertTrue(Theme.storybook)
     }
 
-    func testSelectionPersistsAndDefaultsToClassic() throws {
-        let suite = "ThemeSpecTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        XCTAssertEqual(AppTheme.load(from: defaults), .classic, "existing users keep the default look")
+    func testFreshInstallsStartInTheStorybook() throws {
+        let (defaults, suite) = try fresh(); defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: false), .hundredAcreWood, "Natalie's first open is Pooh")
+        XCTAssertEqual(defaults.string(forKey: AppTheme.defaultsKey), "hundredAcreWood", "the answer is written back")
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: true), .hundredAcreWood, "and stays once onboarded")
+    }
+
+    func testOnboardedInstallsWithoutAChoiceKeepClassic() throws {
+        let (defaults, suite) = try fresh(); defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: true), .classic, "existing users keep the default look")
+        XCTAssertEqual(defaults.string(forKey: AppTheme.defaultsKey), "classic", "pinned so a later fresh-install rule can't flip them")
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: false), .classic)
+    }
+
+    func testSelectionPersists() throws {
+        let (defaults, suite) = try fresh(); defer { defaults.removePersistentDomain(forName: suite) }
         AppTheme.hundredAcreWood.save(to: defaults)
-        XCTAssertEqual(AppTheme.load(from: defaults), .hundredAcreWood)
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: true), .hundredAcreWood)
+        AppTheme.classic.save(to: defaults)
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: false), .classic, "a choice beats the fresh-install default")
         defaults.set("not-a-theme", forKey: AppTheme.defaultsKey)
-        XCTAssertEqual(AppTheme.load(from: defaults), .classic, "an unknown value falls back")
+        XCTAssertEqual(AppTheme.load(from: defaults, onboarded: false), .classic, "an unknown value falls back")
+    }
+
+    private func fresh() throws -> (UserDefaults, String) {
+        let suite = "ThemeSpecTests.\(UUID().uuidString)"
+        return (try XCTUnwrap(UserDefaults(suiteName: suite)), suite)
     }
 
     /// Opaque dynamic colours have no `cgColor`; resolving them through a resolved-colour view is enough to prove they exist.

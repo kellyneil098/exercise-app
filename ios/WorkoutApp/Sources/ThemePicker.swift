@@ -7,19 +7,27 @@ import UIKit
 /// Profile → Appearance: one card per `AppTheme` (palette swatch + the app icon that goes with it). Picking one
 /// switches the design system at once and swaps the home-screen icon to match. New themes only need a new case.
 struct ThemePicker: View {
-    @Environment(AppModel.self) private var model
-
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             SectionHeader("Appearance", icon: "paintpalette", tint: Theme.storybook ? Theme.Colors.piglet : Theme.Colors.fullBody)
-            HStack(spacing: Theme.Spacing.sm) {
-                ForEach(AppTheme.allCases) { theme in
-                    ThemeCard(theme: theme, selected: model.theme == theme) { select(theme) }
-                }
-            }
+            ThemeCards()
             Text("Changes the colours, type and illustrations everywhere, and the app icon on your home screen.")
                 .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
         }
+    }
+}
+
+/// The row of theme cards, one per `AppTheme`, all the same height. Shared by Profile and onboarding.
+struct ThemeCards: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            ForEach(AppTheme.allCases) { theme in
+                ThemeCard(theme: theme, selected: model.theme == theme) { select(theme) }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     func select(_ theme: AppTheme) {
@@ -47,13 +55,12 @@ struct ThemeCard: View {
                     Spacer(minLength: 0)
                     icon
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(theme.displayName).font(spec.fonts.heading).foregroundStyle(spec.colors.textPrimary)
-                    Text(theme.subtitle).font(spec.fonts.quipSmall).foregroundStyle(spec.colors.textSecondary).lineLimit(2)
-                }
+                // Two lines reserved whether the name needs them or not, so every card is the same height.
+                Text(theme.displayName).font(spec.fonts.heading).foregroundStyle(spec.colors.textPrimary)
+                    .lineLimit(2, reservesSpace: true).fixedSize(horizontal: false, vertical: true)
             }
             .padding(Theme.Spacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(spec.colors.canvas, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
