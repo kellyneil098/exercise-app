@@ -4,6 +4,7 @@ import WorkoutStore
 import WorkoutUI
 
 /// Name → gym(s) → optional lifting/running baselines. Everything else has defaults.
+/// Three pages of a picture book: the doormat welcome, the balloon, and Pooh and Piglet walking off to begin.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @State private var name = ""
@@ -30,34 +31,69 @@ struct OnboardingView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom) {
-                PillButton(step == 2 ? "Begin" : "Continue", icon: step == 2 ? "play.fill" : "arrow.right") { next() }
-                    .disabled(step == 0 && (name.isEmpty || selectedSeeds.isEmpty))
-                    .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.m).padding(.bottom, Theme.Spacing.s)
-                    .background(
-                        LinearGradient(colors: [Theme.Colors.canvas.opacity(0), Theme.Colors.canvas, Theme.Colors.canvas],
-                                       startPoint: .top, endPoint: .bottom).ignoresSafeArea()
-                    )
+                VStack(spacing: 0) {
+                    if step == 2, Theme.storybook {
+                        Footprints(count: 9).frame(height: 28).padding(.horizontal, Theme.Spacing.xxl).padding(.bottom, Theme.Spacing.xs)
+                    }
+                    PillButton(step == 2 ? "Begin" : "Continue", icon: step == 2 ? "play.fill" : "arrow.right") { next() }
+                        .disabled(step == 0 && (name.isEmpty || selectedSeeds.isEmpty))
+                }
+                .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.m).padding(.bottom, Theme.Spacing.s)
+                .background(
+                    LinearGradient(colors: [Theme.Colors.canvas.opacity(0), Theme.Colors.canvas, Theme.Colors.canvas],
+                                   startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+                )
             }
         }
     }
 
-    /// Three segments, the current one brass: where you are without a word of explanation.
+    /// Three honeycomb cells, filled as far as you've come, and the chapter number.
     var stepBar: some View {
         HStack(spacing: Theme.Spacing.s) {
-            ForEach(0..<3, id: \.self) { i in
-                Capsule().fill(i <= step ? Theme.Colors.brass : Theme.Colors.surface).frame(height: 4)
-                    .animation(Theme.Motion.spring, value: step)
+            if Theme.storybook {
+                HStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { i in
+                        HexCell().fill(i <= step ? Theme.Colors.honey : Theme.Colors.paper)
+                            .overlay(HexCell().stroke(Theme.Colors.ink.opacity(0.6), lineWidth: 1))
+                            .frame(width: 18, height: 16)
+                            .animation(Theme.Motion.spring, value: step)
+                    }
+                }
+                Spacer(minLength: Theme.Spacing.l)
+                Text("Chapter \(["One", "Two", "Three"][step]) of Three").font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.textTertiary)
+            } else {
+                ForEach(0..<3, id: \.self) { i in
+                    Capsule().fill(i <= step ? Theme.Colors.brass : Theme.Colors.surface).frame(height: 4)
+                        .animation(Theme.Motion.spring, value: step)
+                }
+                Spacer(minLength: Theme.Spacing.l)
+                Overline("Step \(step + 1) of 3")
             }
-            Spacer(minLength: Theme.Spacing.l)
-            Overline("Step \(step + 1) of 3")
         }
     }
 
     var nameAndGyms: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                Text("Hello.").font(Theme.Fonts.display).heroTracking().foregroundStyle(Theme.Colors.textPrimary)
-                Text("Two things, then we lift.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+            if Theme.storybook {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    HStack(alignment: .bottom, spacing: Theme.Spacing.m) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                            Text("Hello there.").font(Theme.Fonts.greeting).foregroundStyle(Theme.Colors.textPrimary)
+                            Text("In which we are introduced, and the lifting begins.")
+                                .font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.textSecondary)
+                        }
+                        Spacer(minLength: 0)
+                        Balloon(width: 34).padding(.trailing, Theme.Spacing.s)
+                    }
+                    Illustration(.doormat, wash: Theme.Colors.honey, washOpacity: 0.22)
+                        .frame(maxWidth: .infinity).frame(height: 128)
+                        .padding(.top, Theme.Spacing.s)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Text("Hello.").font(Theme.Fonts.display).heroTracking().foregroundStyle(Theme.Colors.textPrimary)
+                    Text("Two things, then we lift.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                }
             }
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                 Overline("Your name")
@@ -74,7 +110,11 @@ struct OnboardingView: View {
                     withAnimation(Theme.Motion.quick) { if on { selectedSeeds.remove(loc.key) } else { selectedSeeds.insert(loc.key) } }
                 } label: {
                     HStack(spacing: Theme.Spacing.m) {
-                        Glyph(loc.kind == "home_gym" ? "house" : "building.2", tint: on ? Theme.Colors.brass : Theme.Colors.textSecondary)
+                        if Theme.storybook {
+                            IconTile(loc.kind == "home_gym" ? "house" : "building.2", tint: on ? Theme.Colors.honey : Theme.Colors.aged, size: 36)
+                        } else {
+                            Glyph(loc.kind == "home_gym" ? "house" : "building.2", tint: on ? Theme.Colors.brass : Theme.Colors.textSecondary)
+                        }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(loc.name).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
                             Text(loc.kind == "home_gym" ? "Building gym · limited equipment" : "Commercial gym · everything available")
@@ -82,7 +122,7 @@ struct OnboardingView: View {
                         }
                         Spacer()
                         Image(systemName: on ? "checkmark.circle.fill" : "circle").font(.system(size: 24))
-                            .foregroundStyle(on ? Theme.Colors.brass : Theme.Colors.textTertiary)
+                            .foregroundStyle(on ? Theme.Colors.honeyInk : Theme.Colors.textTertiary)
                     }
                     .padding(.vertical, Theme.Spacing.sm)
                     .frame(minHeight: 56)
@@ -101,29 +141,49 @@ struct OnboardingView: View {
 
     var lifting: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                Text("Working weights").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
-                Text("Optional. A weight you can do for 5–8 reps. Everything else is estimated from these and corrected as you lift.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+            HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Text("Working weights").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                    Text("Optional. A weight you can do for 5–8 reps. Everything else is estimated from these and corrected as you lift.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                }
+                Illustration(.balloonBoy, wash: Theme.Colors.sky, washOpacity: 0.3).frame(width: 84, height: 112).storybookOnly()
             }
-            Group {
+            if Theme.storybook {
+                Card(padding: Theme.Spacing.s) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(anchorKeys.enumerated()), id: \.element) { i, key in
+                            weightRow(key)
+                            if i < anchorKeys.count - 1 { Hairline() }
+                        }
+                    }
+                }
+            } else {
                 VStack(spacing: 0) {
                     Hairline()
-                    ForEach(Array(anchorKeys.enumerated()), id: \.element) { i, key in
-                        HStack(spacing: Theme.Spacing.m) {
-                            Glyph("scalemass", tint: (baselines[key] ?? 0) > 0 ? Theme.Colors.brass : Theme.Colors.textTertiary)
-                            Text(model.catalog.exercises[key]?.name ?? key).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
-                            Spacer()
-                            TextField("—", value: Binding(get: { baselines[key] }, set: { baselines[key] = $0 }), format: .number)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
-                                .font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.brass)
-                            Text("lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                        }
-                        .padding(.horizontal, Theme.Spacing.s).frame(minHeight: 56)
+                    ForEach(anchorKeys, id: \.self) { key in
+                        weightRow(key)
                         Hairline()
                     }
                 }
             }
         }
+    }
+
+    func weightRow(_ key: String) -> some View {
+        HStack(spacing: Theme.Spacing.m) {
+            if Theme.storybook {
+                HoneyPot(fill: (baselines[key] ?? 0) > 0 ? 0.8 : 0, drip: false, label: nil).frame(width: 28, height: 28)
+            } else {
+                Glyph("scalemass", tint: (baselines[key] ?? 0) > 0 ? Theme.Colors.brass : Theme.Colors.textTertiary)
+            }
+            Text(model.catalog.exercises[key]?.name ?? key).font(Theme.Fonts.bodyMedium).foregroundStyle(Theme.Colors.textPrimary)
+            Spacer()
+            TextField("—", value: Binding(get: { baselines[key] }, set: { baselines[key] = $0 }), format: .number)
+                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 90)
+                .font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.honeyInk)
+            Text("lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+        }
+        .padding(.horizontal, Theme.Spacing.s).frame(minHeight: 56)
     }
 
     var running: some View {
@@ -132,16 +192,23 @@ struct OnboardingView: View {
                 Text("Running").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                 Text("A starting point. The plan adapts from here.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
             }
-            Group {
-                VStack(spacing: Theme.Spacing.m) {
-                    Adjuster("\(runs) runs a week", value: $runs.asDouble, in: 2...3)
-                    Hairline()
-                    Adjuster("Easy pace \(Int(easyPace)):\(String(format: "%02d", Int((easyPace * 60).truncatingRemainder(dividingBy: 60)))) /mi", value: $easyPace, in: 6...16, step: 0.25)
-                    Hairline()
-                    Adjuster("\(weeklyMiles.formatted()) miles this week", value: $weeklyMiles, in: 2...40, step: 0.5)
-                }
+            let adjusters = VStack(spacing: Theme.Spacing.m) {
+                Adjuster("\(runs) runs a week", value: $runs.asDouble, in: 2...3)
+                Hairline()
+                Adjuster("Easy pace \(Int(easyPace)):\(String(format: "%02d", Int((easyPace * 60).truncatingRemainder(dividingBy: 60)))) /mi", value: $easyPace, in: 6...16, step: 0.25)
+                Hairline()
+                Adjuster("\(weeklyMiles.formatted()) miles this week", value: $weeklyMiles, in: 2...40, step: 0.5)
             }
+            if Theme.storybook { Card(padding: Theme.Spacing.m) { adjusters } } else { adjusters }
             Text("Volume grows 10% a week toward 1.5× this, with every fourth week lighter.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+            if Theme.storybook {
+                Illustration(.walkingOff, wash: Theme.Colors.leaf, washOpacity: 0.22)
+                    .frame(maxWidth: .infinity).frame(height: 150)
+                    .padding(.top, Theme.Spacing.s)
+                Quip("“We’ll be friends forever, won’t we?” asked Piglet. “Even longer,” said Pooh.")
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 

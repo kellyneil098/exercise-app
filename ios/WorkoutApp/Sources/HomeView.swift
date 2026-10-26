@@ -10,6 +10,17 @@ enum HomeMode: Hashable {
     var label: String { switch self { case .strength(let d): d.label; case .running: "Run" } }
     var symbol: String { switch self { case .strength(let d): d.symbol; case .running: "figure.run" } }
     var tint: Color { switch self { case .strength(let d): Theme.Colors.day(d); case .running: Theme.Colors.run } }
+    /// The character who stands for this kind of day: Pooh pushes, Rabbit pulls, Kanga and Roo hop, Christopher Robin
+    /// does the whole thing, Piglet runs.
+    var plate: Plate {
+        switch self {
+        case .strength(.push): .poohSmall
+        case .strength(.pull): .rabbit
+        case .strength(.legs): .kangaRoo
+        case .strength(.fullBody): .balloonBoy
+        case .running: .piglet
+        }
+    }
 }
 
 /// Cold open → workout in ≤3 taps. The greeting and this week's momentum sit at the top, the choices in the
@@ -20,7 +31,6 @@ struct HomeView: View {
     @State private var duration: Int = 60
     @State private var location: Location?
     @State private var showProgress = false
-    @State private var showSettings = false
 
     var body: some View {
         Screen {
@@ -36,6 +46,7 @@ struct HomeView: View {
                     case .strength(let dayType): strength(dayType)
                     case .running: RunContent()
                     }
+                    if case .strength = mode, Theme.storybook { poohCorner }
                 }
                 .padding(.horizontal, Theme.Spacing.l)
                 .padding(.top, Theme.Spacing.s)
@@ -62,7 +73,6 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showProgress) { ProgressScreen() }
-        .sheet(isPresented: $showSettings) { SettingsView() }
     }
 
     // MARK: Header
@@ -72,10 +82,24 @@ struct HomeView: View {
                        greeting: Greeting(displayName: model.settings?.displayName ?? ""),
                        spacingBelow: Theme.Spacing.xl, compactSpacingBelow: Theme.Spacing.s) {
             IconButton("chart.xyaxis.line", label: "Progress") { showProgress = true }
-            Button { showSettings = true } label: { Avatar(name: model.settings?.displayName ?? "") }
+            Button { model.showSettings = true } label: { Avatar(name: model.settings?.displayName ?? "") }
                 .buttonStyle(PressStyle())
                 .accessibilityLabel("Profile")
         }
+        .background(alignment: .topTrailing) {
+            // A cloud drifting past behind the controls, the way the sky sits behind every page in the book.
+            Cloud(width: 58, drift: 9).opacity(0.9).offset(x: -112, y: -10).storybookOnly()
+        }
+    }
+
+    /// Pooh wandering in from the right-hand margin, footprints behind him, to see what we're up to.
+    var poohCorner: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            Footprints(count: 7).frame(height: 30).padding(.bottom, Theme.Spacing.s)
+            Illustration(.poohStanding, wash: Theme.Colors.honey, washOpacity: 0.22).frame(height: 132)
+                .padding(.trailing, Theme.Spacing.s)
+        }
+        .padding(.top, Theme.Spacing.s)
     }
 
     /// "Today", "Yesterday", a weekday within the week, otherwise a short date.
@@ -94,8 +118,11 @@ struct HomeView: View {
         let week = model.completedSessions(since: Date.startOfWeek)
         let last = model.completedSessions().first
         return HStack(alignment: .top, spacing: Theme.Spacing.l) {
-            Stat("\(week.count)", label: week.count == 1 ? "session this week" : "sessions this week", tint: Theme.Colors.brass)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .top, spacing: Theme.Spacing.s) {
+                HoneyPot(fill: min(1, Double(week.count) / 3), drip: week.count > 0, label: nil).frame(width: 30, height: 30).storybookOnly()
+                Stat("\(week.count)", label: week.count == 1 ? "session this week" : "sessions this week", tint: Theme.Colors.honeyInk)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             if let last {
                 Stat(dayLabel(last.performedAt), label: "last · \(last.dayType.label.lowercased())")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -109,7 +136,7 @@ struct HomeView: View {
     /// The day picker owns the middle of the screen: one tall row per day with what's heavy this time and when it
     /// was last done, so the choice is informed rather than a strip of tabs.
     var modePicker: some View {
-        FlatSection("Workout") {
+        FlatSection("Workout", detail: Theme.storybook ? "pick a page" : nil) {
             VStack(spacing: 0) {
                 ForEach(HomeMode.all, id: \.self) { m in
                     ModeRow(mode: m, subtitle: subtitle(m), isNext: m == .strength(model.nextDayType), selected: m == mode) {
@@ -187,7 +214,8 @@ struct HomeView: View {
     }
 }
 
-/// One choice in Home's day list: tinted glyph, name, what makes this one different, and a check when chosen.
+/// One choice in Home's day list: a character vignette on its wash, name, what makes this one different, and a
+/// honey check when chosen.
 struct ModeRow: View {
     let mode: HomeMode
     let subtitle: String
@@ -198,23 +226,43 @@ struct ModeRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: Theme.Spacing.m) {
-                Image(systemName: mode.symbol).font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(selected ? mode.tint : Theme.Colors.textTertiary)
-                    .frame(width: 28)
+                if Theme.storybook {
+                    Illustration(mode.plate)
+                        .frame(width: 40, height: 40)
+                        .padding(6)
+                        .background(WashBlob(color: mode.tint, opacity: selected ? 0.55 : 0.25).scaleEffect(1.15))
+                        .saturation(selected ? 1 : 0.6)
+                        .opacity(selected ? 1 : 0.7)
+                } else {
+                    Image(systemName: mode.symbol).font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(selected ? mode.tint : Theme.Colors.textTertiary)
+                        .frame(width: 28)
+                }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: Theme.Spacing.s) {
                         Text(mode.label).font(Theme.Fonts.heading)
                             .foregroundStyle(selected ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
-                        if isNext { Overline("Up next", tint: Theme.Colors.brass) }
+                        if isNext { Aside("up next", tint: Theme.Colors.honeyInk) }
                     }
                     Text(subtitle).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary).lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "checkmark").font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Theme.Colors.brass)
+                if Theme.storybook {
+                    ZStack {
+                        Circle().fill(Theme.Colors.honey).frame(width: 26, height: 26)
+                            .overlay(Circle().strokeBorder(Theme.Colors.ink.opacity(0.7), lineWidth: 1.2))
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(Theme.Colors.ink)
+                    }
                     .opacity(selected ? 1 : 0)
+                    .scaleEffect(selected ? 1 : 0.6)
+                    .animation(Theme.Motion.quick, value: selected)
+                } else {
+                    Image(systemName: "checkmark").font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.Colors.brass)
+                        .opacity(selected ? 1 : 0)
+                }
             }
-            .frame(minHeight: 64)
+            .frame(minHeight: Theme.storybook ? 68 : 64)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) { Hairline() }
         }

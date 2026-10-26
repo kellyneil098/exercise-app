@@ -45,7 +45,7 @@ struct ExerciseGuideView: View {
                     HStack(alignment: .center) {
                         IconButton("xmark", label: "Close") { dismiss() }
                         Spacer()
-                        Overline(guide.familyName)
+                        Aside(guide.familyName)
                     }
                     VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                         Text(guide.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
@@ -93,7 +93,15 @@ struct ExerciseGuideView: View {
                 .padding(Theme.Spacing.m)
                 .aspectRatio(100.0 / 68.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card))
+                .background {
+                    if Theme.storybook {
+                        RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.paper)
+                            .overlay(WashBlob(color: Theme.Colors.honey, opacity: 0.25).padding(Theme.Spacing.l))
+                            .inkOutline(Theme.Radius.control, opacity: 0.35)
+                    } else {
+                        RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     // Resume sits on the figure, not in the stage strip, so long stage names keep their width.
                     if frozenStage != nil {
@@ -135,12 +143,13 @@ struct ExerciseGuideView: View {
         } label: {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 HStack(spacing: Theme.Spacing.xs) {
-                    Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(active ? Theme.Colors.brass : Theme.Colors.textTertiary)
+                    Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(active ? Theme.Colors.honeyInk : Theme.Colors.textTertiary)
                     Text(s.name).font(active ? Theme.Fonts.bodyMedium : Theme.Fonts.body).lineLimit(1).minimumScaleFactor(0.85)
                         .foregroundStyle(active ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
                 }
-                Capsule().fill(active ? Theme.Colors.brass : Theme.Colors.hairline).frame(height: 2)
-                    .shadow(color: active ? Theme.Colors.brass.opacity(0.6) : .clear, radius: 4)
+                Capsule().fill(active ? Theme.Colors.brass : Theme.Colors.hairline).frame(height: Theme.storybook ? (active ? 4 : 1) : 2)
+                    .shadow(color: active && !Theme.storybook ? Theme.Colors.brass.opacity(0.6) : .clear, radius: 4)
+                    .overlay(Capsule().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook && active ? 0.5 : 0), lineWidth: 1))
             }
             .contentShape(Rectangle())
         }
@@ -155,7 +164,8 @@ struct ExerciseGuideView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                 ForEach(lines, id: \.self) { line in
                     HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
-                        Circle().fill(Theme.Colors.brass).frame(width: 5, height: 5).offset(y: -3)
+                        Circle().fill(Theme.Colors.brass).frame(width: Theme.storybook ? 7 : 5, height: Theme.storybook ? 7 : 5)
+                            .overlay(Circle().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook ? 0.6 : 0), lineWidth: 1)).offset(y: Theme.storybook ? -2 : -3)
                         Text(line).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

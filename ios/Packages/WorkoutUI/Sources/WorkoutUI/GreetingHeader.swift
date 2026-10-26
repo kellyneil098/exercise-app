@@ -105,8 +105,8 @@ public struct GreetingHeader<Trailing: View>: View {
 
     /// `Theme.Fonts.title` / `.heading` at the default text size, but following Dynamic Type (capped at AX3 below, so
     /// a word like "afternoon," still fits a 375-pt phone's width without breaking mid-word).
-    static var titleFont: Font { .system(.title, weight: .bold) }
-    static var phraseFont: Font { .system(.headline, weight: .bold) }
+    static var titleFont: Font { Theme.storybook ? .system(.title, design: .serif, weight: .semibold).italic() : .system(.title, weight: .bold) }
+    static var phraseFont: Font { Theme.storybook ? .system(.headline, design: .serif, weight: .regular).italic() : .system(.headline, weight: .bold) }
 }
 
 private extension View {
@@ -139,7 +139,7 @@ private struct GreetingHeaderPreview: View {
         .padding(.horizontal, Theme.Spacing.l)
         .frame(width: phoneWidth, alignment: .leading)
         .background(Theme.Colors.canvas)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(Theme.current.colorScheme)
     }
 }
 

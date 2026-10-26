@@ -6,6 +6,10 @@ import WorkoutUI
 
 /// This week's runs as cards, shown inline on Home when Running is selected; logging a run writes a `RunRow`.
 /// Week rollover advances the plan (§6).
+/// Run accents: Piglet pink in the storybook, the classic pull-blue otherwise.
+var runTint: Color { Theme.storybook ? Theme.Colors.pigletDeep : Theme.Colors.pull }
+var runWash: Color { Theme.storybook ? Theme.Colors.piglet : Theme.Colors.pull }
+
 struct RunContent: View {
     @Environment(AppModel.self) private var model
     @State private var plan: RunPlanRow?
@@ -20,24 +24,41 @@ struct RunContent: View {
                 let done = runs.filter { $0.completedAt != nil }
                 Group {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                        HStack(spacing: Theme.Spacing.sm) {
-                            Glyph("figure.run", tint: Theme.Colors.pull, width: 20)
-                            Overline("This week", tint: Theme.Colors.textSecondary)
-                            Spacer()
-                            if state.isDeloadWeek {
-                                Text("Lighter week").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.pull)
-                                    .padding(.horizontal, Theme.Spacing.s).frame(height: 24).background(Theme.Colors.pull.opacity(0.12), in: Capsule())
+                        if Theme.storybook {
+                            HStack(alignment: .bottom, spacing: Theme.Spacing.sm) {
+                                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                                    Text("This week's runs").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.ink)
+                                    Quip(state.isDeloadWeek ? "A lighter week, for resting and humming." : "Piglet keeps up. So will you.")
+                                }
+                                Spacer()
+                                Illustration(.walkingTrail, wash: Theme.Colors.piglet, washOpacity: 0.4).frame(width: 132, height: 56)
+                            }
+                        } else {
+                            HStack(spacing: Theme.Spacing.sm) {
+                                Glyph("figure.run", tint: Theme.Colors.pull, width: 20)
+                                Overline("This week", tint: Theme.Colors.textSecondary)
+                                Spacer()
+                                if state.isDeloadWeek {
+                                    Text("Lighter week").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.pull)
+                                        .padding(.horizontal, Theme.Spacing.s).frame(height: 24).background(Theme.Colors.pull.opacity(0.12), in: Capsule())
+                                }
                             }
                         }
                         Hairline()
                         HStack(alignment: .top) {
                             Stat(state.weeklyVolumeMi.formatted(), unit: "mi", label: "planned", tint: Theme.Colors.textPrimary)
                             Spacer()
-                            Stat(done.reduce(0) { $0 + ($1.distanceMi ?? 0) }.formatted(.number.precision(.fractionLength(0...1))), unit: "mi", label: "run so far", tint: Theme.Colors.pull)
+                            Stat(done.reduce(0) { $0 + ($1.distanceMi ?? 0) }.formatted(.number.precision(.fractionLength(0...1))), unit: "mi", label: "run so far", tint: runTint)
                             Spacer()
                             Stat("\(done.count)", unit: "of \(runs.count)", label: "runs done")
                         }
-                        ProgressBar(Double(done.count) / Double(max(1, runs.count)), tint: Theme.Colors.pull)
+                        if Theme.storybook {
+                            Footprints(count: max(runs.count * 3, 6), progress: Double(done.count) / Double(max(1, runs.count)), tint: Theme.Colors.pigletDeep)
+                                .frame(height: 26)
+                                .animation(Theme.Motion.spring, value: done.count)
+                        } else {
+                            ProgressBar(Double(done.count) / Double(max(1, runs.count)), tint: Theme.Colors.pull)
+                        }
                     }
                 }
                 ForEach(runs) { run in
@@ -46,8 +67,13 @@ struct RunContent: View {
             } else {
                 Group {
                     HStack(spacing: Theme.Spacing.m) {
-                        Glyph("figure.run", tint: Theme.Colors.textTertiary)
-                        Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        if Theme.storybook {
+                            Illustration(.eeyoreLying, wash: Theme.Colors.eeyore, washOpacity: 0.3).frame(width: 96, height: 48)
+                            Quip("No running plan yet. Thanks for noticing.")
+                        } else {
+                            Glyph("figure.run", tint: Theme.Colors.textTertiary)
+                            Text("No running plan yet.").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        }
                     }
                 }
             }
@@ -78,10 +104,10 @@ struct RunCard: View {
 
     var body: some View {
         let done = run.completedAt != nil
-        Card(raised: !done) {
+        Card(raised: !done, plate: !done) {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                 HStack(spacing: Theme.Spacing.m) {
-                    IconTile(done ? "checkmark" : symbol, tint: done ? Theme.Colors.brass : Theme.Colors.pull, size: 44)
+                    IconTile(done ? "checkmark" : symbol, tint: done ? Theme.Colors.brass : runWash, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(done ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
                         if done, let d = run.distanceMi, let p = run.paceSecPerMi {
@@ -100,7 +126,8 @@ struct RunCard: View {
                     VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                         ForEach(Array(model.runPlanner.segments(for: planned, state: state).enumerated()), id: \.offset) { _, seg in
                             HStack(spacing: Theme.Spacing.s) {
-                                Circle().fill(Theme.Colors.pull.opacity(0.6)).frame(width: 6, height: 6)
+                                Circle().fill(Theme.storybook ? Theme.Colors.piglet : Theme.Colors.pull.opacity(0.6)).frame(width: Theme.storybook ? 8 : 6, height: Theme.storybook ? 8 : 6)
+                                    .overlay(Circle().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook ? 0.5 : 0), lineWidth: 1))
                                 Text(segmentText(seg)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                             }
                         }
@@ -114,8 +141,8 @@ struct RunCard: View {
                         Button(action: onLog) {
                             Image(systemName: "square.and.pencil").font(.system(size: 17, weight: .bold))
                                 .frame(width: 56, height: 56)
-                                .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).strokeBorder(Theme.Colors.brassBorder, lineWidth: 1))
+                                .background(Theme.storybook ? Theme.Colors.paper : Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                                .inkOutline(Theme.Radius.control, opacity: 0.45)
                         }
                         .foregroundStyle(Theme.Colors.textPrimary).buttonStyle(PressStyle())
                         .accessibilityLabel("Log run manually")
@@ -190,23 +217,22 @@ struct LogRunSheet: View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                 HStack(spacing: Theme.Spacing.m) {
-                    Glyph("square.and.pencil", tint: Theme.Colors.pull)
+                    if Theme.storybook { IconTile("square.and.pencil", tint: Theme.Colors.piglet, size: 40) } else { Glyph("square.and.pencil", tint: Theme.Colors.pull) }
                     VStack(alignment: .leading, spacing: 2) {
                         Overline("Log run")
                         Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
                     }
                     Spacer()
                     if distance > 0, minutes > 0 {
-                        Stat(formatPace(Double(minutes * 60) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.brass)
+                        Stat(formatPace(Double(minutes * 60) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.honeyInk)
                     }
                 }
-                Group {
-                    VStack(spacing: Theme.Spacing.m) {
-                        Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
-                        Hairline()
-                        Adjuster("\(minutes) min", value: $minutes.asDouble, in: 0...600)
-                    }
+                let adjusters = VStack(spacing: Theme.Spacing.m) {
+                    Adjuster("\(distance.formatted()) mi", value: $distance, in: 0...50, step: 0.1)
+                    Hairline()
+                    Adjuster("\(minutes) min", value: $minutes.asDouble, in: 0...600)
                 }
+                if Theme.storybook { Card(padding: Theme.Spacing.m) { adjusters } } else { adjusters }
                 HStack(spacing: Theme.Spacing.l) {
                     ForEach([EffortRating.easy, .good, .didNotFinish], id: \.rawValue) { e in
                         TextOption(e.label, selected: e == effort) { effort = e }

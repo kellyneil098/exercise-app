@@ -22,7 +22,7 @@ struct ExerciseArt: View {
     var body: some View {
         let renderer = FigureRenderer(motion: Motion.for(exerciseKey: exerciseKey, pattern: pattern))
         ZStack {
-            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
+            if !Theme.storybook { RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card) }
             TimelineView(.animation(paused: reduceMotion)) { timeline in
                 Canvas(rendersAsynchronously: true) { ctx, size in
                     let t = reduceMotion ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
@@ -505,10 +505,13 @@ struct FigureRenderer {
     static let headR: CGFloat = 5.4, torsoW: CGFloat = 5.0, limbW: CGFloat = 3.4, outline: CGFloat = 1.4
     static let plateR: [Pose.Implement: CGFloat] = [.barbell: 5.0, .barbellOnHips: 5.0, .trapBar: 5.0, .barbellNarrow: 3.6, .shortBar: 3.0]
 
-    let brass = Theme.Colors.brass, card = Theme.Colors.card
-    let far = Theme.Colors.brass.opacity(0.55)
-    let gear = Theme.Colors.textPrimary.opacity(0.6), gearFill = Theme.Colors.textPrimary.opacity(0.1)
-    let propColor = Theme.Colors.brass.opacity(0.38)
+    // Classic: brass figure outlined in the card colour. Storybook: a little honey-coloured bear drawn in ink, far
+    // limbs paler, props in bark, two round ears.
+    let storybook = Theme.storybook
+    let brass = Theme.Colors.brass, card = Theme.storybook ? Theme.Colors.ink : Theme.Colors.card
+    let far = Theme.storybook ? Theme.Colors.honeyLight : Theme.Colors.brass.opacity(0.55)
+    let gear = Theme.Colors.textPrimary.opacity(Theme.storybook ? 0.7 : 0.6), gearFill = Theme.Colors.textPrimary.opacity(Theme.storybook ? 0.08 : 0.1)
+    let propColor = Theme.storybook ? Theme.Colors.bark.opacity(0.55) : Theme.Colors.brass.opacity(0.38)
 
     let keyframes: [Pose]
     let anchor: Motion.Anchor
@@ -670,9 +673,15 @@ struct FigureRenderer {
 
     private func drawHead(_ ctx: inout GraphicsContext, _ sk: Skeleton) {
         let h = sk.head, r = Self.headR
-        circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let ang = sk.headAngle
         let f = frontNormal(ang), u = CGPoint(x: cos(ang * .pi / 180), y: sin(ang * .pi / 180))
+        // Storybook: two small round ears on the crown (opposite the mouth), behind the head.
+        for side in storybook ? [-1.0, 1.0] as [CGFloat] : [] {
+            let ear = CGPoint(x: h.x - u.x * r * 0.72 + f.x * r * 0.62 * side, y: h.y - u.y * r * 0.72 + f.y * r * 0.62 * side)
+            circle(&ctx, ear, r * 0.36, fill: brass, stroke: card, w: 1.0)
+            circle(&ctx, ear, r * 0.16, fill: card)
+        }
+        circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let eye = CGPoint(x: h.x + f.x * r * 0.5 + u.x * r * 0.12, y: h.y + f.y * r * 0.5 + u.y * r * 0.12)
         circle(&ctx, eye, r * 0.19, fill: card)
         let a = CGPoint(x: eye.x - f.x * r * 0.12 + u.x * r * 0.34, y: eye.y - f.y * r * 0.12 + u.y * r * 0.34)

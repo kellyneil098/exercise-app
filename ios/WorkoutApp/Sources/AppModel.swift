@@ -3,6 +3,7 @@ import GRDB
 import Observation
 import WorkoutEngine
 import WorkoutStore
+import WorkoutUI
 
 /// App-wide state: the store, the engine, identity, and the current session. One instance per app.
 @Observable @MainActor
@@ -28,7 +29,16 @@ final class AppModel {
     /// Partner (or any shared user) currently being viewed read-only in Progress; nil = me.
     var viewingUserId: String?
 
+    /// The design system in use (Default or Winnie the Pooh). Persisted in UserDefaults; `Theme.current` follows it
+    /// so the static `Theme.*` tokens resolve through the chosen look.
+    var theme: AppTheme = AppTheme.load() {
+        didSet { theme.save(); Theme.current = theme.spec }
+    }
+    /// Presented from the root (outside the theme-keyed subtree) so the Profile sheet stays up while switching.
+    var showSettings = false
+
     init(store: WorkoutStore, catalog: Catalog, api: APIClient, userId: String) {
+        Theme.current = AppTheme.load().spec
         self.store = store
         self.seedCatalog = catalog
         self.catalog = catalog

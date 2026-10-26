@@ -26,25 +26,33 @@ struct DeckOverview: View {
         Screen {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    HStack(alignment: .center) {
+                    HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                        Illustration(.poohWithPot, wash: Theme.Colors.day(session.plan.dayType), washOpacity: 0.32)
+                            .frame(width: 44, height: 68)
+                            .storybookOnly()
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Overline(confirming ? "Today's plan" : "Deck")
+                            if Theme.storybook {
+                                Text(confirming ? "Today's plan" : "The deck").font(Theme.Fonts.titleSmall).foregroundStyle(Theme.Colors.textPrimary)
+                            } else {
+                                Overline(confirming ? "Today's plan" : "Deck")
+                            }
                             HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
-                                Text("\(session.remainingCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
-                                Text("\(confirming ? "exercises" : "left") · ~\(remainingMinutes) min").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                                Text("\(session.remainingCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.storybook ? Theme.Colors.honeyInk : Theme.Colors.textPrimary)
+                                Text("\(confirming ? "exercises" : "left") · ~\(remainingMinutes) min").font(Theme.storybook ? Theme.Fonts.quip : Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                             }
                         }
                         Spacer()
-                        IconButton("plus", label: "Add exercise", tint: Theme.Colors.brass) { picker = .add }
+                        IconButton("plus", label: "Add exercise", tint: Theme.storybook ? Theme.Colors.ink : Theme.Colors.brass) { picker = .add }
                         if confirming {
                             // This screen replaces Home at the root (not pushed, not a sheet), so it closes the way the
                             // live run does: an X in the top corner. Nothing is logged yet, so no confirmation.
                             IconButton("xmark", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
                         } else {
                             Button { dismiss() } label: {
-                                Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.canvas)
+                                Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.storybook ? Theme.Colors.ink : Theme.Colors.canvas)
                                     .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
                                     .background(Theme.Colors.brass, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook ? 0.7 : 0), lineWidth: Theme.Stroke.outline))
                             }
                             .buttonStyle(PressStyle())
                         }
@@ -164,7 +172,9 @@ struct DeckOverview: View {
         return VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.m) {
                 Group {
-                    if complete {
+                    if Theme.storybook {
+                        PotNumber(index: index, complete: complete, current: isCurrent, linked: linked, tint: tint)
+                    } else if complete {
                         IconTile("checkmark", tint: Theme.Colors.brass, size: 40)
                     } else if isCurrent {
                         IconTile("play.fill", tint: tint, size: 40)
@@ -176,10 +186,10 @@ struct DeckOverview: View {
                 .padding(.leading, linked ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
                     if b.band == .heavy || linked {
-                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: tint)
+                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: Theme.Colors.dayInk(session.plan.dayType))
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
-                        .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent ? Theme.Colors.brass : Theme.Colors.textPrimary)
+                        .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent && !Theme.storybook ? Theme.Colors.brass : Theme.Colors.textPrimary)
                     Text(summary(b, done: done)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                 }
                 Spacer(minLength: Theme.Spacing.s)
@@ -217,10 +227,10 @@ struct DeckOverview: View {
                 Image(systemName: "arrow.uturn.backward").font(.system(size: 13, weight: .bold))
                 Text("Restore").font(Theme.Fonts.captionBold)
             }
-            .foregroundStyle(Theme.Colors.brass)
+            .foregroundStyle(Theme.storybook ? Theme.Colors.ink : Theme.Colors.brass)
             .padding(.horizontal, Theme.Spacing.sm).frame(height: 36)
-            .background(Theme.Colors.brassDim, in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.Colors.brass.opacity(0.3), lineWidth: 1))
+            .background(Theme.storybook ? Theme.Colors.honey : Theme.Colors.brassDim, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.storybook ? Theme.Colors.ink.opacity(0.6) : Theme.Colors.brass.opacity(0.3), lineWidth: 1))
         }
         .padding(.vertical, Theme.Spacing.m)
         .contentShape(Rectangle())
@@ -293,7 +303,7 @@ struct SwipeRowAction {
 
     static let delete = SwipeRowAction(label: "Delete", icon: "trash", color: Theme.Colors.swipeSkip, flies: true)
     static let swap = SwipeRowAction(label: "Swap", icon: "arrow.triangle.2.circlepath", color: Theme.Colors.swipeRate, flies: false)
-    static let restore = SwipeRowAction(label: "Restore", icon: "arrow.uturn.backward", color: Theme.Colors.brass, flies: true)
+    static var restore: SwipeRowAction { SwipeRowAction(label: "Restore", icon: "arrow.uturn.backward", color: Theme.storybook ? Theme.Colors.honeyDeep : Theme.Colors.brass, flies: true) }
 }
 
 /// A list row that acts on a sideways swipe, with the deck cards' tint-and-stamp feedback (`SwipeFeedback`).
@@ -418,6 +428,32 @@ extension DeckOverview {
     }
 }
 
+/// The row's number on a little honey pot: full and ticked when the exercise is done, honey-washed while current,
+/// a chain link for the second half of a superset.
+struct PotNumber: View {
+    let index: Int
+    let complete: Bool
+    let current: Bool
+    let linked: Bool
+    let tint: Color
+    var body: some View {
+        ZStack {
+            HoneyPot(fill: complete ? 1 : current ? 0.55 : 0, drip: complete, label: nil)
+                .frame(width: 44, height: 44)
+            if complete {
+                Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(Theme.Colors.ink).offset(y: 6)
+            } else if linked {
+                Image(systemName: "link").font(.system(size: 11, weight: .heavy)).foregroundStyle(Theme.Colors.ink).offset(y: 6)
+            } else {
+                Text("\(min(index + 1, 50))").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.ink).offset(y: 6)
+            }
+        }
+        .background(WashBlob(color: tint, opacity: current ? 0.45 : 0.18).scaleEffect(1.25))
+        .opacity(complete ? 0.75 : 1)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Icon-only control. A tap gesture on a shaped view rather than a `Button`, which can lose taps to a
 /// reorderable `List` row's own gestures.
 struct IconControl: View {
@@ -431,8 +467,8 @@ struct IconControl: View {
     var body: some View {
         Image(systemName: icon).font(.system(size: 15, weight: .bold)).foregroundStyle(tint)
             .frame(width: 52, height: 44)
-            .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.brassBorder, lineWidth: 1))
+            .background(Theme.storybook ? Theme.Colors.paper : Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
+            .inkOutline(Theme.Radius.chip, opacity: 0.4, lineWidth: 1)
             .contentShape(Rectangle())
             .onTapGesture(perform: action)
             .accessibilityAddTraits(.isButton)
