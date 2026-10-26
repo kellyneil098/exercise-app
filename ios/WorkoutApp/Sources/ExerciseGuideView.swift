@@ -204,7 +204,7 @@ struct ExerciseGuideView: View {
                 Quip(scopeLine)
             }
             Spacer(minLength: Theme.Spacing.s)
-            Illustration(.poohDancing, wash: Theme.Colors.honey, washOpacity: 0.3)
+            Illustration(.poohThinking, wash: Theme.Colors.honey, washOpacity: 0.3)
                 .frame(width: 84, height: 80)
         }
     }
