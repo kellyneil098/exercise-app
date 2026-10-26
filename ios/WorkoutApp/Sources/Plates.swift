@@ -26,7 +26,7 @@ enum Plate: String {
     case signpost = "shepard-143"           // Christopher Robin and Pooh at the North Pole signpost
     case honeyShelf = "shepard-150"         // the larder shelf of honey pots
     case eeyoreLying = "shepard-099"
-    case eeyoreSad = "shepard-060"
+    case eeyoreSad = "shepard-60"
     case eeyorePooh = "shepard-59"
     case eeyorePot = "shepard-103"          // Eeyore, Piglet and Pooh with the useful pot
     case owl = "shepard-66"                 // Owl in his parlour

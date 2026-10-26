@@ -203,10 +203,9 @@ struct ExerciseGuideView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Quip(scopeLine)
             }
-            .layoutPriority(1)
             Spacer(minLength: Theme.Spacing.s)
             Illustration(.poohDancing, wash: Theme.Colors.honey, washOpacity: 0.3)
-                .frame(maxWidth: 92, maxHeight: 84)
+                .frame(width: 84, height: 80)
         }
     }
 
@@ -228,7 +227,7 @@ struct ExerciseGuideView: View {
     /// The faults to avoid, as Eeyore would put it.
     var botherBox: some View {
         storyBox(title: "Oh, bother", wash: Theme.Colors.eeyore, washOpacity: 0.28) {
-            Illustration(.eeyoreSad, tint: Theme.Colors.ink).frame(width: 44, height: 34)
+            Illustration(.eeyoreLying, tint: Theme.Colors.ink).frame(width: 72, height: 40)
         } content: {
             ForEach(guide.cues.avoid, id: \.self) { line in
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.s) {
