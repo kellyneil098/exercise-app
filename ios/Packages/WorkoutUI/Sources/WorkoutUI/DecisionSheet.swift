@@ -81,7 +81,6 @@ public extension View {
 struct FittedSheet<Content: View>: View {
     let content: Content
     @State private var contentHeight: CGFloat = 0
-    @State private var bottomInset: CGFloat = 0
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -89,8 +88,7 @@ struct FittedSheet<Content: View>: View {
             content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { bottomInset = $0 }
-        .presentationDetents(contentHeight > 0 ? [.height(contentHeight + bottomInset)] : [.medium])
+        .presentationDetents(contentHeight > 0 ? [.height(contentHeight)] : [.medium])
         .presentationDragIndicator(.hidden)
         .presentationCornerRadius(Theme.Radius.card)
         .presentationBackground(Theme.Colors.card)
