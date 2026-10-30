@@ -26,6 +26,11 @@ struct DeckOverview: View {
         Screen {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    if confirming {
+                        // Back to Home on its own leading row, iOS-style: reads as navigation (not a cancel beside `+`)
+                        // and never crowds the title or the plate. Nothing is logged yet, so no confirmation.
+                        IconButton("chevron.backward", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
+                    }
                     HStack(alignment: .center, spacing: Theme.Spacing.sm) {
                         Illustration(.poohWithPot, wash: Theme.Colors.day(session.plan.dayType), washOpacity: 0.32)
                             .frame(width: 44, height: 68)
@@ -43,11 +48,7 @@ struct DeckOverview: View {
                         }
                         Spacer()
                         IconButton("plus", label: "Add exercise", tint: Theme.storybook ? Theme.Colors.ink : Theme.Colors.brass) { picker = .add }
-                        if confirming {
-                            // This screen replaces Home at the root (not pushed, not a sheet), so it closes the way the
-                            // live run does: an X in the top corner. Nothing is logged yet, so no confirmation.
-                            IconButton("xmark", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
-                        } else {
+                        if !confirming {
                             Button { dismiss() } label: {
                                 Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.storybook ? Theme.Colors.ink : Theme.Colors.canvas)
                                     .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
@@ -61,7 +62,7 @@ struct DeckOverview: View {
                         ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
+                .padding(.horizontal, Theme.Spacing.l).padding(.top, confirming ? Theme.Spacing.s : Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
 
                 List {
                     ForEach(Array(session.activeBlocks.enumerated()), id: \.element.id) { i, b in
@@ -70,6 +71,7 @@ struct DeckOverview: View {
                         }
                         .listRowBackground(Color.clear)
                         .listRowSeparatorTint(Theme.Colors.hairline)
+                        .listRowSeparator(.hidden, edges: supersetEdges(b))
                         .listRowInsets(rowInsets)
                     }
                     .onMove { session.move(fromOffsets: $0, toOffset: $1) }
@@ -112,17 +114,27 @@ struct DeckOverview: View {
             }
         }
         .sheet(item: $picker) { mode in ExercisePicker(session: session, replacing: mode.block) }
-        .alert("End this workout?", isPresented: $confirmEnd) {
-            Button("Finish and save progress") { dismiss(); session.finish() }
-            Button("Discard", role: .destructive) { dismiss(); session.abandon() }
-            Button("Keep going", role: .cancel) {}
-        } message: {
-            Text("Finishing applies progression to what you logged. Discarding drops this session's sets.")
+        // Live user testing: the system alert's three equal buttons buried "Finish" and put Discard beside it. The X
+        // is the way back to the workout; finishing leads; discard is small and set apart at the bottom.
+        .fittedSheet(isPresented: $confirmEnd) {
+            DecisionSheet(
+                title: "End this workout?", message: endMessage, closeLabel: "Keep going",
+                primary: .init("Finish and save progress", icon: "checkmark",
+                               hint: "Ends the workout, keeps your logged sets and updates your next targets.") { dismiss(); session.finish() },
+                destructive: .init("Discard this workout", icon: "trash",
+                                   hint: "Ends the workout and deletes this session's logged sets. Your targets stay the same.") { dismiss(); session.abandon() }
+            ) { confirmEnd = false }
         }
         .presentationBackground(Theme.Colors.canvas)
     }
 
     private var rowInsets: EdgeInsets { EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l) }
+
+    var endMessage: String {
+        let sets = session.logs.filter { !$0.deleted && $0.exerciseKey != PlanBlock.cooldownExerciseKey }.count
+        if sets == 0 { return "Nothing logged yet. Saving still moves you on to your next day; discarding deletes this session." }
+        return "Saving keeps the \(sets) \(sets == 1 ? "set" : "sets") you logged and updates your next targets. Discarding deletes \(sets == 1 ? "it" : "them")."
+    }
 
     var remainingMinutes: Int {
         let secs = session.activeBlocks.filter { !session.isComplete($0) }.reduce(0.0) { acc, b in
@@ -168,12 +180,13 @@ struct DeckOverview: View {
         let isCurrent = !confirming && session.currentBlock?.id == b.id
         let complete = session.isComplete(b)
         let linked = session.isSupersetLinked(b)
+        let pairedBelow = hostsLinkedPartner(b)
         let tint = Theme.Colors.day(session.plan.dayType)
         return VStack(alignment: .leading, spacing: Theme.Spacing.m) {
             HStack(spacing: Theme.Spacing.m) {
                 Group {
                     if Theme.storybook {
-                        PotNumber(index: index, complete: complete, current: isCurrent, linked: linked, tint: tint)
+                        PotNumber(index: index, complete: complete, current: isCurrent, tint: tint)
                     } else if complete {
                         IconTile("checkmark", tint: Theme.Colors.brass, size: 40)
                     } else if isCurrent {
@@ -181,16 +194,19 @@ struct DeckOverview: View {
                     } else if b.isCooldown {
                         IconTile("figure.flexibility", tint: tint, size: 40).opacity(0.7)
                     } else {
-                        IconTile(linked ? "link" : "\(min(index + 1, 50)).circle", tint: tint, size: 40)
+                        IconTile("\(min(index + 1, 50)).circle", tint: tint, size: 40)
                             .opacity(0.7)
                     }
                 }
-                .padding(.leading, linked ? Theme.Spacing.m : 0)
+                .anchorPreference(key: RowTileAnchor.self, value: .bounds) { $0 }
+                .padding(.leading, linked ? SupersetConnector.indent : 0)
                 VStack(alignment: .leading, spacing: 3) {
                     if b.isCooldown {
                         Overline(Theme.storybook ? "Cool-down" : "Cooldown", tint: Theme.Colors.dayInk(session.plan.dayType))
                     } else if b.band == .heavy || linked {
-                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: Theme.Colors.dayInk(session.plan.dayType))
+                        // Heavy shares the summary's colour so it reads as part of its lower (5–8) rep range.
+                        Overline(b.band == .heavy ? "Heavy" : "Superset",
+                                 tint: b.band == .heavy ? Theme.Colors.textSecondary : Theme.Colors.dayInk(session.plan.dayType))
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent && !Theme.storybook ? Theme.Colors.brass : Theme.Colors.textPrimary)
@@ -212,7 +228,7 @@ struct DeckOverview: View {
             // Swap and delete are swipes; these give them to anyone who can't swipe (VoiceOver, Switch Control, Voice Control).
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("\(b.band == .heavy ? "Heavy, " : "")\(b.exerciseName), \(summary(b, done: done))")
+            .accessibilityLabel("\(b.band == .heavy ? "Heavy, " : "")\(supersetPrefix(b, linked: linked))\(b.exerciseName), \(summary(b, done: done))")
             .accessibilityHint(b.isCooldown ? "A reminder to stretch before you finish" : expanded == b.id ? "Hides the editors" : "Shows weight, sets and reps editors")
             .accessibilityActions {
                 if !b.isCooldown { Button("Swap exercise") { beginSwap(b) } }
@@ -221,7 +237,39 @@ struct DeckOverview: View {
 
             if expanded == b.id { editors(b, done: done) }
         }
-        .padding(.vertical, Theme.Spacing.m)
+        // A superset pair sits closer together than separate exercises: one sequence, done back to back.
+        .padding(.top, linked ? Theme.Spacing.s : Theme.Spacing.m)
+        .padding(.bottom, pairedBelow ? Theme.Spacing.s : Theme.Spacing.m)
+        .overlayPreferenceValue(RowTileAnchor.self) { anchor in
+            if let anchor, linked || pairedBelow {
+                GeometryReader { proxy in
+                    SupersetConnector(tile: proxy[anchor], stem: pairedBelow, hook: linked)
+                        .stroke(Theme.Colors.dayInk(session.plan.dayType).opacity(0.7),
+                                style: StrokeStyle(lineWidth: Theme.Stroke.outline, lineCap: .round, lineJoin: .round))
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+    }
+
+    /// Whether this block's superset partner follows it in the deck, so the connector runs on into the next row.
+    func hostsLinkedPartner(_ b: PlanBlock) -> Bool {
+        guard let partner = session.plan.supersetPartner(of: b) else { return false }
+        return !session.isSkipped(partner) && !session.isDeleted(partner)
+    }
+
+    /// The separator between a host and its partner is dropped so the connector reads as one unbroken pair.
+    func supersetEdges(_ b: PlanBlock) -> VerticalEdge.Set {
+        var edges: VerticalEdge.Set = []
+        if session.isSupersetLinked(b) { edges.insert(.top) }
+        if hostsLinkedPartner(b) { edges.insert(.bottom) }
+        return edges
+    }
+
+    func supersetPrefix(_ b: PlanBlock, linked: Bool) -> String {
+        guard linked, let host = session.plan.host(of: b) else { return "" }
+        return "Superset with \(host.exerciseName), "
     }
 
     /// A skipped exercise: dimmed, with its logged sets, and a restore control. The whole row restores on tap.
@@ -456,13 +504,11 @@ extension DeckOverview {
     }
 }
 
-/// The row's number on a little honey pot: full and ticked when the exercise is done, honey-washed while current,
-/// a chain link for the second half of a superset.
+/// The row's number on a little honey pot: full and ticked when the exercise is done, honey-washed while current.
 struct PotNumber: View {
     let index: Int
     let complete: Bool
     let current: Bool
-    let linked: Bool
     let tint: Color
     var body: some View {
         ZStack {
@@ -470,8 +516,6 @@ struct PotNumber: View {
                 .frame(width: 44, height: 44)
             if complete {
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(Theme.Colors.ink).offset(y: 6)
-            } else if linked {
-                Image(systemName: "link").font(.system(size: 11, weight: .heavy)).foregroundStyle(Theme.Colors.ink).offset(y: 6)
             } else {
                 Text("\(min(index + 1, 50))").font(.system(size: 14, weight: .heavy, design: .rounded)).foregroundStyle(Theme.Colors.ink).offset(y: 6)
             }
@@ -479,6 +523,42 @@ struct PotNumber: View {
         .background(WashBlob(color: tint, opacity: current ? 0.45 : 0.18).scaleEffect(1.25))
         .opacity(complete ? 0.75 : 1)
         .accessibilityHidden(true)
+    }
+}
+
+/// Bounds of a deck row's number tile, for drawing the superset connector against it.
+struct RowTileAnchor: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+}
+
+/// Ties the second exercise of a superset to the one above it. The host row draws a stem from under its tile to
+/// its bottom edge; the partner row carries it on from its top edge, turns right and points into its own tile,
+/// which is indented one tile width so the hook has room. `tile` is the row's own tile; the stem runs down the
+/// centre of the host's tile, which sits at the row's leading edge.
+struct SupersetConnector: Shape {
+    static let indent = Theme.Spacing.xl + Theme.Spacing.s
+    let tile: CGRect
+    let stem: Bool
+    let hook: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let lane = tile.width / 2, gap = Theme.Spacing.xs, radius = Theme.Spacing.s, head = Theme.Spacing.xs
+        var p = Path()
+        if stem {
+            p.move(to: CGPoint(x: lane, y: tile.maxY + gap))
+            p.addLine(to: CGPoint(x: lane, y: rect.maxY))
+        }
+        if hook {
+            let tip = CGPoint(x: tile.minX - gap, y: tile.midY)
+            p.move(to: CGPoint(x: lane, y: rect.minY))
+            p.addArc(tangent1End: CGPoint(x: lane, y: tip.y), tangent2End: tip, radius: radius)
+            p.addLine(to: tip)
+            p.move(to: CGPoint(x: tip.x - head, y: tip.y - head))
+            p.addLine(to: tip)
+            p.addLine(to: CGPoint(x: tip.x - head, y: tip.y + head))
+        }
+        return p
     }
 }
 

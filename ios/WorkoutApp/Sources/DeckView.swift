@@ -402,7 +402,11 @@ struct SetCard: View {
                     }
                 }
                 Spacer(minLength: Theme.Spacing.l)
-                Segments(done: session.workingSetsDone(b), total: b.sets)
+                let done = session.workingSetsDone(b)
+                Segments(done: done, total: b.sets, size: .prominent)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Sets done")
+                    .accessibilityValue("\(done) of \(b.sets)")
             }
             .cardBody()
         }
