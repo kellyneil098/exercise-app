@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session as DbSession
 from . import auth, models, schemas, sync
 from .config import settings
 from .db import get_db
+from .limits import BodySizeLimit
 
 app = FastAPI(title="workout-server", version="0.1.0", docs_url=None, redoc_url=None)
+app.add_middleware(BodySizeLimit)
 
 
 def user_out(u: models.User) -> schemas.UserOut:
