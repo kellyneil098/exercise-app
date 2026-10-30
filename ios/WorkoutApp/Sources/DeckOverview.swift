@@ -114,17 +114,27 @@ struct DeckOverview: View {
             }
         }
         .sheet(item: $picker) { mode in ExercisePicker(session: session, replacing: mode.block) }
-        .alert("End this workout?", isPresented: $confirmEnd) {
-            Button("Finish and save progress") { dismiss(); session.finish() }
-            Button("Discard", role: .destructive) { dismiss(); session.abandon() }
-            Button("Keep going", role: .cancel) {}
-        } message: {
-            Text("Finishing applies progression to what you logged. Discarding drops this session's sets.")
+        // Live user testing: the system alert's three equal buttons buried "Finish" and put Discard beside it. The X
+        // is the way back to the workout; finishing leads; discard is small and set apart at the bottom.
+        .fittedSheet(isPresented: $confirmEnd) {
+            DecisionSheet(
+                title: "End this workout?", message: endMessage, closeLabel: "Keep going",
+                primary: .init("Finish and save progress", icon: "checkmark",
+                               hint: "Ends the workout, keeps your logged sets and updates your next targets.") { dismiss(); session.finish() },
+                destructive: .init("Discard this workout", icon: "trash",
+                                   hint: "Ends the workout and deletes this session's logged sets. Your targets stay the same.") { dismiss(); session.abandon() }
+            ) { confirmEnd = false }
         }
         .presentationBackground(Theme.Colors.canvas)
     }
 
     private var rowInsets: EdgeInsets { EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l) }
+
+    var endMessage: String {
+        let sets = session.logs.filter { !$0.deleted }.count
+        if sets == 0 { return "Nothing logged yet. Saving still moves you on to your next day; discarding deletes this session." }
+        return "Saving keeps the \(sets) \(sets == 1 ? "set" : "sets") you logged and updates your next targets. Discarding deletes \(sets == 1 ? "it" : "them")."
+    }
 
     var remainingMinutes: Int {
         let secs = session.activeBlocks.filter { !session.isComplete($0) }.reduce(0.0) { acc, b in
