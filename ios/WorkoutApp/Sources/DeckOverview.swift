@@ -186,7 +186,9 @@ struct DeckOverview: View {
                 .padding(.leading, linked ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
                     if b.band == .heavy || linked {
-                        Overline(b.band == .heavy ? "Heavy" : "Superset", tint: Theme.Colors.dayInk(session.plan.dayType))
+                        // Heavy shares the summary's colour so it reads as part of its lower (5–8) rep range.
+                        Overline(b.band == .heavy ? "Heavy" : "Superset",
+                                 tint: b.band == .heavy ? Theme.Colors.textSecondary : Theme.Colors.dayInk(session.plan.dayType))
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
                         .foregroundStyle(complete ? Theme.Colors.textTertiary : isCurrent && !Theme.storybook ? Theme.Colors.brass : Theme.Colors.textPrimary)
