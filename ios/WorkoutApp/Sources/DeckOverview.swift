@@ -129,7 +129,7 @@ struct DeckOverview: View {
     private var rowInsets: EdgeInsets { EdgeInsets(top: 0, leading: Theme.Spacing.l, bottom: 0, trailing: Theme.Spacing.l) }
 
     var endMessage: String {
-        let sets = session.logs.filter { !$0.isWarmup && !$0.deleted }.count
+        let sets = session.logs.filter { !$0.deleted }.count
         if sets == 0 { return "Nothing logged yet. Saving still moves you on to your next day; discarding deletes this session." }
         return "Saving keeps the \(sets) \(sets == 1 ? "set" : "sets") you logged and updates your next targets. Discarding deletes \(sets == 1 ? "it" : "them")."
     }
