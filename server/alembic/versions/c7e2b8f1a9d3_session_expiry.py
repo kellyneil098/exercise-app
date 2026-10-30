@@ -1,7 +1,7 @@
 """session.expires_at: bearer tokens get a hard lifetime
 
 Revision ID: c7e2b8f1a9d3
-Revises: a1f3c9d2e4b5
+Revises: b7e2d4f1c3a9
 """
 
 from datetime import UTC, datetime, timedelta
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "c7e2b8f1a9d3"
-down_revision = "a1f3c9d2e4b5"
+down_revision = "b7e2d4f1c3a9"
 branch_labels = None
 depends_on = None
 

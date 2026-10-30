@@ -205,6 +205,17 @@ public final class WorkoutStore: Sendable {
         try db.write { try SyncMeta(key: "pull_cursor", value: String(c)).save($0) }
     }
 
+    /// Seed renames already applied on this device (see `Location.reconcile`). Local-only; never synced.
+    public var appliedSeedRenames: Set<String> {
+        let json = try? db.read { try SyncMeta.fetchOne($0, key: "seed_renames_applied")?.value }
+        return Set((json?.data(using: .utf8)).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [])
+    }
+
+    public func setAppliedSeedRenames(_ tokens: Set<String>) throws {
+        let json = String(decoding: try JSONEncoder().encode(tokens.sorted()), as: UTF8.self)
+        try db.write { try SyncMeta(key: "seed_renames_applied", value: json).save($0) }
+    }
+
     /// Apply a pulled record: LWW on updatedAt; never enqueues (it came from the server).
     func apply(pulled: PulledRecord) throws {
         guard let type = Self.allTables.first(where: { $0.tableName == pulled.table }) else { return }

@@ -91,3 +91,59 @@ def test_idle_token_expires(client):
     row.last_seen_at = datetime.now(UTC) - timedelta(days=31)
     s.commit()
     assert client.get("/me", headers=tok).status_code == 401
+
+
+def test_invite_claim_is_atomic_against_stale_read(tmp_path):
+    """A redemption that read the invite before a concurrent one committed must still be rejected."""
+    import pytest
+    from fastapi import HTTPException
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app import auth
+    from app.db import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'race.db'}")
+    Base.metadata.create_all(engine)
+    with Session(engine) as setup:
+        inviter = models.User(email="neil@example.com")
+        setup.add(inviter)
+        setup.flush()
+        setup.add(
+            models.Invite(code="RACE2345", created_by=inviter.id, expires_at=datetime.now(UTC) + timedelta(hours=1))
+        )
+        setup.commit()
+
+    with Session(engine) as a, Session(engine) as b:
+        # Both requests have already seen the invite as unused.
+        seen_a, seen_b = a.get(models.Invite, "RACE2345"), b.get(models.Invite, "RACE2345")
+        assert seen_a.used_by is None and seen_b.used_by is None
+        ua, ub = models.User(email="a@example.com"), models.User(email="b@example.com")
+        a.add(ua)
+        a.flush()
+        auth.consume_invite(a, "RACE2345", ua)
+        a.commit()
+        winner_id = ua.id
+        b.add(ub)
+        b.flush()
+        with pytest.raises(HTTPException) as e:
+            auth.consume_invite(b, "RACE2345", ub)
+        assert e.value.status_code == 403
+        b.rollback()
+
+    with Session(engine) as check:
+        assert check.get(models.Invite, "RACE2345").used_by == winner_id
+        assert check.query(models.Share).count() == 2
+
+
+def test_expired_invite_rejected(client):
+    from app import db as dbmod
+    from app.main import app
+
+    neil, _ = login(client, "neil@example.com")
+    code = client.post("/invites", json={}, headers=neil).json()["code"]
+    db = next(app.dependency_overrides[dbmod.get_db]())
+    db.get(models.Invite, code).expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    db.commit()
+    r = client.post("/auth/dev", json={"email": "late@example.com", "invite_code": code})
+    assert r.status_code == 403

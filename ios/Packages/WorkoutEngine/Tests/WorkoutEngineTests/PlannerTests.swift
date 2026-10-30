@@ -64,6 +64,16 @@ final class PlannerTests: XCTestCase {
         XCTAssertEqual(slots.filter { $0.pattern == "vertical_press" }.count, 1)
     }
 
+    func testDurationBucketsAndLegacyNormalization() {
+        let config = EngineConfig.default
+        XCTAssertEqual(config.durationBuckets, [30, 45, 60, 90])
+        XCTAssertEqual(config.durationBucket(nearest: 40), 45)
+        for m in config.durationBuckets { XCTAssertEqual(config.durationBucket(nearest: m), m) }
+        XCTAssertEqual(config.durationBucket(nearest: 75), 60)
+        XCTAssertEqual(config.durationBucket(nearest: 10), 30)
+        XCTAssertEqual(config.durationBucket(nearest: 120), 90)
+    }
+
     func testPlansFitBudgetAndGrowWithDuration() {
         for day in DayType.allCases {
             var prev = -1

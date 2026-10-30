@@ -6,7 +6,7 @@ from typing import Annotated
 import httpx
 import jwt
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from . import models, sync
@@ -78,16 +78,26 @@ def consume_invite(db: DbSession, code: str | None, new_user: models.User) -> No
             if db.scalar(select(models.User.id).where(models.User.id != new_user.id).limit(1)) is None:
                 return
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invite required")
-    inv = db.get(models.Invite, code.strip().upper())
-    expires = inv.expires_at.replace(tzinfo=inv.expires_at.tzinfo or UTC) if inv else None
-    if inv is None or inv.used_by is not None or expires < datetime.now(UTC):
+    now = datetime.now(UTC)
+    # Claim atomically: concurrent redemptions block on the row lock and then match zero rows.
+    claimed = db.execute(
+        update(models.Invite)
+        .where(
+            models.Invite.code == code.strip().upper(),
+            models.Invite.used_by.is_(None),
+            models.Invite.expires_at > now,
+        )
+        .values(used_by=new_user.id, used_at=now)
+        .returning(models.Invite.created_by, models.Invite.grant_view_to_inviter, models.Invite.grant_view_of_inviter)
+        .execution_options(synchronize_session=False)
+    ).one_or_none()
+    if claimed is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invite invalid or expired")
-    inv.used_by = new_user.id
-    inv.used_at = datetime.now(UTC)
-    if inv.grant_view_to_inviter:
-        grant_share(db, owner_id=new_user.id, viewer_id=inv.created_by)
-    if inv.grant_view_of_inviter:
-        grant_share(db, owner_id=inv.created_by, viewer_id=new_user.id)
+    inviter_id, to_inviter, of_inviter = claimed
+    if to_inviter:
+        grant_share(db, owner_id=new_user.id, viewer_id=inviter_id)
+    if of_inviter:
+        grant_share(db, owner_id=inviter_id, viewer_id=new_user.id)
 
 
 def grant_share(db: DbSession, owner_id: str, viewer_id: str) -> None:

@@ -15,6 +15,8 @@ import WorkoutUI
 struct ExerciseArt: View {
     let exerciseKey: String
     let pattern: String
+    /// Off for list thumbnails: one still frame instead of a looping canvas per row.
+    var animated = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let repPeriod: TimeInterval = 2.8
@@ -22,10 +24,10 @@ struct ExerciseArt: View {
     var body: some View {
         let renderer = FigureRenderer(motion: Motion.for(exerciseKey: exerciseKey, pattern: pattern))
         ZStack {
-            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card)
-            TimelineView(.animation(paused: reduceMotion)) { timeline in
+            if !Theme.storybook { RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).fill(Theme.Colors.card) }
+            TimelineView(.animation(paused: reduceMotion || !animated)) { timeline in
                 Canvas(rendersAsynchronously: true) { ctx, size in
-                    let t = reduceMotion ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
+                    let t = reduceMotion || !animated ? 0 : Motion.phase(timeline.date.timeIntervalSinceReferenceDate, period: Self.repPeriod)
                     renderer.draw(in: &ctx, size: size, phase: t)
                 }
             }
@@ -412,7 +414,7 @@ private func off(_ p: CGPoint, _ dx: CGFloat, _ dy: CGFloat) -> CGPoint { CGPoin
 /// Unit vector pointing out of the figure's front for a torso at `deg`.
 private func frontNormal(_ deg: CGFloat) -> CGPoint { let r = deg * .pi / 180; return CGPoint(x: -sin(r), y: cos(r)) }
 
-private struct Skeleton {
+struct Skeleton {
     struct Arm { var elbow: CGPoint, hand: CGPoint }
     struct Leg { var knee: CGPoint, foot: CGPoint, shinAngle: CGFloat }
 
@@ -481,46 +483,69 @@ private struct Skeleton {
 
 // MARK: - Renderer
 
-private struct FigureRenderer {
+/// Draws a figure for any ordered list of keyframes: the deck pictogram is the two-keyframe case, the technique
+/// sheet walks a longer staged sequence. Props come from the first keyframe so gear never moves; the frame is fitted
+/// around every keyframe so nothing jumps between stages.
+struct FigureRenderer {
     enum Prim {
         case line(CGPoint, CGPoint), plate(CGPoint, CGPoint), circle(CGPoint, CGFloat), floor
     }
     struct Segment { var a: CGPoint, b: CGPoint, isTorso: Bool, far: Bool }
 
+    /// Extra layers for the technique sheet. The deck pictogram draws none of them.
+    struct Detail {
+        /// Small markers on the shoulder, elbows, hip and knees.
+        var joints = false
+        /// Trace of the load (or the hip when there is none) over the whole sequence, drawn dotted.
+        var path: [CGPoint] = []
+        /// Dashed vertical through the mid-foot: where the load should stay over.
+        var midfoot = false
+        /// How far the figure may be zoomed to fill the canvas.
+        var maxScale: CGFloat = 1.5
+    }
+
     static let headR: CGFloat = 5.4, torsoW: CGFloat = 5.0, limbW: CGFloat = 3.4, outline: CGFloat = 1.4
     static let plateR: [Pose.Implement: CGFloat] = [.barbell: 5.0, .barbellOnHips: 5.0, .trapBar: 5.0, .barbellNarrow: 3.6, .shortBar: 3.0]
 
-    let brass = Theme.Colors.brass, card = Theme.Colors.card
-    let far = Theme.Colors.brass.opacity(0.55)
-    let gear = Theme.Colors.textPrimary.opacity(0.6), gearFill = Theme.Colors.textPrimary.opacity(0.1)
-    let propColor = Theme.Colors.brass.opacity(0.38)
+    // Classic: brass figure outlined in the card colour. Storybook: a little honey-coloured bear drawn in ink, far
+    // limbs paler, props in bark, two round ears.
+    let storybook = Theme.storybook
+    let brass = Theme.Colors.brass, card = Theme.storybook ? Theme.Colors.ink : Theme.Colors.card
+    let far = Theme.storybook ? Theme.Colors.honeyLight : Theme.Colors.brass.opacity(0.55)
+    let gear = Theme.Colors.textPrimary.opacity(Theme.storybook ? 0.7 : 0.6), gearFill = Theme.Colors.textPrimary.opacity(Theme.storybook ? 0.08 : 0.1)
+    let propColor = Theme.storybook ? Theme.Colors.bark.opacity(0.55) : Theme.Colors.brass.opacity(0.38)
 
-    let motion: Motion
+    let keyframes: [Pose]
     let anchor: Motion.Anchor
-    /// Anchored keyframes: props are built from `skA` so gear never moves; `skB` fixes the framing.
-    let skA: Skeleton, skB: Skeleton
+    let armsXY: Bool
+    var detail = Detail()
+    /// Anchored keyframe skeletons: props are built from the first so gear never moves; all of them fix the framing.
+    let sks: [Skeleton]
+    var skA: Skeleton { sks[0] }
     let origin: CGPoint, span: CGSize
 
     init(motion: Motion) {
-        self.motion = motion
-        anchor = motion.resolvedAnchor
-        skA = Skeleton(motion.a)
-        var b = Skeleton(motion.b); b.anchor(to: skA, anchor)
-        skB = b
-        let fr = Self.frame(skA, skB, anchor: anchor)
+        self.init(keyframes: [motion.a, motion.b], anchor: motion.resolvedAnchor, armsXY: motion.armsXY)
+    }
+
+    init(keyframes: [Pose], anchor: Motion.Anchor, armsXY: Bool, detail: Detail = Detail()) {
+        self.keyframes = keyframes; self.anchor = anchor; self.armsXY = armsXY; self.detail = detail
+        let first = Skeleton(keyframes[0])
+        sks = keyframes.map { (p: Pose) -> Skeleton in var s = Skeleton(p); s.anchor(to: first, anchor); return s }
+        let fr = Self.frame(sks, anchor: anchor)
         origin = fr.0; span = fr.1
     }
 
-    /// Live skeleton at phase `t`.
-    func skeleton(at t: CGFloat) -> Skeleton {
-        var sk = Skeleton(Pose.lerp(motion.a, motion.b, t))
+    /// Live skeleton `t` of the way from keyframe `i` to keyframe `j`.
+    func skeleton(from i: Int, to j: Int, t: CGFloat) -> Skeleton {
+        var sk = Skeleton(Pose.lerp(keyframes[i], keyframes[j], t))
         sk.anchor(to: skA, anchor)
-        if motion.armsXY {
-            let s = sk.shoulder
-            sk.arms = sk.arms.indices.map { i in
-                let pa = skA.arms[min(i, skA.arms.count - 1)], pb = skB.arms[min(i, skB.arms.count - 1)]
+        if armsXY {
+            let s = sk.shoulder, ski = sks[i], skj = sks[j]
+            sk.arms = sk.arms.indices.map { k in
+                let pa = ski.arms[min(k, ski.arms.count - 1)], pb = skj.arms[min(k, skj.arms.count - 1)]
                 func blend(_ qa: CGPoint, _ qb: CGPoint) -> CGPoint {
-                    let ra = CGPoint(x: qa.x - skA.shoulder.x, y: qa.y - skA.shoulder.y), rb = CGPoint(x: qb.x - skB.shoulder.x, y: qb.y - skB.shoulder.y)
+                    let ra = CGPoint(x: qa.x - ski.shoulder.x, y: qa.y - ski.shoulder.y), rb = CGPoint(x: qb.x - skj.shoulder.x, y: qb.y - skj.shoulder.y)
                     return CGPoint(x: s.x + ra.x + (rb.x - ra.x) * t, y: s.y + ra.y + (rb.y - ra.y) * t)
                 }
                 return Skeleton.Arm(elbow: blend(pa.elbow, pb.elbow), hand: blend(pa.hand, pb.hand))
@@ -529,11 +554,39 @@ private struct FigureRenderer {
         return sk
     }
 
+    /// Two-keyframe phase, 0 = first keyframe, 1 = second.
+    func skeleton(at t: CGFloat) -> Skeleton { skeleton(from: 0, to: min(1, keyframes.count - 1), t: t) }
+
+    /// Where the load is (the bar in the hands, the bar on the hips) or, unloaded, the hip.
+    static func loadPoint(_ sk: Skeleton) -> CGPoint {
+        switch sk.pose.implement {
+        case .none: return sk.hip
+        case .barbellOnHips: return sk.hip
+        default: return sk.hand
+        }
+    }
+
+    /// Load trace along a walk through keyframe indices, e.g. `[0, 1, 2, 1, 0]`.
+    func trace(order: [Int], samples: Int = 12) -> [CGPoint] {
+        var pts: [CGPoint] = []
+        for (i, j) in zip(order, order.dropFirst()) where i != j {
+            for s in 0...samples { pts.append(Self.loadPoint(skeleton(from: i, to: j, t: CGFloat(s) / CGFloat(samples)))) }
+        }
+        return pts
+    }
+
     func draw(in ctx: inout GraphicsContext, size: CGSize, phase t: CGFloat) {
-        let sk = skeleton(at: t)
+        draw(in: &ctx, size: size, skeleton: skeleton(at: t))
+    }
+
+    func draw(in ctx: inout GraphicsContext, size: CGSize, from i: Int, to j: Int, t: CGFloat) {
+        draw(in: &ctx, size: size, skeleton: skeleton(from: i, to: j, t: t))
+    }
+
+    func draw(in ctx: inout GraphicsContext, size: CGSize, skeleton sk: Skeleton) {
         let props = Self.propPrims(fixed: skA, live: sk)
         let fit = min(size.width / 100, size.height / 60)
-        let scale = min(100 / span.width, 60 / span.height, 1.5)
+        let scale = min(100 / span.width, 60 / span.height, detail.maxScale)
         let k = fit * scale
         let vw = 100 / scale, vh = 60 / scale
         ctx.translateBy(x: (size.width - 100 * fit) / 2, y: (size.height - 60 * fit) / 2)
@@ -548,6 +601,7 @@ private struct FigureRenderer {
             case .floor: line(&ctx, CGPoint(x: origin.x - 1.5, y: floorY), CGPoint(x: origin.x + span.width + 1.5, y: floorY), 1.4, propColor)
             }
         }
+        drawGuides(&ctx)
         drawImplement(&ctx, sk)
 
         let (rest, nearArm) = segments(sk)
@@ -563,12 +617,14 @@ private struct FigureRenderer {
         drawHead(&ctx, sk)
         for s in nearArm { segment(&ctx, s) }
         circle(&ctx, sk.hand, Self.limbW * 0.6, fill: brass, stroke: card, w: 0.9)
+        if detail.joints { drawJoints(&ctx, sk) }
     }
 
-    /// Bounding box (with padding) around everything drawn in either keyframe, in unit space.
-    private static func frame(_ a: Skeleton, _ b: Skeleton, anchor: Motion.Anchor) -> (CGPoint, CGSize) {
+    /// Bounding box (with padding) around everything drawn in any keyframe, in unit space.
+    private static func frame(_ sks: [Skeleton], anchor: Motion.Anchor) -> (CGPoint, CGSize) {
         var pts: [CGPoint] = []
-        for sk in [a, b] {
+        let a = sks[0]
+        for sk in sks {
             pts += [sk.hip, sk.shoulder, off(sk.head, -headR, -headR), off(sk.head, headR, headR)]
             for arm in sk.arms { pts += [arm.elbow, arm.hand] }
             for l in sk.legs { pts += [l.knee, l.foot] }
@@ -619,14 +675,45 @@ private struct FigureRenderer {
 
     private func drawHead(_ ctx: inout GraphicsContext, _ sk: Skeleton) {
         let h = sk.head, r = Self.headR
-        circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let ang = sk.headAngle
         let f = frontNormal(ang), u = CGPoint(x: cos(ang * .pi / 180), y: sin(ang * .pi / 180))
+        // Storybook: two small round ears on the crown, behind the head. `u` is the neck→head direction, so the
+        // ears follow the skull in every pose (lying, hinged, inverted) instead of sitting at a fixed screen offset.
+        for ear in storybook ? BearFigure.earCentres(head: h, up: u, side: f, r: r) : [] {
+            circle(&ctx, ear, r * 0.3, fill: brass, stroke: card, w: 1.0)
+            circle(&ctx, ear, r * 0.13, fill: card)
+        }
+        circle(&ctx, h, r, fill: brass, stroke: card, w: 1.1)
         let eye = CGPoint(x: h.x + f.x * r * 0.5 + u.x * r * 0.12, y: h.y + f.y * r * 0.5 + u.y * r * 0.12)
         circle(&ctx, eye, r * 0.19, fill: card)
         let a = CGPoint(x: eye.x - f.x * r * 0.12 + u.x * r * 0.34, y: eye.y - f.y * r * 0.12 + u.y * r * 0.34)
         let b = CGPoint(x: eye.x + f.x * r * 0.32 + u.x * r * 0.4, y: eye.y + f.y * r * 0.32 + u.y * r * 0.4)
         line(&ctx, a, b, r * 0.18, card)
+    }
+
+    /// Technique-sheet layers under the figure: the mid-foot reference and the load path.
+    private func drawGuides(_ ctx: inout GraphicsContext) {
+        let dash = StrokeStyle(lineWidth: 0.8, lineCap: .round, dash: [1.4, 2.2])
+        if detail.midfoot, skA.pose.grounded {
+            let foot = skA.legs[0].foot
+            let x = foot.x + 2.5
+            var path = Path(); path.move(to: CGPoint(x: x, y: floorY)); path.addLine(to: CGPoint(x: x, y: origin.y + 2))
+            ctx.stroke(path, with: .color(Theme.Colors.textPrimary.opacity(0.28)), style: dash)
+        }
+        if detail.path.count > 1 {
+            var path = Path(); path.move(to: detail.path[0])
+            for p in detail.path.dropFirst() { path.addLine(to: p) }
+            ctx.stroke(path, with: .color(brass.opacity(0.55)), style: dash)
+        }
+    }
+
+    private func drawJoints(_ ctx: inout GraphicsContext, _ sk: Skeleton) {
+        let r = Self.limbW * 0.42
+        func dot(_ p: CGPoint, far isFar: Bool = false) { circle(&ctx, p, r, fill: card, stroke: isFar ? far : brass, w: 0.9) }
+        for (i, leg) in sk.legs.enumerated() { dot(leg.knee, far: sk.legs.count > 1 && i == sk.legs.count - 1) }
+        dot(sk.hip)
+        for (i, arm) in sk.arms.enumerated() { dot(arm.elbow, far: sk.arms.count > 1 && i == sk.arms.count - 1) }
+        dot(sk.shoulder)
     }
 
     /// Side view: a loaded bar is seen end-on, so it reads as a plate ring with the bar end at the hand.
@@ -644,6 +731,27 @@ private struct FigureRenderer {
                 line(&ctx, off(h, -3.2, 0), off(h, 3.2, 0), 1.6, gear)
                 for x: CGFloat in [-3.2, 3.2] { line(&ctx, off(h, x, -2.4), off(h, x, 2.4), 2.6, gear) }
             }
+        }
+        // Storybook: the load is a little honey pot (belly, rim, label dash), upright at the hand.
+        func pot(_ c: CGPoint, _ r: CGFloat) {
+            circle(&ctx, c, r, fill: far, stroke: card, w: 1.1)
+            line(&ctx, off(c, -r * 0.7, -r * 0.95), off(c, r * 0.7, -r * 0.95), 1.6, card)
+            line(&ctx, off(c, -r * 0.35, r * 0.1), off(c, r * 0.35, r * 0.1), 0.9, card)
+        }
+        if storybook {
+            switch sk.pose.implement {
+            case .none: break
+            case .barbell, .barbellNarrow, .shortBar, .trapBar: pot(hand, Self.plateR[sk.pose.implement]! * 0.9)
+            case .barbellOnHips: pot(sk.hip, Self.plateR[.barbellOnHips]! * 0.9)
+            case .dumbbell, .dumbbellVertical: for a in sk.arms { pot(a.hand, 2.6) }
+            case .dumbbellFirst: pot(hand, 2.6)
+            case .handle: line(&ctx, off(hand, -2.6, 0), off(hand, 2.6, 0), 2.2, gear)
+            case .kettlebell:
+                line(&ctx, hand, off(hand, 0, 2.5), 1.6, gear)
+                pot(off(hand, 0, 5.5), 3.2)
+            case .wheel: circle(&ctx, CGPoint(x: hand.x, y: floorY - 2.6), 2.6, fill: gearFill, stroke: gear, w: 1.6)
+            }
+            return
         }
         switch sk.pose.implement {
         case .none: break

@@ -8,6 +8,9 @@ final class CatalogTests: XCTestCase {
         XCTAssertGreaterThan(c.exercises.count, 40)
         XCTAssertEqual(c.slotTemplates.count, 4)
         XCTAssertEqual(c.seededLocations.map(\.key).sorted(), ["building_gym", "crunch_union_square"])
+        let crunch = c.seededLocations.first { $0.key == "crunch_union_square" }
+        XCTAssertEqual(crunch?.name, "Crunch USQ")
+        XCTAssertEqual(crunch?.previousNames, ["Crunch Union Square"])
         XCTAssertEqual(c.progressionSteps.heavyLower, 10)
     }
 

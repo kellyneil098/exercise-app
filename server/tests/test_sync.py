@@ -1,4 +1,8 @@
+from datetime import UTC, datetime, timedelta
+
 from conftest import login
+
+from app import sync
 
 
 def rec(id, table="session", op="upsert", payload=None, updated_at="2026-01-01T00:00:00Z"):
@@ -63,3 +67,50 @@ def test_pull_pagination(client):
     assert len(p1["records"]) == 500 and p1["has_more"] is True
     p2 = client.get(f"/sync/pull?since={p1['cursor']}", headers=neil).json()
     assert len(p2["records"]) == 100 and p2["has_more"] is False
+
+
+def iso(dt):
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+def test_far_future_updated_at_is_clamped(client, monkeypatch):
+    neil, _ = login(client, "neil@example.com")
+    t0 = datetime(2026, 6, 1, tzinfo=UTC)
+    monkeypatch.setattr(sync, "utcnow", lambda: t0)
+    client.post(
+        "/sync/push",
+        json={"records": [rec("p", payload={"v": "pinned"}, updated_at="9999-01-01T00:00:00Z")]},
+        headers=neil,
+    )
+    stored = client.get("/sync/pull?since=0", headers=neil).json()["records"][0]
+    assert datetime.fromisoformat(stored["updated_at"].replace("Z", "+00:00")) == t0 + sync.MAX_CLOCK_SKEW
+
+    # Inside the skew window the clamped write still wins LWW...
+    r = client.post("/sync/push", json={"records": [rec("p", payload={"v": 1}, updated_at=iso(t0))]}, headers=neil)
+    assert r.json()["ignored"] == 1
+
+    # ...but once it has passed, honest writes and deletes correct the row.
+    t1 = t0 + sync.MAX_CLOCK_SKEW + timedelta(hours=1)
+    monkeypatch.setattr(sync, "utcnow", lambda: t1)
+    r = client.post(
+        "/sync/push", json={"records": [rec("p", payload={"v": "fixed"}, updated_at=iso(t1))]}, headers=neil
+    )
+    assert r.json()["accepted"] == 1
+    r = client.post(
+        "/sync/push", json={"records": [rec("p", op="delete", updated_at=iso(t1 + timedelta(seconds=1)))]}, headers=neil
+    )
+    assert r.json()["accepted"] == 1
+    assert client.get("/sync/pull?since=0", headers=neil).json()["records"][-1]["deleted"] is True
+
+
+def test_row_pinned_before_clamp_is_overwritable(client, monkeypatch):
+    neil, _ = login(client, "neil@example.com")
+    monkeypatch.setattr(sync, "utcnow", lambda: datetime(9998, 1, 1, tzinfo=UTC))  # simulate a pre-fix stored row
+    client.post("/sync/push", json={"records": [rec("old", updated_at="9999-01-01T00:00:00Z")]}, headers=neil)
+
+    monkeypatch.setattr(sync, "utcnow", lambda: datetime(2026, 6, 1, tzinfo=UTC))
+    r = client.post(
+        "/sync/push", json={"records": [rec("old", op="delete", updated_at="2026-06-01T00:00:00Z")]}, headers=neil
+    )
+    assert r.json()["accepted"] == 1
+    assert client.get("/sync/pull?since=0", headers=neil).json()["records"][-1]["deleted"] is True

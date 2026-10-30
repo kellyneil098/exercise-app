@@ -9,5 +9,6 @@ let package = Package(
     targets: [
         .target(name: "WorkoutUI", dependencies: ["WorkoutEngine"],
                 swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]),
+        .testTarget(name: "WorkoutUITests", dependencies: ["WorkoutUI", "WorkoutEngine"]),
     ]
 )

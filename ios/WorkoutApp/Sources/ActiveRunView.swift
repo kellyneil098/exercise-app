@@ -52,9 +52,13 @@ struct ActiveRunView: View {
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                 HStack(spacing: Theme.Spacing.m) {
-                    IconTile("figure.run", tint: Theme.Colors.pull, size: 44)
+                    if Theme.storybook {
+                        Illustration(.piglet, wash: Theme.Colors.piglet, washOpacity: 0.45).frame(width: 64, height: 44)
+                    } else {
+                        IconTile("figure.run", tint: Theme.Colors.pull, size: 44)
+                    }
                     VStack(alignment: .leading, spacing: 2) {
-                        Overline(finishing ? "Finishing" : paused ? "Paused" : "Running")
+                        Aside(finishing ? "Finishing" : paused ? (Theme.storybook ? "Paused for a think" : "Paused") : "Running")
                         Text(run.runType.capitalized).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
                     }
                     Spacer()
@@ -83,12 +87,13 @@ struct ActiveRunView: View {
                 let t = ActiveRunClock.elapsed(at: ctx.date)
                 let target = run.targetDistanceMi * run.targetPaceSecPerMi
                 VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                    Text(formatElapsed(t)).font(Theme.Fonts.display).heroTracking()
+                    Text(formatElapsed(t)).font(Theme.Fonts.hero).heroTracking()
                         .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
                         .contentTransition(.numericText())
-                        .glow(Theme.Colors.pull, radius: 48, opacity: paused ? 0.08 : 0.3)
+                        .glow(runWash, radius: 48, opacity: Theme.storybook ? (paused ? 0.15 : 0.6) : (paused ? 0.08 : 0.3))
                         .padding(.top, Theme.Spacing.l)
-                    ProgressBar(target > 0 ? t / target : 0, tint: Theme.Colors.pull)
+                    Footprints(count: 12, progress: target > 0 ? min(1, t / target) : 0, tint: Theme.Colors.pigletDeep).frame(height: 26).storybookOnly()
+                    ProgressBar(target > 0 ? t / target : 0, tint: runWash, height: Theme.storybook ? 6 : nil)
                     HStack(alignment: .top) {
                         Stat(run.targetDistanceMi.formatted(), unit: "mi", label: "target")
                         Spacer()
@@ -102,13 +107,14 @@ struct ActiveRunView: View {
                 Card {
                     VStack(alignment: .leading, spacing: Theme.Spacing.m) {
                         HStack(spacing: Theme.Spacing.sm) {
-                            IconTile("list.bullet", tint: Theme.Colors.pull, size: 32)
-                            Overline("Segments", tint: Theme.Colors.textSecondary)
+                            IconTile("list.bullet", tint: runWash, size: 32)
+                            SectionTitle("Segments")
                         }
                         ForEach(Array(model.runPlanner.segments(for: planned, state: state).enumerated()), id: \.offset) { i, seg in
                             HStack(spacing: Theme.Spacing.m) {
-                                Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.pull)
-                                    .frame(width: 24, height: 24).background(Theme.Colors.pull.opacity(0.12), in: Circle())
+                                Text("\(i + 1)").font(Theme.Fonts.captionBold).foregroundStyle(Theme.storybook ? Theme.Colors.ink : Theme.Colors.pull)
+                                    .frame(width: 24, height: 24).background(Theme.storybook ? Theme.Colors.piglet : Theme.Colors.pull.opacity(0.12), in: Circle())
+                                    .overlay(Circle().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook ? 0.5 : 0), lineWidth: 1))
                                 Text(segmentText(seg)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
                             }
                         }
@@ -135,8 +141,8 @@ struct ActiveRunView: View {
     var finish: some View {
         let seconds = Int(ActiveRunClock.elapsed().rounded())
         return VStack(alignment: .leading, spacing: Theme.Spacing.l) {
-            Text(formatElapsed(TimeInterval(seconds))).font(Theme.Fonts.display).heroTracking().foregroundStyle(Theme.Colors.textPrimary)
-                .glow(Theme.Colors.brass, radius: 48, opacity: 0.25)
+            Text(formatElapsed(TimeInterval(seconds))).font(Theme.Fonts.hero).heroTracking().foregroundStyle(Theme.Colors.textPrimary)
+                .glow(Theme.storybook ? Theme.Colors.honeyLight : Theme.Colors.brass, radius: 48, opacity: Theme.storybook ? 0.6 : 0.25)
                 .padding(.top, Theme.Spacing.l)
             Card {
                 VStack(spacing: Theme.Spacing.m) {
@@ -144,7 +150,7 @@ struct ActiveRunView: View {
                     if distance > 0, seconds > 0 {
                         Hairline()
                         HStack {
-                            Stat(formatPace(Double(seconds) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.brass)
+                            Stat(formatPace(Double(seconds) / distance), unit: "/mi", label: "pace", tint: Theme.Colors.honeyInk)
                             Spacer()
                             Stat(formatPace(run.targetPaceSecPerMi), unit: "/mi", label: "target")
                         }

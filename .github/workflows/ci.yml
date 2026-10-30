@@ -27,7 +27,7 @@ jobs:
     runs-on: macos-15
     strategy:
       matrix:
-        package: [WorkoutEngine, WorkoutStore]
+        package: [WorkoutEngine, WorkoutStore, WorkoutUI]
     steps:
       - uses: actions/checkout@v4
       - run: swift test

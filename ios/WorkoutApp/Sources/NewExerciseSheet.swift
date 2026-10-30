@@ -26,7 +26,7 @@ struct NewExerciseSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.Spacing.l) {
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Overline("New exercise")
+                            Aside(Theme.storybook ? "A new exercise of your own" : "New exercise")
                             TextField("Name", text: $name).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                                 .textInputAutocapitalization(.words).focused($nameFocused).submitLabel(.done)
                         }
@@ -45,7 +45,7 @@ struct NewExerciseSheet: View {
                             }
                         }
                         Hairline()
-                        SectionHeader("Load", icon: "scalemass", tint: Theme.Colors.pull)
+                        SectionHeader("Load", icon: "scalemass", tint: Theme.storybook ? Theme.Colors.sky : Theme.Colors.pull)
                         HStack(spacing: Theme.Spacing.s) {
                             Chip("Weighted", selected: loadable) { loadable = true }
                             Chip("Bodyweight / timed", selected: !loadable) { loadable = false }

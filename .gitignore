@@ -25,3 +25,6 @@ ios/Packages/*/.swiftpm/
 *.xcodeproj/xcuserdata/
 ios/WorkoutApp/WorkoutApp.xcodeproj/
 ios/WorkoutApp/build/
+
+# generated review-sheet body (python3 tools/pictograms/motions.py report)
+tools/pictograms/report_body.html
