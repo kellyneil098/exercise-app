@@ -130,10 +130,10 @@ struct ProgressScreen: View {
     func performedKeys(_ uids: [String]) -> [String] {
         let marks = uids.map { _ in "?" }.joined(separator: ", ")
         let sql = """
-            SELECT exerciseKey FROM set_log WHERE userId IN (\(marks)) AND isWarmup = 0 AND deleted = 0
+            SELECT exerciseKey FROM set_log WHERE userId IN (\(marks)) AND isWarmup = 0 AND deleted = 0 AND exerciseKey != ?
             GROUP BY exerciseKey ORDER BY COUNT(DISTINCT sessionId) DESC, COUNT(*) DESC, exerciseKey
             """
-        return (try? model.store.db.read { try String.fetchAll($0, sql: sql, arguments: StatementArguments(uids)) }) ?? []
+        return (try? model.store.db.read { try String.fetchAll($0, sql: sql, arguments: StatementArguments(uids + [PlanBlock.cooldownExerciseKey])) }) ?? []
     }
 
     /// Everything charted on screen (me, plus the partner when one is shown), or a starter set before any data.

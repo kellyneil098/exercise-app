@@ -26,6 +26,10 @@ public struct EngineConfig: Sendable, Hashable {
     public var rebaselineDamping: Double = 0.5
     public var rebaselineCap: Double = 0.10
     public var rotateSlotLookbackSessions: Int = 2
+    /// New decks end with a generic stretch block of this length. It is added on top of the duration budget, which
+    /// still sizes the lifting, so deleting it leaves the same workout the planner would have built without it.
+    public var appendsCooldown: Bool = true
+    public var cooldownSeconds: Int = 600
 
     public init() {}
     public static let `default` = EngineConfig()

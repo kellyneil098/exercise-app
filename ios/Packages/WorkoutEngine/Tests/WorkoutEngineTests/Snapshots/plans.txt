@@ -1,10 +1,11 @@
-push 30min @crunch_union_square  est 28min
+push 30min @crunch_union_square  est 38min
   1. Barbell Bench Press [horizontal_press/heavy] 4x5-8 @185 wu:92x8,137x5
   2. Barbell Overhead Press [vertical_press/medium] 3x8-12 @115
   3. Incline Dumbbell Press [incline_press/medium] 3x8-12 @65~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Incline Dumbbell Press
+  7. Stretch [cooldown] 10min
 
-push 45min @crunch_union_square  est 44min
+push 45min @crunch_union_square  est 54min
   1. Barbell Bench Press [horizontal_press/heavy] 4x5-8 @185 wu:92x8,137x5
   2. Barbell Overhead Press [vertical_press/medium] 3x8-12 @115
   3. Incline Dumbbell Press [incline_press/medium] 3x8-12 @65~
@@ -12,8 +13,9 @@ push 45min @crunch_union_square  est 44min
   5. Dumbbell Lateral Raise [lateral_raise/volume] 3x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Incline Dumbbell Press
   7. Cable Fly [chest_fly/volume] 3x15-20 @10~
+  8. Stretch [cooldown] 10min
 
-push 60min @crunch_union_square  est 54min
+push 60min @crunch_union_square  est 64min
   1. Barbell Bench Press [horizontal_press/heavy] 4x5-8 @185 wu:92x8,137x5
   2. Barbell Overhead Press [vertical_press/medium] 4x8-12 @115
   3. Incline Dumbbell Press [incline_press/medium] 4x8-12 @65~
@@ -21,8 +23,9 @@ push 60min @crunch_union_square  est 54min
   5. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Incline Dumbbell Press
   7. Cable Fly [chest_fly/volume] 4x15-20 @10~
+  8. Stretch [cooldown] 10min
 
-push 90min @crunch_union_square  est 54min
+push 90min @crunch_union_square  est 64min
   1. Barbell Bench Press [horizontal_press/heavy] 4x5-8 @185 wu:92x8,137x5
   2. Barbell Overhead Press [vertical_press/medium] 4x8-12 @115
   3. Incline Dumbbell Press [incline_press/medium] 4x8-12 @65~
@@ -30,14 +33,16 @@ push 90min @crunch_union_square  est 54min
   5. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Incline Dumbbell Press
   7. Cable Fly [chest_fly/volume] 4x15-20 @10~
+  8. Stretch [cooldown] 10min
 
-push 30min @building_gym  est 27min
+push 30min @building_gym  est 37min
   1. Dumbbell Floor Press [horizontal_press/heavy] 4x5-8 @10~ wu:5x8,5x5
   2. Dumbbell Shoulder Press [vertical_press/medium] 3x8-12 @45~
   3. Feet-Elevated Push-Up [incline_press/medium] 3x8-12
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Feet-Elevated Push-Up
+  7. Stretch [cooldown] 10min
 
-push 45min @building_gym  est 43min
+push 45min @building_gym  est 53min
   1. Dumbbell Floor Press [horizontal_press/heavy] 4x5-8 @10~ wu:5x8,5x5
   2. Dumbbell Shoulder Press [vertical_press/medium] 3x8-12 @45~
   3. Feet-Elevated Push-Up [incline_press/medium] 3x8-12
@@ -45,8 +50,9 @@ push 45min @building_gym  est 43min
   5. Dumbbell Lateral Raise [lateral_raise/volume] 3x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Feet-Elevated Push-Up
   7. Cable Fly [chest_fly/volume] 3x15-20 @20~
+  8. Stretch [cooldown] 10min
 
-push 60min @building_gym  est 53min
+push 60min @building_gym  est 63min
   1. Dumbbell Floor Press [horizontal_press/heavy] 4x5-8 @10~ wu:5x8,5x5
   2. Dumbbell Shoulder Press [vertical_press/medium] 4x8-12 @45~
   3. Feet-Elevated Push-Up [incline_press/medium] 4x8-12
@@ -54,8 +60,9 @@ push 60min @building_gym  est 53min
   5. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Feet-Elevated Push-Up
   7. Cable Fly [chest_fly/volume] 4x15-20 @20~
+  8. Stretch [cooldown] 10min
 
-push 90min @building_gym  est 53min
+push 90min @building_gym  est 63min
   1. Dumbbell Floor Press [horizontal_press/heavy] 4x5-8 @10~ wu:5x8,5x5
   2. Dumbbell Shoulder Press [vertical_press/medium] 4x8-12 @45~
   3. Feet-Elevated Push-Up [incline_press/medium] 4x8-12
@@ -63,136 +70,155 @@ push 90min @building_gym  est 53min
   5. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Feet-Elevated Push-Up
   7. Cable Fly [chest_fly/volume] 4x15-20 @20~
+  8. Stretch [cooldown] 10min
 
-pull 30min @crunch_union_square  est 27min
+pull 30min @crunch_union_square  est 37min
   1. Barbell Row [horizontal_row/heavy] 4x5-8 @155 wu:77x8,115x5
   2. Weighted Pull-Up [vertical_pull/medium] 3x8-12 @10~
   4. Dumbbell Curl [elbow_flexion/medium] 3x8-12 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Weighted Pull-Up
+  7. Stretch [cooldown] 10min
 
-pull 45min @crunch_union_square  est 39min
+pull 45min @crunch_union_square  est 49min
   1. Barbell Row [horizontal_row/heavy] 4x5-8 @155 wu:77x8,115x5
   2. Weighted Pull-Up [vertical_pull/medium] 4x8-12 @10~
   4. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
   5. Face Pull [rear_delt/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Weighted Pull-Up
+  7. Stretch [cooldown] 10min
 
-pull 60min @crunch_union_square  est 39min
+pull 60min @crunch_union_square  est 49min
   1. Barbell Row [horizontal_row/heavy] 4x5-8 @155 wu:77x8,115x5
   2. Weighted Pull-Up [vertical_pull/medium] 4x8-12 @10~
   4. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
   5. Face Pull [rear_delt/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Weighted Pull-Up
+  7. Stretch [cooldown] 10min
 
-pull 90min @crunch_union_square  est 39min
+pull 90min @crunch_union_square  est 49min
   1. Barbell Row [horizontal_row/heavy] 4x5-8 @155 wu:77x8,115x5
   2. Weighted Pull-Up [vertical_pull/medium] 4x8-12 @10~
   4. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
   5. Face Pull [rear_delt/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Weighted Pull-Up
+  7. Stretch [cooldown] 10min
 
-pull 30min @building_gym  est 29min
+pull 30min @building_gym  est 39min
   1. Single-Arm Dumbbell Row [horizontal_row/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Kneeling Cable Pulldown [vertical_pull/medium] 4x8-12 @20~
   4. Dumbbell Curl [elbow_flexion/medium] 3x8-12 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Kneeling Cable Pulldown
+  7. Stretch [cooldown] 10min
 
-pull 45min @building_gym  est 38min
+pull 45min @building_gym  est 48min
   1. Single-Arm Dumbbell Row [horizontal_row/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Kneeling Cable Pulldown [vertical_pull/medium] 4x8-12 @20~
   4. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
   5. Face Pull [rear_delt/volume] 4x15-20 @20~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Kneeling Cable Pulldown
+  7. Stretch [cooldown] 10min
 
-pull 60min @building_gym  est 38min
+pull 60min @building_gym  est 48min
   1. Single-Arm Dumbbell Row [horizontal_row/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Kneeling Cable Pulldown [vertical_pull/medium] 4x8-12 @20~
   4. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
   5. Face Pull [rear_delt/volume] 4x15-20 @20~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Kneeling Cable Pulldown
+  7. Stretch [cooldown] 10min
 
-pull 90min @building_gym  est 38min
+pull 90min @building_gym  est 48min
   1. Single-Arm Dumbbell Row [horizontal_row/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Kneeling Cable Pulldown [vertical_pull/medium] 4x8-12 @20~
   4. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
   5. Face Pull [rear_delt/volume] 4x15-20 @20~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Kneeling Cable Pulldown
+  7. Stretch [cooldown] 10min
 
-legs 30min @crunch_union_square  est 28min
+legs 30min @crunch_union_square  est 38min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Conventional Deadlift [hinge/medium] 3x8-12 @275
   3. Leg Extension [quad_isolation/medium] 3x8-12 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Leg Extension
+  7. Stretch [cooldown] 10min
 
-legs 45min @crunch_union_square  est 43min
+legs 45min @crunch_union_square  est 53min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Conventional Deadlift [hinge/medium] 4x8-12 @275
   3. Leg Extension [quad_isolation/medium] 4x8-12 @10~
   4. Lying Leg Curl [hamstring_isolation/medium] 3x8-12 @10~
   5. Standing Calf Raise [calf/volume] 3x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Lying Leg Curl
+  7. Stretch [cooldown] 10min
 
-legs 60min @crunch_union_square  est 47min
+legs 60min @crunch_union_square  est 57min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Conventional Deadlift [hinge/medium] 4x8-12 @275
   3. Leg Extension [quad_isolation/medium] 4x8-12 @10~
   4. Lying Leg Curl [hamstring_isolation/medium] 4x8-12 @10~
   5. Standing Calf Raise [calf/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Lying Leg Curl
+  7. Stretch [cooldown] 10min
 
-legs 90min @crunch_union_square  est 47min
+legs 90min @crunch_union_square  est 57min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Conventional Deadlift [hinge/medium] 4x8-12 @275
   3. Leg Extension [quad_isolation/medium] 4x8-12 @10~
   4. Lying Leg Curl [hamstring_isolation/medium] 4x8-12 @10~
   5. Standing Calf Raise [calf/volume] 4x15-20 @10~
   6. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Lying Leg Curl
+  7. Stretch [cooldown] 10min
 
-legs 30min @building_gym  est 28min
+legs 30min @building_gym  est 38min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Romanian Deadlift [hinge/medium] 3x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 3x8-12 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Walking Lunge
+  7. Stretch [cooldown] 10min
 
-legs 45min @building_gym  est 43min
+legs 45min @building_gym  est 53min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Romanian Deadlift [hinge/medium] 4x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
   4. Cable Pull-Through [hamstring_isolation/medium] 3x8-12 @20~
   5. Dumbbell Calf Raise [calf/volume] 3x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Cable Pull-Through
+  7. Stretch [cooldown] 10min
 
-legs 60min @building_gym  est 47min
+legs 60min @building_gym  est 57min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Romanian Deadlift [hinge/medium] 4x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
   4. Cable Pull-Through [hamstring_isolation/medium] 4x8-12 @20~
   5. Dumbbell Calf Raise [calf/volume] 4x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Cable Pull-Through
+  7. Stretch [cooldown] 10min
 
-legs 90min @building_gym  est 47min
+legs 90min @building_gym  est 57min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Romanian Deadlift [hinge/medium] 4x8-12 @50~
   3. Walking Lunge [quad_isolation/medium] 4x8-12 @10~
   4. Cable Pull-Through [hamstring_isolation/medium] 4x8-12 @20~
   5. Dumbbell Calf Raise [calf/volume] 4x15-20 @10~
   6. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Cable Pull-Through
+  7. Stretch [cooldown] 10min
 
-full_body 30min @crunch_union_square  est 29min
+full_body 30min @crunch_union_square  est 39min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Barbell Bench Press [horizontal_press/medium] 3x8-12 @185
   3. Barbell Row [horizontal_row/medium] 3x8-12 @155
   5. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Barbell Row
+  6. Stretch [cooldown] 10min
 
-full_body 45min @crunch_union_square  est 42min
+full_body 45min @crunch_union_square  est 52min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Barbell Bench Press [horizontal_press/medium] 3x8-12 @185
   3. Barbell Row [horizontal_row/medium] 3x8-12 @155
   4. Conventional Deadlift [hinge/medium] 3x8-12 @275
   5. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Conventional Deadlift
   6. Dumbbell Lateral Raise [lateral_raise/volume] 3x15-20 @10~
+  7. Stretch [cooldown] 10min
 
-full_body 60min @crunch_union_square  est 57min
+full_body 60min @crunch_union_square  est 67min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Barbell Bench Press [horizontal_press/medium] 4x8-12 @185
   3. Barbell Row [horizontal_row/medium] 4x8-12 @155
@@ -200,8 +226,9 @@ full_body 60min @crunch_union_square  est 57min
   5. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Conventional Deadlift
   6. Dumbbell Lateral Raise [lateral_raise/volume] 3x15-20 @10~
   7. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
+  8. Stretch [cooldown] 10min
 
-full_body 90min @crunch_union_square  est 59min
+full_body 90min @crunch_union_square  est 69min
   1. Back Squat [squat/heavy] 4x5-8 @225 wu:112x8,167x5
   2. Barbell Bench Press [horizontal_press/medium] 4x8-12 @185
   3. Barbell Row [horizontal_row/medium] 4x8-12 @155
@@ -209,22 +236,25 @@ full_body 90min @crunch_union_square  est 59min
   5. Hanging Leg Raise [core/volume] 3x15-20 ⤷ superset w/ Conventional Deadlift
   6. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   7. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
+  8. Stretch [cooldown] 10min
 
-full_body 30min @building_gym  est 29min
+full_body 30min @building_gym  est 39min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Floor Press [horizontal_press/medium] 3x8-12 @10~
   3. Single-Arm Dumbbell Row [horizontal_row/medium] 3x8-12 @50~
   5. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Single-Arm Dumbbell Row
+  6. Stretch [cooldown] 10min
 
-full_body 45min @building_gym  est 44min
+full_body 45min @building_gym  est 54min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Floor Press [horizontal_press/medium] 4x8-12 @10~
   3. Single-Arm Dumbbell Row [horizontal_row/medium] 3x8-12 @50~
   4. Dumbbell Romanian Deadlift [hinge/medium] 3x8-12 @50~
   5. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Dumbbell Romanian Deadlift
   6. Dumbbell Lateral Raise [lateral_raise/volume] 3x15-20 @10~
+  7. Stretch [cooldown] 10min
 
-full_body 60min @building_gym  est 58min
+full_body 60min @building_gym  est 68min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Floor Press [horizontal_press/medium] 4x8-12 @10~
   3. Single-Arm Dumbbell Row [horizontal_row/medium] 4x8-12 @50~
@@ -232,8 +262,9 @@ full_body 60min @building_gym  est 58min
   5. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Dumbbell Romanian Deadlift
   6. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   7. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
+  8. Stretch [cooldown] 10min
 
-full_body 90min @building_gym  est 58min
+full_body 90min @building_gym  est 68min
   1. Bulgarian Split Squat [squat/heavy] 4x5-8 @50~ wu:25x8,35x5
   2. Dumbbell Floor Press [horizontal_press/medium] 4x8-12 @10~
   3. Single-Arm Dumbbell Row [horizontal_row/medium] 4x8-12 @50~
@@ -241,3 +272,4 @@ full_body 90min @building_gym  est 58min
   5. Cable Crunch [core/volume] 3x15-20 @20~ ⤷ superset w/ Dumbbell Romanian Deadlift
   6. Dumbbell Lateral Raise [lateral_raise/volume] 4x15-20 @10~
   7. Dumbbell Curl [elbow_flexion/medium] 4x8-12 @10~
+  8. Stretch [cooldown] 10min

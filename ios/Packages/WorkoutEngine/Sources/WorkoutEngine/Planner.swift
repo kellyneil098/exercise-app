@@ -175,6 +175,11 @@ public struct Planner: Sendable {
             spent += extra
         }
 
+        // Step 7: the stretch reminder, last.
+        if config.appendsCooldown {
+            blocks.append(.cooldown(slot: (blocks.map(\.slot).max() ?? 0) + 1, seconds: config.cooldownSeconds))
+        }
+
         return Plan(dayType: input.dayType, durationMinutes: input.durationMinutes, locationKey: input.location.locationKey, blocks: blocks)
     }
 
@@ -220,7 +225,7 @@ public struct Planner: Sendable {
 
     /// Rebuild a block in place with a substitute exercise (§7 swap). Keeps slot, sets, superset linkage.
     public func swap(block: PlanBlock, to exercise: Exercise, in plan: Plan, input: PlannerInput) -> Plan {
-        guard let idx = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return plan }
+        guard let idx = plan.blocks.firstIndex(where: { $0.id == block.id }), !plan.blocks[idx].isCooldown else { return plan }
         let slot = swapTemplate(for: block, plan: plan, input: input, exercisePattern: exercise.movementPattern)
         // The heavy slot must be loadable (§4.1); refuse rather than silently build an unloadable heavy block.
         guard !(slot.band == .heavy && !exercise.loadable) else { return plan }

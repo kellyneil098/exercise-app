@@ -84,7 +84,7 @@ final class ActiveSession: Identifiable {
     var orderedBlocks: [PlanBlock] {
         func standalone(_ b: PlanBlock) -> Bool { b.isDeleted || plan.host(of: b) == nil }
         var base: [PlanBlock] = []
-        for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where standalone(b) {
+        for b in plan.slotOrdered where standalone(b) {
             base.append(b)
             if let partner = plan.supersetPartner(of: b) { base.append(partner) }
         }
@@ -178,6 +178,12 @@ final class ActiveSession: Identifiable {
         if let w = step.warmup {
             append(block: b, reps: w.reps, weight: w.weight, effort: nil, isWarmup: true)
             startRest(seconds: 60)
+            return
+        }
+        // The stretch is one timed reminder: logged as done (so resume knows), no load, no rating, no rest after.
+        if b.isCooldown {
+            append(block: b, reps: b.repHigh, weight: nil, effort: nil, isWarmup: false)
+            skipRest()
             return
         }
         let timed = b.measure == .seconds
@@ -305,8 +311,10 @@ final class ActiveSession: Identifiable {
 
     /// Adds an exercise at the end of the deck (next free slot, day's template for its pattern).
     func add(_ exercise: Exercise) {
-        plan.blocks.append(model.planner.block(adding: exercise, to: plan, input: input))
+        let block = model.planner.block(adding: exercise, to: plan, input: input)
+        plan.blocks.append(block)
         persistPlan()
+        edits.add(block.id, in: orderedBlocks)
     }
 
     func setWeight(_ block: PlanBlock, _ w: Double) {
@@ -337,7 +345,7 @@ final class ActiveSession: Identifiable {
     }
 
     private func mutate(_ block: PlanBlock, _ change: (inout PlanBlock) -> Void) {
-        guard let i = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return }
+        guard let i = plan.blocks.firstIndex(where: { $0.id == block.id }), !plan.blocks[i].isCooldown else { return }
         change(&plan.blocks[i])
         persistPlan()
     }
@@ -379,6 +387,7 @@ final class ActiveSession: Identifiable {
 
     /// Substitution keeps the slot and superset relationship; the weight is re-estimated (§7.3). Any pattern is allowed.
     func swap(_ block: PlanBlock, to exercise: Exercise) {
+        guard !block.isCooldown else { return }
         plan = model.planner.swap(block: block, to: exercise, in: plan, input: input)
         persistPlan()
     }

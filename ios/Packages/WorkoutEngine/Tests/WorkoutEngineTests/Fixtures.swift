@@ -38,6 +38,10 @@ extension Plan {
     var rendered: String {
         var lines = ["\(dayType.rawValue) \(durationMinutes)min @\(locationKey)  est \(Int(estimatedSeconds / 60))min"]
         for b in blocks {
+            if b.isCooldown {
+                lines.append("  \(b.slot). \(b.exerciseName) [cooldown] \(Int(b.estimatedSeconds / 60))min")
+                continue
+            }
             var s = "  \(b.slot). \(b.exerciseName) [\(b.pattern)/\(b.band.rawValue)] \(b.sets)x\(b.repLow)-\(b.repHigh)\(b.measure == .seconds ? "s" : "")"
             if let w = b.weight { s += " @\(Int(w))\(b.weightSource == .measured ? "" : "~")" }
             if !b.warmups.isEmpty { s += " wu:" + b.warmups.map { "\(Int($0.weight))x\($0.reps)" }.joined(separator: ",") }

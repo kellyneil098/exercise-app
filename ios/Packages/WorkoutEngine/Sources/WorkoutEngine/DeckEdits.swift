@@ -36,6 +36,16 @@ public struct DeckEdits: Equatable, Sendable {
         order = before + moving + after + setAside(ordered)
     }
 
+    /// A block just added to the plan: once there is a manual order it joins the end of the active deck, but ahead of
+    /// a cooldown sitting last, so the stretch stays the final card. (Without a manual order, slot order already does this.)
+    public mutating func add(_ id: UUID, in ordered: [PlanBlock]) {
+        guard !order.isEmpty else { return }
+        let active = active(ordered).filter { $0.id != id }
+        var ids = active.map(\.id)
+        ids.insert(id, at: active.last?.isCooldown == true ? ids.count - 1 : ids.count)
+        order = ids + setAside(ordered)
+    }
+
     public mutating func skip(_ id: UUID) {
         deleted.remove(id)
         skipped.insert(id)

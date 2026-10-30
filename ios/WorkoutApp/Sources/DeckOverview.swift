@@ -65,7 +65,7 @@ struct DeckOverview: View {
 
                 List {
                     ForEach(Array(session.activeBlocks.enumerated()), id: \.element.id) { i, b in
-                        SwipeRow(leading: .swap, trailing: .delete, onLeading: { beginSwap(b) }, onTrailing: { delete(b) }) {
+                        SwipeRow(leading: b.isCooldown ? nil : .swap, trailing: .delete, onLeading: { beginSwap(b) }, onTrailing: { delete(b) }) {
                             row(b, index: i)
                         }
                         .listRowBackground(Color.clear)
@@ -178,6 +178,8 @@ struct DeckOverview: View {
                         IconTile("checkmark", tint: Theme.Colors.brass, size: 40)
                     } else if isCurrent {
                         IconTile("play.fill", tint: tint, size: 40)
+                    } else if b.isCooldown {
+                        IconTile("figure.flexibility", tint: tint, size: 40).opacity(0.7)
                     } else {
                         IconTile(linked ? "link" : "\(min(index + 1, 50)).circle", tint: tint, size: 40)
                             .opacity(0.7)
@@ -185,7 +187,9 @@ struct DeckOverview: View {
                 }
                 .padding(.leading, linked ? Theme.Spacing.m : 0)
                 VStack(alignment: .leading, spacing: 3) {
-                    if b.band == .heavy || linked {
+                    if b.isCooldown {
+                        Overline(Theme.storybook ? "Cool-down" : "Cooldown", tint: Theme.Colors.dayInk(session.plan.dayType))
+                    } else if b.band == .heavy || linked {
                         Overline(b.band == .heavy ? "Heavy" : "Superset", tint: Theme.Colors.dayInk(session.plan.dayType))
                     }
                     Text(b.exerciseName).font(Theme.Fonts.bodyMedium).lineLimit(2).minimumScaleFactor(0.85)
@@ -193,19 +197,27 @@ struct DeckOverview: View {
                     Text(summary(b, done: done)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
                 }
                 Spacer(minLength: Theme.Spacing.s)
-                SetDots(done: done, total: b.sets)
-                Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
-                    .rotationEffect(.degrees(expanded == b.id ? 180 : 0))
+                // The stretch has nothing to edit; it only expands to undo once it's been marked done.
+                if !b.isCooldown { SetDots(done: done, total: b.sets) }
+                if expandable(b, done: done) {
+                    Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold)).foregroundStyle(Theme.Colors.textTertiary)
+                        .rotationEffect(.degrees(expanded == b.id ? 180 : 0))
+                }
             }
             .contentShape(Rectangle())
-            .onTapGesture { withAnimation(Theme.Motion.quick) { expanded = expanded == b.id ? nil : b.id } }
+            .onTapGesture {
+                guard expandable(b, done: done) || expanded == b.id else { return }
+                withAnimation(Theme.Motion.quick) { expanded = expanded == b.id ? nil : b.id }
+            }
             // Swap and delete are swipes; these give them to anyone who can't swipe (VoiceOver, Switch Control, Voice Control).
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel("\(b.band == .heavy ? "Heavy, " : "")\(b.exerciseName), \(summary(b, done: done))")
-            .accessibilityHint(expanded == b.id ? "Hides the editors" : "Shows weight, sets and reps editors")
-            .accessibilityAction(named: "Swap exercise") { beginSwap(b) }
-            .accessibilityAction(named: "Delete exercise") { delete(b) }
+            .accessibilityHint(b.isCooldown ? "A reminder to stretch before you finish" : expanded == b.id ? "Hides the editors" : "Shows weight, sets and reps editors")
+            .accessibilityActions {
+                if !b.isCooldown { Button("Swap exercise") { beginSwap(b) } }
+                Button("Delete exercise") { delete(b) }
+            }
 
             if expanded == b.id { editors(b, done: done) }
         }
@@ -262,7 +274,10 @@ struct DeckOverview: View {
         .accessibilityAction(named: "Restore exercise") { restore(b) }
     }
 
+    func expandable(_ b: PlanBlock, done: Int) -> Bool { !b.isCooldown || done > 0 }
+
     func summary(_ b: PlanBlock, done: Int) -> String {
+        if b.isCooldown { return "~\(Int((b.estimatedSeconds / 60).rounded())) min · stretch and cool down" }
         let range = b.measure == .seconds ? "\(b.repLow)–\(b.repHigh)s" : "\(b.repLow)–\(b.repHigh)"
         let load = b.weight.map { "\($0.formatted()) lb · " } ?? ""
         return "\(load)\(b.sets) × \(range) · \(session.restSeconds(for: b))s rest"
@@ -270,6 +285,19 @@ struct DeckOverview: View {
 
     /// Weight / sets / reps, plus undo for a logged set. Swap and delete are swipes on the row, not buttons here.
     @ViewBuilder func editors(_ b: PlanBlock, done: Int) -> some View {
+        if b.isCooldown {
+            if done > 0 {
+                HStack(spacing: Theme.Spacing.s) {
+                    IconControl("arrow.uturn.backward", label: "Undo stretch") { session.undoLast(block: b) }
+                    Spacer()
+                }
+            }
+        } else {
+            exerciseEditors(b, done: done)
+        }
+    }
+
+    @ViewBuilder func exerciseEditors(_ b: PlanBlock, done: Int) -> some View {
         VStack(spacing: Theme.Spacing.s) {
             if b.weight != nil {
                 Adjuster("\((b.weight ?? 0).formatted()) lb",
