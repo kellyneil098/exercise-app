@@ -9,8 +9,8 @@ final class DecisionSheetLayoutTests: XCTestCase {
     static let widths: [CGFloat] = [375, 390]
     static let message = "Saving keeps the 18 sets you logged and updates your next targets. Discarding deletes them."
 
-    func sheet(destructive: Bool = true, message: String = message) -> DecisionSheet {
-        DecisionSheet(title: "End this workout?", message: message, closeLabel: "Keep going",
+    func sheet(destructive: Bool = true, message: String? = nil) -> DecisionSheet {
+        DecisionSheet(title: "End this workout?", message: message ?? Self.message, closeLabel: "Keep going",
                       primary: .init("Finish and save progress", icon: "checkmark") {},
                       destructive: destructive ? .init("Discard this workout", icon: "trash") {} : nil) {}
     }
