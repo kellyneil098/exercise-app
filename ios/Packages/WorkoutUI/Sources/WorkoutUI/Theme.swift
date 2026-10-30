@@ -803,26 +803,49 @@ public struct HoneyBarShape: Shape {
 }
 
 /// Segmented momentum indicator: one pill per step, filled as they're done; honeycomb cells in the storybook.
+/// `compact` suits list rows; `prominent` is for the active set card, where the honeycombs are how the user reads
+/// their progress at a glance, so they are about twice the size and shrink only when there are too many to fit.
 public struct Segments: View {
+    public enum Size: Sendable { case compact, prominent }
     let done: Int
     let total: Int
     var tint: Color = Theme.Colors.brass
+    var size: Size = .compact
     @Environment(\.theme) private var theme
-    public init(done: Int, total: Int, tint: Color = Theme.Colors.brass) { self.done = done; self.total = total; self.tint = tint }
+    /// Prominent honeycomb width; follows Dynamic Type up to `prominentCellMax` so the card stays compact.
+    @ScaledMetric(relativeTo: .body) private var prominentCell: CGFloat = 28
+    static let prominentCellMax: CGFloat = 36
+    /// Width ÷ height of a regular flat-topped hexagon.
+    static let hexAspect: CGFloat = 2 / 3.squareRoot()
+
+    public init(done: Int, total: Int, tint: Color = Theme.Colors.brass, size: Size = .compact) {
+        self.done = done; self.total = total; self.tint = tint; self.size = size
+    }
+
     public var body: some View {
         let sb = theme.storybook
-        HStack(spacing: sb ? 3 : Theme.Spacing.xs) {
+        let prominent = size == .prominent
+        HStack(spacing: sb && !prominent ? 3 : Theme.Spacing.xs) {
             ForEach(0..<max(total, 0), id: \.self) { i in
                 if sb {
-                    HexCell().fill(i < done ? tint : Theme.Colors.paper)
-                        .overlay(HexCell().stroke(Theme.Colors.ink.opacity(i < done ? 0.6 : 0.3), lineWidth: 1))
-                        .frame(width: 14, height: 12)
+                    let cell = HexCell().fill(i < done ? tint : Theme.Colors.paper)
+                        .overlay(HexCell().stroke(Theme.Colors.ink.opacity(i < done ? 0.6 : 0.3),
+                                                  lineWidth: prominent ? Theme.Stroke.outline : 1))
+                    if prominent {
+                        cell.aspectRatio(Self.hexAspect, contentMode: .fit)
+                            .frame(maxWidth: min(prominentCell, Self.prominentCellMax))
+                    } else {
+                        cell.frame(width: 14, height: 12)
+                    }
                 } else {
                     Capsule().fill(i < done ? tint : Theme.Colors.surface).frame(height: 6)
                         .shadow(color: i < done ? tint.opacity(0.5) : .clear, radius: 4)
                 }
             }
-            if done > total { Text("+\(done - total)").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textTertiary) }
+            if done > total {
+                Text("+\(done - total)").font(Theme.Fonts.captionBold).foregroundStyle(Theme.Colors.textTertiary)
+                    .fixedSize().layoutPriority(1)
+            }
         }
         .animation(Theme.Motion.spring, value: done)
     }
