@@ -102,18 +102,7 @@ struct HomeView: View {
         .padding(.top, Theme.Spacing.s)
     }
 
-    /// "Today", "Yesterday", a weekday within the week, otherwise a short date.
-    func dayLabel(_ d: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(d) { return "Today" }
-        if cal.isDateInYesterday(d) { return "Yesterday" }
-        if let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: .now)).day, days < 7 {
-            return d.formatted(.dateTime.weekday(.wide))
-        }
-        return d.formatted(.dateTime.day().month(.abbreviated))
-    }
-
-    /// This week at a glance, set straight on the canvas: two numbers, no box.
+    /// This week at a glance, set straight on the canvas: the week's count and the last workout type, no box.
     var momentum: some View {
         let week = model.completedSessions(since: Date.startOfWeek)
         let last = model.completedSessions().first
@@ -124,8 +113,12 @@ struct HomeView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let last {
-                Stat(dayLabel(last.performedAt), label: "last · \(last.dayType.label.lowercased())")
+                // The workout type is what matters when choosing today's; when it happened is secondary.
+                let when = Recency(last.performedAt).text()
+                Stat(last.dayType.label, label: "last · \(when)")
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Last workout: \(last.dayType.label), \(when)")
             } else {
                 Stat("—", label: "no sessions yet")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,8 +126,8 @@ struct HomeView: View {
         }
     }
 
-    /// The day picker owns the middle of the screen: one tall row per day with what's heavy this time and when it
-    /// was last done, so the choice is informed rather than a strip of tabs.
+    /// The day picker owns the middle of the screen: one tall row per day with when it was last done, so the choice
+    /// is informed rather than a strip of tabs. Which heavy variant comes up stays in the deck, not here.
     var modePicker: some View {
         FlatSection("Workout", detail: Theme.storybook ? "pick a page" : nil) {
             VStack(spacing: 0) {
@@ -152,10 +145,7 @@ struct HomeView: View {
         case .running:
             return "This week's plan"
         case .strength(let d):
-            let heavy = (model.splitState.heavyRotations[d]?.current ?? model.catalog.heavyRotationDefaults[d]?.first)
-                .map { $0.replacingOccurrences(of: "_", with: " ").capitalized }
-            let last = model.completedSessions().first { $0.dayType == d }.map { "last \(dayLabel($0.performedAt).lowercased())" } ?? "not yet done"
-            return [heavy.map { "Heavy: \($0)" }, last].compactMap { $0 }.joined(separator: " · ")
+            return model.completedSessions().first { $0.dayType == d }.map { "done \(Recency($0.performedAt).text())" } ?? "not yet done"
         }
     }
 
@@ -223,8 +213,8 @@ struct HomeView: View {
     }
 }
 
-/// One choice in Home's day list: a character vignette on its wash, name, what makes this one different, and a
-/// honey check when chosen.
+/// One choice in Home's day list: a character vignette on its wash, name, when it was last done, and a honey check
+/// when chosen.
 struct ModeRow: View {
     let mode: HomeMode
     let subtitle: String
