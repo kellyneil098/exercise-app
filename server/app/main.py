@@ -24,21 +24,32 @@ def health() -> dict:
 def auth_apple(body: schemas.AppleLoginIn, db: DbSession = Depends(get_db)) -> schemas.TokenOut:
     claims = auth.verify_apple_identity_token(body.identity_token)
     sub = claims["sub"]
-    email = claims.get("email")
     email_verified = claims.get("email_verified") in (True, "true")
+    # Never trust an unverified email claim: it is neither stored nor used to link accounts.
+    email = claims.get("email") if email_verified else None
     user = db.scalar(select(models.User).where(models.User.apple_sub == sub))
-    if user is None and email and email_verified:
-        # Pre-provisioned by email (dev login or admin), now linking Apple identity.
-        user = db.scalar(select(models.User).where(models.User.email == email))
-        if user is not None:
+    if user is None and email:
+        holder = db.scalar(select(models.User).where(models.User.email == email))
+        if holder is not None and holder.email_verified:
+            # Pre-provisioned with a verified email, now linking this Apple identity.
+            user = holder
             user.apple_sub = sub
+        elif holder is not None:
+            # An unverified claim on this address loses to the verified owner.
+            holder.email = None
+            db.flush()
     if user is None:
-        user = models.User(apple_sub=sub, email=email, display_name=(body.display_name or "")[:80])
+        user = models.User(
+            apple_sub=sub, email=email, email_verified=email is not None, display_name=(body.display_name or "")[:80]
+        )
         db.add(user)
         db.flush()
         auth.consume_invite(db, body.invite_code, user)
-    elif body.display_name and not user.display_name:
-        user.display_name = body.display_name[:80]
+    else:
+        if email and user.email == email:
+            user.email_verified = True
+        if body.display_name and not user.display_name:
+            user.display_name = body.display_name[:80]
     db.commit()
     return schemas.TokenOut(token=auth.issue_token(db, user, body.device_name), user=user_out(user))
 

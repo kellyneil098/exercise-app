@@ -57,32 +57,57 @@
     static toeLength(leg) { const c = Math.abs(Math.cos(rad(leg.shin))); return 5 * Math.max(0, Math.min(1, (0.62 - c) / 0.25)); }
   }
 
+  // A figure for any ordered list of keyframes (port of FigureRenderer): the deck pictogram is {a, b}, the technique
+  // guide passes {keyframes: [...]} and walks them with a Timeline. Props come from the first keyframe; the frame fits all.
   class Figure {
-    constructor(m) {
+    constructor(m, detail) {
       this.m = m;
+      this.keyframes = m.keyframes || [m.a, m.b];
       this.anchor = m.anchor;
-      this.a = new Skeleton(m.a);
-      this.b = new Skeleton(m.b); this.b.anchorTo(this.a, this.anchor);
+      this.armsXY = m.armsXY;
+      this.detail = Object.assign({ joints: false, path: [], midfoot: false, maxScale: 1.5 }, detail || {});
+      const first = new Skeleton(this.keyframes[0]);
+      this.sks = this.keyframes.map(p => { const s = new Skeleton(p); s.anchorTo(first, this.anchor); return s; });
+      this.a = this.sks[0];
+      this.b = this.sks[Math.min(1, this.sks.length - 1)];
       this.frame = this.computeFrame();
     }
-    at(t) {
-      const sk = new Skeleton(lerpPose(this.m.a, this.m.b, t));
+    // Live skeleton t of the way from keyframe i to keyframe j.
+    between(i, j, t) {
+      const sk = new Skeleton(lerpPose(this.keyframes[i], this.keyframes[j], t));
       sk.anchorTo(this.a, this.anchor);
-      if (this.m.armsXY) {
-        const s = sk.shoulder;
-        sk.arms = sk.arms.map((_, i) => {
-          const pa = this.a.arms[Math.min(i, this.a.arms.length - 1)], pb = this.b.arms[Math.min(i, this.b.arms.length - 1)];
-          return [0, 1].map(j => {
-            const ra = [pa[j][0] - this.a.shoulder[0], pa[j][1] - this.a.shoulder[1]], rb = [pb[j][0] - this.b.shoulder[0], pb[j][1] - this.b.shoulder[1]];
+      if (this.armsXY) {
+        const s = sk.shoulder, ski = this.sks[i], skj = this.sks[j];
+        sk.arms = sk.arms.map((_, k) => {
+          const pa = ski.arms[Math.min(k, ski.arms.length - 1)], pb = skj.arms[Math.min(k, skj.arms.length - 1)];
+          return [0, 1].map(q => {
+            const ra = [pa[q][0] - ski.shoulder[0], pa[q][1] - ski.shoulder[1]], rb = [pb[q][0] - skj.shoulder[0], pb[q][1] - skj.shoulder[1]];
             return [s[0] + lerp(ra[0], rb[0], t), s[1] + lerp(ra[1], rb[1], t)];
           });
         });
       }
       return sk;
     }
+    at(t) { return this.between(0, Math.min(1, this.keyframes.length - 1), t); }
+    // Where the load is (bar in the hands, bar on the hips) or, unloaded, the hip.
+    static loadPoint(sk) {
+      const impl = sk.pose.impl;
+      if (impl === 'none' || impl === 'barbellOnHips') return sk.hip;
+      return sk.hand;
+    }
+    // Load trace along a walk through keyframe indices, e.g. [0, 1, 2, 1, 0].
+    trace(order, samples = 12) {
+      const pts = [];
+      for (let n = 0; n + 1 < order.length; n++) {
+        const i = order[n], j = order[n + 1];
+        if (i === j) continue;
+        for (let s = 0; s <= samples; s++) pts.push(Figure.loadPoint(this.between(i, j, s / samples)));
+      }
+      return pts;
+    }
     // Props are built from the anchored first keyframe (fixed gear) plus the live skeleton (cables, pads, belts).
     props(live) {
-      const fixed = this.a, p = this.m.a, out = [];
+      const fixed = this.a, p = this.keyframes[0], out = [];
       const hip = fixed.hip, shoulder = fixed.shoulder, hand = fixed.hand, hand2 = fixed.farHand, knee = fixed.legs[0].knee, foot = fixed.legs[0].foot;
       const L = (a, b) => out.push(['line', a, b]);
       const LXY = (ax, ay, bx, by) => out.push(['line', [ax, ay], [bx, by]]);
@@ -140,7 +165,7 @@
     }
     computeFrame() {
       const pts = [];
-      for (const sk of [this.a, this.b]) {
+      for (const sk of this.sks) {
         pts.push(sk.hip, sk.shoulder, off(sk.head, -HEAD_R, -HEAD_R), off(sk.head, HEAD_R, HEAD_R));
         for (const a of sk.arms) pts.push(a[0], a[1]);
         for (const l of sk.legs) pts.push(l.knee, l.foot);
@@ -152,13 +177,15 @@
       }
       let x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0]));
       let y0 = Math.min(...pts.map(p => p[1])), y1 = Math.max(...pts.map(p => p[1]));
-      if (this.m.a.floor) y1 = Math.max(y1, FLOOR);
+      if (this.keyframes[0].floor) y1 = Math.max(y1, FLOOR);
       const pad = 4.5;
       return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
     }
-    draw(ctx, w, h, t, colors) {
-      const sk = this.at(t), props = this.props(sk), fr = this.frame;
-      const fit = Math.min(w / 100, h / 60), scale = Math.min(100 / fr.w, 60 / fr.h, 1.5), k = fit * scale;
+    draw(ctx, w, h, t, colors) { this.drawSkeleton(ctx, w, h, this.at(t), colors); }
+    drawBetween(ctx, w, h, i, j, t, colors) { this.drawSkeleton(ctx, w, h, this.between(i, j, t), colors); }
+    drawSkeleton(ctx, w, h, sk, colors) {
+      const props = this.props(sk), fr = this.frame, detail = this.detail;
+      const fit = Math.min(w / 100, h / 60), scale = Math.min(100 / fr.w, 60 / fr.h, detail.maxScale), k = fit * scale;
       const vw = 100 / scale, vh = 60 / scale;
       ctx.save();
       ctx.translate((w - 100 * fit) / 2, (h - 60 * fit) / 2);
@@ -174,6 +201,10 @@
         else if (prim[0] === 'circle') circle(prim[1], prim[2], null, prop, 1.4);
         else line([fr.x - 1.5, FLOOR], [fr.x + fr.w + 1.5, FLOOR], 1.4, prop);
       }
+      // technique-sheet guides: mid-foot reference and load path (dashed), under the figure
+      const dashed = (pts, color) => { ctx.save(); ctx.setLineDash([1.4, 2.2]); ctx.lineWidth = 0.8; ctx.strokeStyle = color; ctx.beginPath(); pts.forEach((q, n) => n ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke(); ctx.restore(); };
+      if (detail.midfoot && this.a.pose.grounded) { const x = this.a.legs[0].foot[0] + 2.5; dashed([[x, FLOOR], [x, fr.y + 2]], colors.guide || 'rgba(245,245,247,0.28)'); }
+      if (detail.path.length > 1) dashed(detail.path, colors.pathColor || 'rgba(212,178,117,0.55)');
       // implement
       const hand = sk.hand, impl = sk.pose.impl;
       const plate = (c, r) => { circle(c, r, gearFill, gear, 1.6); circle(c, 1.3, gear); };
@@ -181,7 +212,20 @@
         if (vertical) { line(off(hh, 0, -3.2), off(hh, 0, 3.2), 1.6, gear); for (const y of [-3.2, 3.2]) line(off(hh, -2.4, y), off(hh, 2.4, y), 2.6, gear); }
         else { line(off(hh, -3.2, 0), off(hh, 3.2, 0), 1.6, gear); for (const x of [-3.2, 3.2]) line(off(hh, x, -2.4), off(hh, x, 2.4), 2.6, gear); }
       };
-      switch (impl) {
+      // Storybook theme (`colors.pots`): the load is a little honey pot (belly, rim, label dash), upright at the hand.
+      const pot = (c, r) => { circle(c, r, far, card, 1.1); line(off(c, -r * 0.7, -r * 0.95), off(c, r * 0.7, -r * 0.95), 1.6, card); line(off(c, -r * 0.35, r * 0.1), off(c, r * 0.35, r * 0.1), 0.9, card); };
+      if (colors.pots) {
+        switch (impl) {
+          case 'none': break;
+          case 'barbell': case 'barbellNarrow': case 'shortBar': case 'trapBar': pot(hand, PLATE_R[impl] * 0.9); break;
+          case 'barbellOnHips': pot(sk.hip, PLATE_R.barbellOnHips * 0.9); break;
+          case 'dumbbell': case 'dumbbellVertical': for (const a of sk.arms) pot(a[1], 2.6); break;
+          case 'dumbbellFirst': pot(hand, 2.6); break;
+          case 'handle': line(off(hand, -2.6, 0), off(hand, 2.6, 0), 2.2, gear); break;
+          case 'kettlebell': line(hand, off(hand, 0, 2.5), 1.6, gear); pot(off(hand, 0, 5.5), 3.2); break;
+          case 'wheel': circle([hand[0], FLOOR - 2.6], 2.6, gearFill, gear, 1.6); break;
+        }
+      } else switch (impl) {
         case 'none': break;
         case 'barbell': case 'barbellNarrow': case 'shortBar': plate(hand, PLATE_R[impl]); break;
         case 'barbellOnHips': plate(sk.hip, PLATE_R.barbellOnHips); break;
@@ -209,8 +253,15 @@
       });
       // head
       const hd = sk.head, r = HEAD_R, ang = sk.headAngle;
-      circle(hd, r, brass, card, 1.1);
       const f = frontNormal(ang), u = [Math.cos(rad(ang)), Math.sin(rad(ang))];
+      // Storybook theme: two small round ears on the crown, behind the head (`colors.ears`). `u` is the neck→head
+      // direction, so the ears follow the skull in every pose (mirror of BearFigure.earCentres in WorkoutUI).
+      for (const side of colors.ears === false ? [] : [-1, 1]) {
+        const ear = [hd[0] + u[0] * r * 0.65 + f[0] * r * 0.65 * side, hd[1] + u[1] * r * 0.65 + f[1] * r * 0.65 * side];
+        circle(ear, r * 0.3, brass, card, 1.0);
+        circle(ear, r * 0.13, card);
+      }
+      circle(hd, r, brass, card, 1.1);
       const eye = [hd[0] + f[0] * r * 0.5 + u[0] * r * 0.12, hd[1] + f[1] * r * 0.5 + u[1] * r * 0.12];
       circle(eye, r * 0.19, card);
       const ba = [eye[0] - f[0] * r * 0.12 + u[0] * r * 0.34, eye[1] - f[1] * r * 0.12 + u[1] * r * 0.34];
@@ -218,7 +269,39 @@
       line(ba, bb, r * 0.18, card);
       for (const s of near) segment(s[0], s[1], false, false);
       circle(sk.hand, LIMB_W * 0.6, brass, card, 0.9);
+      if (detail.joints) {
+        const jr = LIMB_W * 0.42, dot = (p, isFar) => circle(p, jr, card, isFar ? far : brass, 0.9);
+        sk.legs.forEach((leg, i) => dot(leg.knee, sk.legs.length > 1 && i === sk.legs.length - 1));
+        dot(sk.hip, false);
+        sk.arms.forEach((arm, i) => dot(arm[0], sk.arms.length > 1 && i === sk.arms.length - 1));
+        dot(sk.shoulder, false);
+      }
       ctx.restore();
+    }
+  }
+  // Clock for a staged guide (port of GuideTimeline): each stage eases through its keyframe legs (MOVE s each) then
+  // holds (HOLD s); loops. at(ms) -> {stage, from, to, t}.
+  class Timeline {
+    constructor(guide) {
+      this.move = 1.1; this.hold = 0.8;
+      this.legs = []; this.holds = [];
+      const stages = guide.stages;
+      let current = stages[stages.length - 1].frames.slice(-1)[0], clock = 0;
+      stages.forEach((stage, s) => {
+        for (const f of stage.frames) { if (f === current) continue; this.legs.push({ stage: s, from: current, to: f, start: clock, end: clock + this.move }); clock += this.move; current = f; }
+        this.holds.push({ stage: s, frame: current, start: clock, end: clock + this.hold }); clock += this.hold;
+      });
+      this.period = Math.max(clock, 0.01);
+      this.startFrame = stages[stages.length - 1].frames.slice(-1)[0];
+      this.order = [this.startFrame].concat(...stages.map(st => st.frames));
+    }
+    endOf(stage, guide) { const fr = guide.stages[stage].frames; return fr.length ? fr[fr.length - 1] : this.startFrame; }
+    at(ms) {
+      const u = (ms / 1000) % this.period;
+      for (const l of this.legs) if (u >= l.start && u < l.end) { const t = (u - l.start) / this.move; return { stage: l.stage, from: l.from, to: l.to, t: (1 - Math.cos(Math.PI * t)) / 2 }; }
+      for (const h of this.holds) if (u >= h.start && u < h.end) return { stage: h.stage, from: h.frame, to: h.frame, t: 0 };
+      const last = this.holds[this.holds.length - 1];
+      return { stage: last.stage, from: last.frame, to: last.frame, t: 0 };
     }
   }
   // phase: eased ping-pong A -> B -> A with a short pause at each end
@@ -229,5 +312,5 @@
     if (u < span) t = u / span; else if (u < 0.5) t = 1; else if (u < 0.5 + span) t = 1 - (u - 0.5) / span; else t = 0;
     return (1 - Math.cos(Math.PI * t)) / 2;
   };
-  global.Pictogram = { Figure, Skeleton, FLOOR };
+  global.Pictogram = { Figure, Skeleton, Timeline, FLOOR };
 })(typeof window !== 'undefined' ? window : globalThis);

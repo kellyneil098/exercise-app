@@ -3,6 +3,7 @@ import GRDB
 import Observation
 import WorkoutEngine
 import WorkoutStore
+import WorkoutUI
 
 /// App-wide state: the store, the engine, identity, and the current session. One instance per app.
 @Observable @MainActor
@@ -28,6 +29,16 @@ final class AppModel {
     /// Partner (or any shared user) currently being viewed read-only in Progress; nil = me.
     var viewingUserId: String?
 
+    /// The design system in use (Default or Winnie the Pooh). Persisted in UserDefaults; `Theme.current` follows it
+    /// so the static `Theme.*` tokens resolve through the chosen look.
+    var theme: AppTheme = .classic {
+        didSet { theme.save(); Theme.current = theme.spec }
+    }
+    /// Onboarding's answers so far. Kept here rather than in view @State because picking a theme rebuilds the view tree.
+    var onboardingDraft = OnboardingDraft()
+    /// Presented from the root (outside the theme-keyed subtree) so the Profile sheet stays up while switching.
+    var showSettings = false
+
     init(store: WorkoutStore, catalog: Catalog, api: APIClient, userId: String) {
         self.store = store
         self.seedCatalog = catalog
@@ -37,6 +48,9 @@ final class AppModel {
         self.rebaseliner = Rebaseliner(catalog: catalog)
         self.api = api
         self.userId = userId
+        // Property observers don't fire inside init, so mirror `didSet` by hand.
+        theme = AppTheme.load(onboarded: isOnboarded)
+        Theme.current = theme.spec
         reloadCatalogIfNeeded()
         observer = DatabaseRegionObservation(tracking: .fullDatabase).start(in: store.db, onError: { _ in }) { [weak self] _ in
             Task { @MainActor in self?.dataVersion &+= 1; self?.reloadCatalogIfNeeded() }
@@ -121,11 +135,35 @@ final class AppModel {
         }) ?? []
     }
 
+    /// Equipment stored as available at a gym (plus bodyweight, which every gym has). For a gym deleted mid-workout this is
+    /// what it had at deletion, so the resumed deck can still swap and add exercises.
     func equipment(for location: Location) -> Set<String> {
-        let rows = (try? store.db.read {
-            try LocationEquipment.filter(Column("locationId") == location.id && Column("deleted") == false).fetchAll($0)
-        }) ?? []
-        return Set(rows.map(\.equipmentType)).union(["bodyweight"])
+        _ = dataVersion
+        return ((try? store.equipment(for: location)) ?? []).union([EquipmentType.bodyweightKey])
+    }
+
+    /// The gym's checked/unchecked split of the one master catalog (`catalog.equipmentTypes`); identical choices for every gym.
+    func equipmentPartition(for location: Location) -> EquipmentPartition {
+        catalog.equipmentPartition(available: equipment(for: location))
+    }
+
+    /// Marks one catalog item available or not at one gym; persisted and queued for sync immediately.
+    func setEquipment(_ key: String, available: Bool, for location: Location) {
+        guard key != EquipmentType.bodyweightKey, catalog.equipmentKeys.contains(key) else { return }
+        try? store.setEquipment(key, available: available, forLocation: location.id, userId: userId)
+        dataVersion &+= 1
+    }
+
+    /// Seeded gyms are permanent; only gyms the user added can go.
+    func canDelete(_ location: Location) -> Bool { !location.isSeeded }
+
+    /// Tombstones a user-created gym and its equipment (queued for sync) and moves the default location off it.
+    /// Sessions logged there are kept. Returns false if the gym is seeded.
+    @discardableResult
+    func deleteLocation(_ location: Location) -> Bool {
+        guard canDelete(location), (try? store.deleteLocation(location)) != nil else { return false }
+        dataVersion &+= 1
+        return true
     }
 
     func inventory(for location: Location) -> LocationInventory {
@@ -158,7 +196,7 @@ final class AppModel {
         }) ?? []
         return rows.compactMap { r in
             guard let d = DayType(rawValue: r.dayType) else { return nil }
-            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.blocks.map(\.exerciseKey) ?? [])
+            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.liveBlocks.map(\.exerciseKey) ?? [])
         }
     }
 
@@ -173,35 +211,27 @@ final class AppModel {
         }) ?? []
         return rows.compactMap { r in
             guard let d = DayType(rawValue: r.dayType) else { return nil }
-            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.blocks.map(\.exerciseKey) ?? [])
+            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.liveBlocks.map(\.exerciseKey) ?? [])
         }
     }
 
     /// Every seeded location exists for this user so Home can offer all of them; installs that predate a seed
-    /// entry (or its current name) get it on first launch. Equipment defaults mirror onboarding.
+    /// entry get it on first launch, and rows still showing a seed's former default name get its current one (once per device).
+    /// Equipment defaults mirror onboarding.
     func ensureSeededLocations() {
-        var existing = locations
-        for (i, seed) in catalog.seededLocations.enumerated() where !existing.contains(where: { $0.seedKey == seed.key }) {
-            // Rows from before `seedKey` existed are recognised by their seed name (incl. the old "Building Gym") and stamped.
-            let legacyNames: [String] = [seed.name] + (seed.key == "building_gym" ? ["Building Gym"] : [])
-            if let j = existing.firstIndex(where: { $0.seedKey == nil && legacyNames.contains($0.name) }) {
-                existing[j].seedKey = seed.key
-                if existing[j].name == "Building Gym" { existing[j].name = seed.name }
-                existing[j].updatedAt = Date()
-                try? store.save(existing[j])
-                continue
-            }
+        let applied = store.appliedSeedRenames
+        let (changed, missing, renames) = Location.reconcile(locations, with: catalog.seededLocations, appliedRenames: applied)
+        if !changed.isEmpty { try? store.save(changed) }
+        if renames != applied { try? store.setAppliedSeedRenames(renames) }
+        for seed in missing {
+            let i = catalog.seededLocations.firstIndex(of: seed) ?? catalog.seededLocations.count
             let loc = Location(userId: userId, name: seed.name, seedKey: seed.key, dumbbellMaxWeight: seed.dumbbellMaxWeight,
                                dumbbellIncrement: 5, barbellIncrement: seed.plateIncrement, sortOrder: i)
             try? store.save(loc)
-            let equipment = seed.defaultAvailable ? catalog.equipmentTypes.map(\.key) : Self.homeGymEquipment
-            try? store.save(equipment.map { LocationEquipment(userId: userId, locationId: loc.id, equipmentType: $0) })
-            existing.append(loc)
+            try? store.save(catalog.defaultEquipment(for: seed).map { LocationEquipment(userId: userId, locationId: loc.id, equipmentType: $0) })
         }
         dataVersion += 1
     }
-
-    static let homeGymEquipment = ["bodyweight", "dumbbells", "bench_adjustable", "bench_flat", "cable_machine", "treadmill"]
 
     var nextDayType: DayType {
         _ = dataVersion
@@ -242,7 +272,8 @@ final class AppModel {
               }),
               let plan = row.plan,
               let dayType = DayType(rawValue: row.dayType),
-              let location = locations.first(where: { $0.id == row.locationId })
+              // Any row, even a gym deleted since the deck was built: `equipment(for:)` keeps that gym's inventory.
+              let location = try? store.db.read({ try Location.fetchOne($0, key: row.locationId) })
         else { return }
         let input = plannerInput(dayType: dayType, duration: row.durationMin, location: location)
         let logs = (try? store.db.read { try SetLog.filter(Column("sessionId") == row.id).fetchAll($0) }) ?? []
@@ -287,7 +318,7 @@ final class AppModel {
 
     private func applyProgression(_ session: ActiveSession) {
         var states = exerciseStates
-        for block in session.plan.blocks {
+        for block in session.plan.liveBlocks {
             guard let exercise = catalog.exercises[block.exerciseKey] else { continue }
             let logs = session.logs(for: block).filter { !$0.isWarmup }.sorted { $0.setIndex < $1.setIndex }
             guard !logs.isEmpty else { continue }

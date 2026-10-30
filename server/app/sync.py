@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session as DbSession
@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session as DbSession
 from . import models, schemas
 
 PULL_PAGE = 500
+# Client clocks may run ahead; anything later than server time + this window is capped so a
+# far-future `updated_at` can't pin a row against every later write.
+MAX_CLOCK_SKEW = timedelta(hours=24)
 
 
 def allocate_seq(db: DbSession, n: int) -> int:
@@ -39,6 +42,7 @@ def push(db: DbSession, user: models.User, records: list[schemas.RecordIn]) -> s
     ids = [r.id for r in records]
     existing = {r.id: r for r in db.scalars(select(models.Record).where(models.Record.id.in_(ids)))} if ids else {}
     pending: list[tuple[schemas.RecordIn, models.Record | None, datetime]] = []
+    ceiling = utcnow() + MAX_CLOCK_SKEW
     for r in records:
         if (
             r.table not in schemas.SYNC_TABLES
@@ -46,13 +50,13 @@ def push(db: DbSession, user: models.User, records: list[schemas.RecordIn]) -> s
             or r.payload.get("id", r.id) != r.id
         ):
             continue  # unknown table, or payload claims another owner / identity than the envelope
-        updated_at = r.updated_at if r.updated_at.tzinfo else r.updated_at.replace(tzinfo=UTC)
+        updated_at = min(r.updated_at if r.updated_at.tzinfo else r.updated_at.replace(tzinfo=UTC), ceiling)
         cur = existing.get(r.id)
         if cur is not None:
             if cur.user_id != user.id:
                 continue  # someone else's row; never overwrite
             cur_updated = cur.updated_at if cur.updated_at.tzinfo else cur.updated_at.replace(tzinfo=UTC)
-            if cur_updated >= updated_at:
+            if updated_at <= cur_updated <= ceiling:  # rows pinned past the ceiling (pre-clamp) are overwritable
                 continue
         pending.append((r, cur, updated_at))
     ignored = len(records) - len(pending)

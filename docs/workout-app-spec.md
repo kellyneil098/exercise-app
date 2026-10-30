@@ -22,7 +22,7 @@ A small-group training app for **strength training and running only**. The core 
 The defining constraints:
 
 - **Location-aware.** Gyms have different equipment. The plan must only contain exercises that are actually performable where the user is standing.
-- **Time-boxed.** The user picks a duration bucket (30 / 40 / 45 / 60 / 90 min) and the plan is fitted to it.
+- **Time-boxed.** The user picks a duration bucket (30 / 45 / 60 / 90 min) and the plan is fitted to it.
 - **Reorderable and swappable mid-workout.** Gyms are busy. The prescribed order is a suggestion, and any exercise can be substituted for an equivalent one.
 - **Offline-first.** Generating a plan and logging sets must work with no signal. The server is only ever touched by background sync.
 - **Beautiful.** This is a product two people will look at several times a week for years. It has to feel like something Apple shipped, not a CRUD app. §8 is binding.
@@ -94,7 +94,7 @@ Locations are shared reference data (two users at the same Crunch see the same l
 Two locations are seeded (`seed/equipment_types.json`):
 
 - **Building Gym** — `available` defaults to **false** for everything; the user checks off what's actually there during setup.
-- **Crunch Union Square** — `available` defaults to **true** for everything; the user unchecks anything missing as they discover it.
+- **Crunch USQ** (Crunch Union Square) — `available` defaults to **true** for everything; the user unchecks anything missing as they discover it.
 
 **`dumbbell_max_weight` is load-bearing, not a nicety.** An apartment gym whose rack stops at 50 lb makes dumbbell bench press *nominally* available but useless once the user's working weight exceeds it. The availability filter must therefore be:
 
@@ -300,7 +300,7 @@ if slot.is_supersetted:
     block_total = 60
 ```
 
-This is the correct model and it has a useful consequence: core becomes nearly free, so it survives time-budget trimming far longer than a standalone block would. A 40-minute session can still include core. If a core set is longer than the host's rest interval, the extra time is real but small — ignore it, well within tolerance.
+This is the correct model and it has a useful consequence: core becomes nearly free, so it survives time-budget trimming far longer than a standalone block would. A 45-minute session can still include core. If a core set is longer than the host's rest interval, the extra time is real but small — ignore it, well within tolerance.
 
 **`rep_seconds` precedence:** the per-exercise value in `exercises.json` wins; the config defaults (3.5 for heavy-slot exercises, 2.5 otherwise) apply only to custom exercises without one. All constants live in a single `EngineConfig` so they can be tuned without touching engine logic.
 
@@ -536,8 +536,10 @@ There are no buttons on the set card. The only chrome is the header (day, `n of 
 The overview is the management surface for the whole workout, reached from the header. It lists every block in deck order and is where everything that isn't "do the set" lives:
 
 - **Reorder** by long-press drag (the machine is taken, do this one later).
-- **Edit** a block: working weight (plate / dumbbell increments), number of sets (fewer than prescribed re-prescribes; more are padding and don't gate progression), rep range.
-- **Swap** the exercise (same slot, same superset link, weight re-estimated), **do later**, **skip**, **restore**, **undo last set**.
+- **Edit** a block: working weight (plate / dumbbell increments), number of sets (fewer than prescribed re-prescribes; more are padding and don't gate progression), rep range, rest time (−/+ 10 s per tap, 10 s–10 min; drives the rest card after that exercise's sets — a superset partner edits its host's rest).
+- **Swipe a row** right to **swap** the exercise (blue; opens the picker — same slot, same superset link, weight re-estimated) or left to **delete** it (red). Deleted blocks aren't lost: they sit under **Deleted** at the bottom, and a swipe right there (or on a **Skipped** block) **restores** it to the end of the deck. Rows also expose Swap / Delete / Restore as accessibility actions for anyone who can't swipe.
+- **Undo last set** from the expanded row.
+- Before the workout starts the same screen is "Today's plan": it replaces Home at the root, so it closes with an **X** in the header (like the live run), not a back chevron or bottom bar; nothing is logged yet, so there's no confirmation.
 - **End workout** — finish and save progress, or discard (discarded sessions soft-delete their set logs so charts never see them).
 
 ### Rest timer
@@ -595,6 +597,36 @@ The rules below are binding. The visual language itself (exact palette, type cho
 - Every screen reviewed in both appearance modes and at the largest accessibility Dynamic Type size before it's considered done.
 
 ---
+
+## 8a. Themes and the Hundred Acre Wood theme
+
+The design system is switchable (Profile → Appearance). `AppTheme.classic` ("Default") is the dark brass system of §8,
+unchanged and still the default for every user. `AppTheme.hundredAcreWood` ("Winnie the Pooh") is a light storybook
+look; picking it also swaps the app icon to `AppIcon-Hunny`. Every token lives in a `ThemeSpec` (`WorkoutUI/Theme.swift`)
+exposed through `@Environment(\.theme)`; the static `Theme.Colors.*` / `Theme.Fonts.*` names resolve through the
+active spec, and the root re-identifies its subtree on a switch so the whole app re-renders live. Storybook-only
+decoration is gated on `ThemeSpec.storybook`; a new theme is one more case plus its spec. §8's rules on the deck's
+gestures, big legible numbers and one accent hold in both. The rest of this section describes the storybook theme.
+
+- **Paper.** Parchment canvas `#FBF3E1`, cream cards `#FFFBF2` with a 1.5-pt ink outline, honey-tinted shadows, an
+  aged-paper wash `#F3E6C8` for tracks and inputs. Cards that matter (set, rest, rate, run) carry a dashed inner
+  border like a storybook plate. Dividers are dashed ink lines.
+- **Ink.** `#3B2A1A` for all text and line art, at 100 / 70 / 45 %. Honey is never used for body text on cream;
+  honey-on-text accents use the darker `honeyInk` `#9C6410`.
+- **Honey** `#F2B134` (deep `#E59A1C`, light `#FFD56B`) is the one accent: CTAs, progress fills, the user's own
+  data. Progress bars end in a drip; segments are honeycomb cells; counts sit on honey pots.
+- **Washes** sit behind illustrations and name the day types: Push → honey (Pooh), Pull → carrot `#E8894A`
+  (Rabbit), Legs → leaf `#8FAE6B` (Kanga and Roo), Full body → sky `#A9D3EA` (Christopher Robin), Run → Piglet
+  pink `#F2B7C4`; Eeyore grey-blue `#9BA7B4` for partner data and empty states. Swipe cues stay semantic but
+  muted: Done leaf `#6FA866` ("Hooray!"), Skip jam `#D2614F` ("Oh, bother"), Rate sky `#5B9BD5` ("Think, think").
+- **Type.** System serif (New York) for headlines, card titles, stamps and the italic greeting/quips; SF Rounded for
+  body, labels and the big monospaced numbers (60–72 pt on cards). No bundled fonts.
+- **Art.** Public-domain 1926 E.H. Shepard plates (`Assets.xcassets/Illustrations`, template-tinted ink, on
+  watercolour blobs) plus original SwiftUI-drawn props in `WorkoutUI/HoneyKit.swift`: honey pot, bee, balloon,
+  cloud, drips, footprints, stamps. No Disney likenesses. The exercise pictogram is the same mannequin with a
+  honey body, ink outline and two bear ears (`tools/pictograms/renderer.js` mirrors the geometry).
+- **Motion** is small and honours Reduce Motion: balloons bob, bees fly a figure-eight, clouds drift, honey waves in
+  the pot, stamps slam in, the finish bursts bees and honey drops. Card dismissal springs are unchanged.
 
 ## 9. The plan is fixed once generated
 

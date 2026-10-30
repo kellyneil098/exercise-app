@@ -37,9 +37,9 @@ struct DeckView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     DayTag(session.plan.dayType)
                     HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.xs) {
-                        Text("\(session.completedCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.Colors.textPrimary)
+                        Text("\(session.completedCount)").font(Theme.Fonts.numeral).foregroundStyle(Theme.storybook ? Theme.Colors.honeyInk : Theme.Colors.textPrimary)
                             .contentTransition(.numericText())
-                        Text("of \(session.deckCount)").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                        Text("of \(session.deckCount)").font(Theme.storybook ? Theme.Fonts.quip : Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                     }
                 }
                 Spacer()
@@ -60,7 +60,7 @@ struct DeckView: View {
                 }
                 IconButton("rectangle.stack", label: "Deck overview") { showOverview = true }
             }
-            ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
+            ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.storybook ? Theme.Colors.honey : Theme.Colors.day(session.plan.dayType))
         }
         .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.m)
     }
@@ -117,10 +117,10 @@ struct DeckView: View {
             Image(systemName: icon).font(.system(size: 12, weight: .bold))
             Text(text).font(Theme.Fonts.captionBold)
         }
-        .foregroundStyle(tint)
+        .foregroundStyle(Theme.storybook ? Theme.Colors.ink : tint)
         .padding(.horizontal, Theme.Spacing.sm).frame(height: 32)
-        .background(tint.opacity(0.1), in: Capsule())
-        .overlay(Capsule().strokeBorder(tint.opacity(0.2), lineWidth: 1))
+        .background(tint.opacity(Theme.storybook ? 0.22 : 0.1), in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.storybook ? Theme.Colors.ink.opacity(0.35) : tint.opacity(0.2), lineWidth: 1))
     }
 }
 
@@ -137,6 +137,8 @@ struct StepCard: View {
     private enum Direction { case left, right, up }
     private enum SwipeAction { case done, skip, rate, back }
     private let threshold: CGFloat = 110
+    /// How far an up-swipe lifts the card before rubber-banding (≈ a third of the card).
+    private let liftCap: CGFloat = 150
 
     var body: some View {
         Group {
@@ -175,17 +177,22 @@ struct StepCard: View {
         case .done: Theme.Colors.swipeDone
         case .skip: Theme.Colors.swipeSkip
         case .rate: Theme.Colors.swipeRate
-        case .back: Theme.Colors.brass
+        case .back: Theme.storybook ? Theme.Colors.honeyDeep : Theme.Colors.brass
         }
     }
 
+    /// What the stamp says: Pooh's own words for each of the three swipes.
     private func label(_ a: SwipeAction) -> String {
-        switch a { case .done: "Done"; case .skip: "Skip"; case .rate: "Rate"; case .back: "Back" }
+        if Theme.storybook {
+            switch a { case .done: return "Hooray!"; case .skip: return "Oh, bother"; case .rate: return "Think, think"; case .back: return "Back" }
+        }
+        switch a { case .done: return "Done"; case .skip: return "Skip"; case .rate: return "Rate"; case .back: return "Back" }
     }
 
-    /// Done sits top-left (the card is moving right), skip top-right, rate top-centre.
+    /// Done sits top-left (the card is moving right), skip top-right, rate in the middle of the card (the card is
+    /// moving up, so the top edge is the first thing to leave the screen).
     private func placement(_ a: SwipeAction) -> SwipeFeedback.Placement {
-        switch a { case .done, .back: .leading; case .skip: .trailing; case .rate: .top }
+        switch a { case .done, .back: .leading; case .skip: .trailing; case .rate: .center }
     }
 
     var dragGesture: some Gesture {
@@ -196,8 +203,11 @@ struct StepCard: View {
                 if axis == .horizontal {
                     drag = CGSize(width: w, height: h * 0.15)
                 } else {
-                    // Up moves freely (that's the gesture); down only rubber-bands.
-                    drag = CGSize(width: w * 0.15, height: h < 0 ? h : h * 0.25)
+                    // Up follows the finger to `liftCap` (past the threshold), then rubber-bands so the card and its
+                    // stamp stay on screen; down only rubber-bands.
+                    let lift = -h
+                    let up = lift <= liftCap ? lift : liftCap + (lift - liftCap) * 0.18
+                    drag = CGSize(width: w * 0.15, height: h < 0 ? -up : h * 0.25)
                 }
                 let crossed = (pending?.strength ?? 0) >= 1
                 if crossed != armed {
@@ -245,33 +255,66 @@ struct StepCard: View {
     }
 }
 
-/// Mid-drag feedback shared by every swipeable card: a wash over the card in the action's colour, deepening
-/// toward the threshold, plus a tilted stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+/// Mid-drag feedback shared by every swipeable card and overview row: a wash in the action's colour, deepening
+/// toward the threshold, plus a stamp naming what letting go will do. `strength` is 0…1 at the threshold.
+/// `compact` is the row-sized variant: a smaller stamp with its icon, level and vertically centred on the side
+/// the row is moving toward, instead of tilted in a top corner. `showsStamp: false` draws only the wash, for a row
+/// that puts its `SwipeStamp` in the space it reveals instead.
 struct SwipeFeedback: View {
-    enum Placement { case leading, trailing, top }
+    enum Placement { case leading, trailing, top, center }
     let label: String
+    var icon: String? = nil
     let color: Color
     let strength: Double
     let placement: Placement
+    var compact = false
+    var showsStamp = true
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-        let alignment: Alignment = switch placement { case .leading: .topLeading; case .trailing: .topTrailing; case .top: .top }
-        let tilt: Double = switch placement { case .leading: -12; case .trailing: 12; case .top: 0 }
+        let shape = RoundedRectangle(cornerRadius: compact ? Theme.Radius.control : Theme.Radius.card, style: .continuous)
+        let alignment: Alignment = switch placement {
+        case .leading: compact ? .leading : .topLeading
+        case .trailing: compact ? .trailing : .topTrailing
+        case .top: .top
+        case .center: .center
+        }
+        let tilt: Double = switch placement { case .leading: compact ? 0 : -12; case .trailing: compact ? 0 : 12; case .top, .center: 0 }
         shape.fill(color.opacity(0.08 + 0.14 * strength))
             .overlay(shape.strokeBorder(color.opacity(0.35 + 0.65 * strength), lineWidth: 1.5))
             .overlay(alignment: alignment) {
-                Text(label.uppercased())
-                    .font(.system(size: 24, weight: .bold)).tracking(3)
-                    .foregroundStyle(color)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: 3))
-                    .rotationEffect(.degrees(tilt))
-                    .scaleEffect(0.85 + 0.15 * strength)
-                    .opacity(0.45 + 0.55 * strength)
-                    .padding(Theme.Spacing.l)
+                if showsStamp {
+                    SwipeStamp(label: label, icon: icon, color: color, strength: strength, compact: compact)
+                        .rotationEffect(.degrees(tilt))
+                        .padding(compact ? Theme.Spacing.m : Theme.Spacing.l)
+                }
             }
             .allowsHitTesting(false)
+    }
+}
+
+/// The outlined label inside `SwipeFeedback`: icon + uppercased action, growing and firming up toward the threshold.
+struct SwipeStamp: View {
+    let label: String
+    var icon: String? = nil
+    let color: Color
+    let strength: Double
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon { Image(systemName: icon).font(.system(size: compact ? 14 : 22, weight: .bold)) }
+            Text(label.uppercased())
+                .font(Theme.storybook ? .system(size: compact ? 13 : 26, weight: .black, design: .serif).italic() : .system(size: compact ? 13 : 24, weight: .bold))
+                .tracking(compact ? 1.5 : (Theme.storybook ? 2 : 3))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, compact ? 10 : 14).padding(.vertical, compact ? 6 : 8)
+        .background(Theme.storybook ? Theme.Colors.paper.opacity(0.9) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color, lineWidth: compact ? 2 : (Theme.storybook ? 3.5 : 3)))
+        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(color.opacity(0.6), lineWidth: compact || !Theme.storybook ? 0 : 1).padding(4))
+        .scaleEffect((compact || !Theme.storybook ? 0.85 : 0.7) + (compact || !Theme.storybook ? 0.15 : 0.3) * strength)
+        .opacity(0.45 + 0.55 * strength)
+        .allowsHitTesting(false)
     }
 }
 
@@ -292,25 +335,48 @@ private extension View {
 struct SetCard: View {
     let step: DeckStep
     let session: ActiveSession
+    @State private var showingGuide = false
     var b: PlanBlock { step.block }
 
     var body: some View {
-        Card(raised: true) {
+        Card(raised: true, plate: true) {
             // Three groups, top to bottom: picture + name, the weight (hero, centred in the remaining space),
             // set dots pinned to the bottom edge. Spacing is tight inside a group and loose between groups.
             VStack(alignment: .leading, spacing: 0) {
+                // Tapping the picture opens the technique sheet. A plain tap gesture (not a Button) so a swipe that
+                // starts on the picture still reaches the card's drag gesture; a Button would swallow it.
                 ExerciseArt(exerciseKey: b.exerciseKey, pattern: b.pattern)
                     .frame(maxHeight: 150)
                     .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-                            .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    )
+                    .background {
+                        if Theme.storybook {
+                            WashBlob(color: tint, opacity: 0.32).scaleEffect(x: 0.92, y: 0.9)
+                        } else {
+                            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                                .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "info.circle").font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Theme.Colors.textTertiary).padding(Theme.Spacing.sm)
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        Bee(size: 14).offset(x: 4, y: -6).storybookOnly()
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
+                    .onTapGesture { showingGuide = true }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(b.exerciseName) technique")
+                    .accessibilityHint("Shows the demonstration and form cues")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { showingGuide = true }
+                    .sheet(isPresented: $showingGuide) { ExerciseGuideView(block: b) }
                 VStack(alignment: .leading, spacing: Theme.Spacing.s) {
                     HStack(spacing: Theme.Spacing.s) {
-                        Text(kind.uppercased()).font(Theme.Fonts.overline).tracking(1.2).foregroundStyle(tint)
+                        Text(kind.uppercased()).font(Theme.Fonts.overline).tracking(1.2).foregroundStyle(Theme.storybook ? Theme.Colors.ink : tint)
                             .padding(.horizontal, Theme.Spacing.s).frame(height: 24)
-                            .background(tint.opacity(0.12), in: Capsule())
+                            .background(tint.opacity(Theme.storybook ? 0.4 : 0.12), in: Capsule())
+                            .overlay(Capsule().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook ? 0.4 : 0), lineWidth: 1))
                     }
                     Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -321,13 +387,13 @@ struct SetCard: View {
                     if let w = step.warmup {
                         weight(w.weight)
                         Text("Warm-up \(step.index + 1) of \(b.warmups.count) · \(w.reps) reps")
-                            .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                            .font(Theme.storybook ? Theme.Fonts.quip : Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                     } else {
                         if let w = b.weight { weight(w) } else {
-                            Text("Bodyweight").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary).glow(tint, radius: 40, opacity: 0.22)
+                            Text("Bodyweight").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary).glow(Theme.storybook ? Theme.Colors.honeyLight : tint, radius: 40, opacity: Theme.storybook ? 0.6 : 0.22)
                         }
                         Text("Set \(step.index + 1) of \(b.sets) · \(repRange)")
-                            .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                            .font(Theme.storybook ? Theme.Fonts.quip : Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                     }
                 }
                 Spacer(minLength: Theme.Spacing.l)
@@ -338,8 +404,8 @@ struct SetCard: View {
         .contentShape(Rectangle())
     }
 
-    /// Heavy lifts are brass; everything else takes the day's tint.
-    var tint: Color { b.band == .heavy ? Theme.Colors.brass : Theme.Colors.day(session.plan.dayType) }
+    /// Heavy lifts are honey; everything else takes the day's wash.
+    var tint: Color { b.band == .heavy ? Theme.Colors.honey : Theme.Colors.day(session.plan.dayType) }
 
     var kind: String {
         if step.isWarmup { return "Warm-up" }
@@ -354,9 +420,9 @@ struct SetCard: View {
 
     func weight(_ w: Double) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.s) {
-            Text(w.formatted(.number.precision(.fractionLength(0...1)))).font(Theme.Fonts.display).heroTracking()
+            Text(w.formatted(.number.precision(.fractionLength(0...1)))).font(Theme.Fonts.hero).heroTracking()
                 .foregroundStyle(Theme.Colors.textPrimary)
-                .glow(tint, radius: 40, opacity: 0.22)
+                .glow(Theme.storybook ? Theme.Colors.honeyLight : tint, radius: Theme.storybook ? 36 : 40, opacity: Theme.storybook ? 0.7 : 0.22)
             Text("lb").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
         }
     }
@@ -367,11 +433,24 @@ struct RateCard: View {
     let onRate: (EffortRating) -> Void
 
     var body: some View {
-        Card(raised: true) {
+        Card(raised: true, plate: true) {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                    Overline("How was that set?")
-                    Text(step.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                if Theme.storybook {
+                    HStack(alignment: .top, spacing: Theme.Spacing.m) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                            Text("Think, think, think.").font(Theme.Fonts.greeting).foregroundStyle(Theme.Colors.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("How was that set of \(step.block.exerciseName)?").font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        Illustration(.poohThinking, wash: Theme.Colors.sky, washOpacity: 0.35).frame(width: 92, height: 96)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                        Overline("How was that set?")
+                        Text(step.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                    }
                 }
                 Spacer(minLength: Theme.Spacing.l)
                 VStack(spacing: Theme.Spacing.s) {
@@ -389,7 +468,7 @@ struct RateCard: View {
                             .padding(Theme.Spacing.m)
                             .frame(maxWidth: .infinity)
                             .background(Theme.Colors.card, in: RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous).strokeBorder(Theme.Colors.brassBorder, lineWidth: 1))
+                            .inkOutline(Theme.Radius.control, opacity: 0.45)
                         }
                         .buttonStyle(PressStyle())
                     }
@@ -398,7 +477,7 @@ struct RateCard: View {
                 VStack(spacing: Theme.Spacing.m) {
                     Button("Didn't finish the set") { onRate(.didNotFinish) }
                         .font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary)
-                    Overline("Swipe right to go back")
+                    Aside("Swipe right to go back")
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -412,7 +491,10 @@ struct RateCard: View {
     }
 
     func tint(_ e: EffortRating) -> Color {
-        switch e { case .easy: Theme.Colors.pull; case .good: Theme.Colors.brass; case .hard: Theme.Colors.push; case .didNotFinish: Theme.Colors.textTertiary }
+        if Theme.storybook {
+            switch e { case .easy: return Theme.Colors.sky; case .good: return Theme.Colors.honey; case .hard: return Theme.Colors.carrot; case .didNotFinish: return Theme.Colors.eeyore }
+        }
+        switch e { case .easy: return Theme.Colors.pull; case .good: return Theme.Colors.brass; case .hard: return Theme.Colors.push; case .didNotFinish: return Theme.Colors.textTertiary }
     }
 
     func note(_ e: EffortRating) -> String {
@@ -435,27 +517,61 @@ struct RestCard: View {
         TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
             let remaining = session.restRemaining(at: ctx.date)
             let paused = session.isRestPaused
-            Card(raised: true) {
-                // Label at the top, "up next" at the bottom, and the ring with its controls floating in the
+            let progress = min(1, max(0, remaining / max(1, session.restTotal)))
+            Card(raised: true, plate: true) {
+                // Label at the top, "up next" at the bottom, and Pooh on his balloon rising past the clock in the
                 // middle of whatever is left, so the countdown sits at the card's centre rather than its top edge.
                 VStack(alignment: .leading, spacing: 0) {
-                    Overline(paused ? "Rest · paused" : "Rest")
+                    if Theme.storybook {
+                        HStack {
+                            Text(paused ? "A little rest · paused" : "A little rest").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                            Spacer()
+                            Quip(paused ? "humming quietly" : "just a small smackerel")
+                        }
+                    } else {
+                        Overline(paused ? "Rest · paused" : "Rest")
+                    }
                     Spacer(minLength: Theme.Spacing.m)
-                    CountdownRing(progress: remaining / max(1, session.restTotal), dimmed: paused) {
-                        Text(clock(remaining)).font(Theme.Fonts.display).heroTracking()
+                    if !Theme.storybook {
+                        CountdownRing(progress: progress, dimmed: paused) {
+                            Text(clock(remaining)).font(Theme.Fonts.display).heroTracking()
+                                .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
+                                .contentTransition(.numericText(countsDown: true))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .glow(Theme.Colors.brass, radius: 56, opacity: paused ? 0.08 : 0.28)
+                        .animation(Theme.Motion.spring, value: paused)
+                    } else {
+                    ZStack(alignment: .leading) {
+                        BeeSwarm(count: 3, beeSize: 13, speed: paused ? 0 : 1)
+                            .frame(maxWidth: .infinity).frame(height: 190)
+                            .opacity(0.9)
+                        Illustration(.balloonHang, wash: Theme.Colors.sky, washOpacity: 0.3)
+                            .frame(height: 170)
+                            .offset(y: CGFloat(progress) * 44 - 22)
+                            .saturation(paused ? 0.2 : 1)
+                            .animation(.linear(duration: 0.5), value: progress)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        Text(clock(remaining)).font(Theme.Fonts.hero).heroTracking()
                             .foregroundStyle(paused ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
                             .contentTransition(.numericText(countsDown: true))
+                            .glow(Theme.Colors.honeyLight, radius: 40, opacity: paused ? 0.2 : 0.7)
+                            .padding(.leading, Theme.Spacing.xs)
+                            .accessibilityLabel("Rest remaining")
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 200)
-                    .glow(Theme.Colors.brass, radius: 56, opacity: paused ? 0.08 : 0.28)
                     .animation(Theme.Motion.spring, value: paused)
+                    ProgressBar(progress, tint: paused ? Theme.Colors.eeyore : Theme.Colors.honey, height: 6)
+                        .padding(.top, Theme.Spacing.s)
+                    }
                     controls(paused: paused)
                         .padding(.top, Theme.Spacing.l)
                     Spacer(minLength: Theme.Spacing.m)
                     if let next = session.currentStep {
                         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                            Overline("Up next").padding(.bottom, Theme.Spacing.xs)
+                            Aside("Up next").padding(.bottom, Theme.Spacing.xs)
                             Text(next.block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
                             Text(detail(next)).font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
                         }
@@ -463,7 +579,7 @@ struct RestCard: View {
                 }
                 .cardBody()
             }
-            .overlay { if let s = strength { SwipeFeedback(label: "Skip", color: Theme.Colors.swipeSkip, strength: s, placement: .top) } }
+            .overlay { if let s = strength { SwipeFeedback(label: Theme.storybook ? "Skip rest" : "Skip", color: Theme.Colors.swipeSkip, strength: s, placement: .top) } }
             .offset(drag)
             .rotationEffect(.degrees(Double(drag.width / 24)))
             .gesture(dragGesture)
@@ -555,10 +671,12 @@ struct TimerControl<Content: View>: View {
     var body: some View {
         Button(action: action) {
             content()
-                .foregroundStyle(prominent ? Theme.Colors.brass : Theme.Colors.textPrimary)
+                .foregroundStyle(Theme.storybook ? Theme.Colors.ink : (prominent ? Theme.Colors.brass : Theme.Colors.textPrimary))
                 .frame(width: prominent ? 64 : 52, height: prominent ? 64 : 52)
-                .background(prominent ? Theme.Colors.brassDim : Theme.Colors.surface, in: Circle())
-                .overlay(Circle().strokeBorder(prominent ? Theme.Colors.brass.opacity(0.4) : Theme.Colors.brassBorder, lineWidth: 1))
+                .background(Theme.storybook ? (prominent ? Theme.Colors.honey : Theme.Colors.paper) : (prominent ? Theme.Colors.brassDim : Theme.Colors.surface), in: Circle())
+                .overlay(Circle().strokeBorder(Theme.storybook ? Theme.Colors.ink.opacity(prominent ? 0.75 : 0.45) : (prominent ? Theme.Colors.brass.opacity(0.4) : Theme.Colors.brassBorder),
+                                               lineWidth: Theme.storybook ? Theme.Stroke.outline : 1))
+                .softShadow(Theme.storybook ? (prominent ? 10 : 6) : 0, y: Theme.storybook ? 4 : 0)
                 .contentShape(Circle())
         }
         .buttonStyle(PressStyle())
@@ -571,7 +689,7 @@ struct PeekCard: View {
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: Theme.Spacing.s) {
-                Overline(block.isSupersetted ? "Superset" : "Next")
+                Aside(block.isSupersetted ? "Superset" : (Theme.storybook ? "Next page" : "Next"))
                 Text(block.exerciseName).font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
                 Spacer()
             }
@@ -605,28 +723,20 @@ struct ExercisePicker: View {
         let all = filtered(sections.all)
         Screen {
             VStack(alignment: .leading, spacing: Theme.Spacing.m) {
-                Overline(replacing.map { "Swap \($0.exerciseName)" } ?? "Add exercise")
-                HStack(spacing: Theme.Spacing.s) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.Colors.textTertiary)
-                    TextField("Search exercises", text: $query)
-                        .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    if !query.isEmpty {
-                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .foregroundStyle(Theme.Colors.textTertiary).accessibilityLabel("Clear search")
-                    }
+                if Theme.storybook {
+                    Text(replacing.map { "Swap \($0.exerciseName)" } ?? "Add exercise").font(Theme.Fonts.title).foregroundStyle(Theme.Colors.ink)
+                } else {
+                    Overline(replacing.map { "Swap \($0.exerciseName)" } ?? "Add exercise")
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Theme.Colors.cardRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous).strokeBorder(Theme.Colors.hairline, lineWidth: 1))
+                ExerciseSearchField(text: $query)
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if !suggested.isEmpty {
-                            Overline("Suggested").padding(.top, Theme.Spacing.s).padding(.bottom, Theme.Spacing.xs)
+                            ExercisePickerHeader(title: "Suggested", topPadding: Theme.Spacing.s)
                             ForEach(suggested, id: \.exercise.key) { row($0) }
                         }
-                        Overline(suggested.isEmpty ? "Exercises" : "All exercises").padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.xs)
+                        ExercisePickerHeader(title: suggested.isEmpty ? "Exercises" : "All exercises")
                         if all.isEmpty {
                             Text("No matches").font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textTertiary).padding(.vertical, 12)
                         }
@@ -649,7 +759,7 @@ struct ExercisePicker: View {
     var newExerciseRow: some View {
         Button { creating = true } label: {
             HStack(spacing: Theme.Spacing.m) {
-                Image(systemName: "plus.circle").font(.system(size: 20, weight: .regular)).foregroundStyle(Theme.Colors.brass)
+                Image(systemName: "plus.circle").font(.system(size: 20, weight: .regular)).foregroundStyle(Theme.Colors.honeyInk)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(query.trimmingCharacters(in: .whitespaces).isEmpty ? "New exercise" : "New exercise “\(query.trimmingCharacters(in: .whitespaces))”")
                         .font(Theme.Fonts.body).foregroundStyle(Theme.Colors.textPrimary)
@@ -680,21 +790,12 @@ struct ExercisePicker: View {
     }
 
     func row(_ c: Candidate) -> some View {
-        Button { pick(c.exercise) } label: {
-            VStack(spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(c.exercise.name).font(Theme.Fonts.body).foregroundStyle(c.isAvailable ? Theme.Colors.textPrimary : Theme.Colors.textTertiary)
-                        Text(reason(c.exclusion) ?? patternLabel(c.exercise)).font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
-                    }
-                    Spacer()
-                    if let e = c.estimate, c.isAvailable { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
-                }
-                .padding(.vertical, 12)
-                Hairline()
-            }
+        ExercisePickerRow(name: c.exercise.name, detail: reason(c.exclusion) ?? patternLabel(c.exercise), dimmed: !c.isAvailable,
+                          art: (c.exercise.key, c.exercise.movementPattern)) {
+            pick(c.exercise)
+        } trailing: {
+            if let e = c.estimate, c.isAvailable { Text("\(e.weight.formatted()) lb").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textSecondary) }
         }
-        .buttonStyle(PressStyle())
         .disabled(!c.isAvailable)
     }
 
@@ -708,8 +809,8 @@ struct ExercisePicker: View {
     }
 }
 
-/// The end of the workout is the moment that gets remembered: a glowing check, the session in numbers,
-/// one line of calm affirmation, and Finish in the thumb zone.
+/// "A Very Grand Thing": Pooh at the signpost, bees and honey drops bursting, the session in honey-pot numbers,
+/// and Finish in the thumb zone.
 struct FinishView: View {
     let session: ActiveSession
     @Environment(AppModel.self) private var model
@@ -721,6 +822,11 @@ struct FinishView: View {
     var name: String { model.settings?.displayName.split(separator: " ").first.map(String.init) ?? "" }
 
     var body: some View {
+        if Theme.storybook { storybookBody } else { classicBody }
+    }
+
+    /// The original: a glowing check, the session in numbers, one line of calm affirmation, Finish in the thumb zone.
+    var classicBody: some View {
         VStack(spacing: Theme.Spacing.l) {
             Spacer()
             Image(systemName: "checkmark").font(.system(size: 40, weight: .bold)).foregroundStyle(Theme.Colors.canvas)
@@ -756,6 +862,65 @@ struct FinishView: View {
         }
         .padding(.bottom, Theme.Spacing.l)
         .onAppear { withAnimation(Theme.Motion.celebrate) { shown = true } }
+    }
+
+    var storybookBody: some View {
+        VStack(spacing: Theme.Spacing.l) {
+            Spacer()
+            Illustration(.signpost, wash: Theme.Colors.honey, washOpacity: 0.3)
+                .frame(maxWidth: .infinity).frame(height: 190)
+                .scaleEffect(shown ? 1 : 0.8)
+                .opacity(shown ? 1 : 0)
+            VStack(spacing: Theme.Spacing.s) {
+                Text("A Very Grand Thing").font(Theme.Fonts.greeting).foregroundStyle(Theme.Colors.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text(name.isEmpty ? "Session complete." : "Strong session, \(name).").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("\(session.plan.dayType.label) day · \(session.row.startedAt.formatted(.dateTime.weekday(.wide)))")
+                    .font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.textSecondary)
+            }
+            .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 12)
+            HStack(spacing: Theme.Spacing.s) {
+                PotStat("\(session.completedCount)", label: session.completedCount == 1 ? "exercise" : "exercises")
+                PotStat("\(sets.count)", label: "sets")
+                PotStat(volume >= 1000 ? String(format: "%.1fk", volume / 1000) : volume.formatted(), unit: "lb", label: "volume")
+                PotStat("\(minutes)", unit: "min", label: "time")
+            }
+            .padding(.horizontal, Theme.Spacing.l)
+            .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 24)
+            Spacer()
+            Text("Progression is applied to everything you logged.").font(Theme.Fonts.caption).foregroundStyle(Theme.Colors.textTertiary)
+            PillButton("Finish", icon: "checkmark") { Haptics.play(.sessionDone); session.finish() }.padding(.horizontal, Theme.Spacing.l)
+        }
+        .padding(.bottom, Theme.Spacing.l)
+        .overlay(alignment: .top) { HoneyBurst().frame(height: 420).padding(.top, Theme.Spacing.xxl) }
+        .onAppear { withAnimation(Theme.Motion.celebrate) { shown = true } }
+    }
+}
+
+/// A number on a little honey pot: the finish screen's stat tile.
+struct PotStat: View {
+    let value: String
+    var unit: String? = nil
+    let label: String
+    init(_ value: String, unit: String? = nil, label: String) { self.value = value; self.unit = unit; self.label = label }
+    var body: some View {
+        VStack(spacing: Theme.Spacing.xs) {
+            ZStack {
+                HoneyPot(fill: 0.85, drip: true, label: nil).frame(width: 64, height: 64)
+                VStack(spacing: -2) {
+                    Text(value).font(.system(size: 17, weight: .heavy, design: .rounded)).monospacedDigit().foregroundStyle(Theme.Colors.ink)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    if let unit { Text(unit).font(.system(size: 9, weight: .bold, design: .rounded)).foregroundStyle(Theme.Colors.ink.opacity(0.8)) }
+                }
+                .offset(y: 9)
+                .frame(width: 44)
+            }
+            Text(label).font(Theme.Fonts.quip).foregroundStyle(Theme.Colors.textSecondary).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(value) \(unit ?? "") \(label)")
     }
 }
 

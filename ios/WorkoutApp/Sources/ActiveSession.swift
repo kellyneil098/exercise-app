@@ -25,11 +25,15 @@ final class ActiveSession: Identifiable {
     private(set) var input: PlannerInput
     private unowned let model: AppModel
     private(set) var logs: [SetLog]
-    /// Manual deck order from the overview; empty = slot order.
-    private(set) var order: [UUID]
-    /// Blocks swiped away (left) for this session. They leave the stack but stay restorable from the overview.
-    private(set) var skipped: Set<UUID> {
-        didSet { UserDefaults.standard.set(skipped.map(\.uuidString), forKey: "deckSkipped-\(row.id)") }
+    /// Manual order plus the blocks skipped (swiped away in the deck) or deleted (swiped out of the overview).
+    /// Both kinds stay in the plan and restorable. Order and skipped are device-local (UserDefaults); deleted
+    /// mirrors `PlanBlock.isDeleted`, which lives in the synced plan so another device resumes the same deck.
+    private(set) var edits: DeckEdits {
+        didSet {
+            let defaults = UserDefaults.standard
+            defaults.set(edits.order.map(\.uuidString), forKey: "deckOrder-\(row.id)")
+            defaults.set(edits.skipped.map(\.uuidString), forKey: "deckSkipped-\(row.id)")
+        }
     }
     var restEndsAt: Date? {
         didSet { UserDefaults.standard.set(restEndsAt, forKey: "restEndsAt") }
@@ -58,8 +62,8 @@ final class ActiveSession: Identifiable {
             restEndsAt = saved
         }
         self.row = row; self.plan = plan; self.input = input; self.model = model; self.logs = existingLogs
-        order = (UserDefaults.standard.array(forKey: "deckOrder-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
-        skipped = Set((UserDefaults.standard.array(forKey: "deckSkipped-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? [])
+        let saved = { (key: String) in (UserDefaults.standard.array(forKey: "\(key)-\(row.id)") as? [String])?.compactMap(UUID.init(uuidString:)) ?? [] }
+        edits = DeckEdits(order: saved("deckOrder"), skipped: Set(saved("deckSkipped")), deleted: Set(plan.blocks.filter(\.isDeleted).map(\.id)))
         started = !existingLogs.isEmpty || UserDefaults.standard.bool(forKey: "deckStarted-\(row.id)")
     }
 
@@ -75,18 +79,21 @@ final class ActiveSession: Identifiable {
     // MARK: Ordering
 
     /// Slot order with supersetted blocks right after their host, overridden by any manual order.
+    /// A partner whose host is deleted (or that is deleted itself) is listed on its own, so neither side of a
+    /// pair ever drops out of the deck or the Deleted section while the other is set aside.
     var orderedBlocks: [PlanBlock] {
+        func standalone(_ b: PlanBlock) -> Bool { b.isDeleted || plan.host(of: b) == nil }
         var base: [PlanBlock] = []
-        for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where !b.isSupersetted {
+        for b in plan.blocks.sorted(by: { $0.slot < $1.slot }) where standalone(b) {
             base.append(b)
             if let partner = plan.supersetPartner(of: b) { base.append(partner) }
         }
-        if !order.isEmpty {
-            let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        if !edits.order.isEmpty {
+            let rank = Dictionary(edits.order.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
             base.sort { (rank[$0.id] ?? .max, $0.slot) < (rank[$1.id] ?? .max, $1.slot) }
             // A partner always sits right behind its host so the pair keeps alternating, wherever it was dragged.
             var glued: [PlanBlock] = []
-            for b in base where !b.isSupersetted {
+            for b in base where standalone(b) {
                 glued.append(b)
                 if let partner = plan.supersetPartner(of: b) { glued.append(partner) }
             }
@@ -95,20 +102,26 @@ final class ActiveSession: Identifiable {
         return base
     }
 
-    /// Deck order minus skipped blocks — what the overview lists and reorders.
-    var activeBlocks: [PlanBlock] { orderedBlocks.filter { !skipped.contains($0.id) } }
+    /// Deck order minus skipped and deleted blocks — what the overview lists and reorders.
+    var activeBlocks: [PlanBlock] { edits.active(orderedBlocks) }
 
-    var skippedBlocks: [PlanBlock] { orderedBlocks.filter { skipped.contains($0.id) } }
+    var skippedBlocks: [PlanBlock] { edits.skippedBlocks(orderedBlocks) }
 
-    func isSkipped(_ block: PlanBlock) -> Bool { skipped.contains(block.id) }
+    var deletedBlocks: [PlanBlock] { edits.deletedBlocks(orderedBlocks) }
 
-    /// Reorders within the active deck; skipped blocks keep their place behind it.
+    func isSkipped(_ block: PlanBlock) -> Bool { edits.isSkipped(block.id) }
+
+    func isDeleted(_ block: PlanBlock) -> Bool { edits.isDeleted(block.id) }
+
+    /// A supersetted block whose host is still in the deck; without the host it stands on its own.
+    func isSupersetLinked(_ block: PlanBlock) -> Bool {
+        guard let host = block.supersetHostID else { return false }
+        return !edits.isSetAside(host)
+    }
+
+    /// Reorders within the active deck; skipped and deleted blocks keep their place behind it.
     func move(fromOffsets: IndexSet, toOffset: Int) {
-        var ids = activeBlocks.map(\.id)
-        ids.move(fromOffsets: fromOffsets, toOffset: toOffset)
-        ids += skippedBlocks.map(\.id)
-        order = ids
-        UserDefaults.standard.set(ids.map(\.uuidString), forKey: "deckOrder-\(row.id)")
+        edits.move(fromOffsets: fromOffsets, toOffset: toOffset, in: orderedBlocks)
     }
 
     func logs(for block: PlanBlock) -> [SetLog] {
@@ -119,8 +132,8 @@ final class ActiveSession: Identifiable {
 
     func isComplete(_ block: PlanBlock) -> Bool { workingSetsDone(block) >= block.sets }
 
-    /// Still has sets to do and hasn't been swiped away.
-    func isActive(_ block: PlanBlock) -> Bool { !isComplete(block) && !skipped.contains(block.id) }
+    /// Still has sets to do and hasn't been skipped or deleted.
+    func isActive(_ block: PlanBlock) -> Bool { !isComplete(block) && !edits.isSetAside(block.id) }
 
     /// Next block to work. A superset partner alternates with its host (partner set during host rest).
     var currentBlock: PlanBlock? {
@@ -148,10 +161,10 @@ final class ActiveSession: Identifiable {
 
     var isFinished: Bool { currentBlock == nil }
 
-    var completedCount: Int { plan.blocks.filter { isComplete($0) }.count }
+    var completedCount: Int { plan.blocks.filter { isComplete($0) && !edits.isDeleted($0.id) }.count }
 
-    /// Blocks in play — the `m` of "n of m" — excludes what was skipped (a finished block still counts).
-    var deckCount: Int { plan.blocks.filter { isComplete($0) || !skipped.contains($0.id) }.count }
+    /// Blocks in play — the `m` of "n of m" — excludes what was skipped or deleted (a finished skipped block still counts).
+    var deckCount: Int { plan.blocks.filter { !edits.isDeleted($0.id) && (isComplete($0) || !edits.isSkipped($0.id)) }.count }
 
     var remainingCount: Int { plan.blocks.filter { isActive($0) }.count }
 
@@ -176,7 +189,7 @@ final class ActiveSession: Identifiable {
         append(block: b, reps: reps, weight: b.weight, effort: effort, isWarmup: false)
         guard let next = currentBlock else { skipRest(); return }
         if next.supersetHostID == b.id { skipRest(); return }   // partner's set fills the host's rest
-        startRest(seconds: plan.host(of: b)?.restSeconds ?? b.restSeconds)
+        startRest(seconds: plan.restSeconds(for: b))
     }
 
     private func append(block: PlanBlock, reps: Int, weight: Double?, effort: EffortRating?, isWarmup: Bool) {
@@ -199,7 +212,7 @@ final class ActiveSession: Identifiable {
             logs.removeAll { $0.id == set.id }
             skipRest()
         case .skipped(let id):
-            skipped.remove(id)
+            edits.skipped.remove(id)
         }
         lastAction = nil
     }
@@ -262,37 +275,32 @@ final class ActiveSession: Identifiable {
 
     /// Swipe-left: the block leaves the stack for this session. Sets already logged stay; restorable from the overview.
     func skip(_ block: PlanBlock) {
-        skipped.insert(block.id)
+        edits.skip(block.id)
         lastAction = .skipped(block.id)
         if currentBlock == nil { skipRest() }   // a running rest stays; only an emptied deck ends it
     }
 
-    /// Puts a skipped block back into the deck, at the end of what's left.
+    /// Puts a skipped or deleted block back into the deck, at the end of what's left.
     func restore(_ block: PlanBlock) {
-        skipped.remove(block.id)
+        edits.restore(block.id, in: orderedBlocks)
+        if block.isDeleted { setDeleted(block, false) }
         if case .skipped(let id) = lastAction, id == block.id { lastAction = nil }
-        var ids = activeBlocks.map(\.id).filter { $0 != block.id }
-        ids.append(block.id)
-        ids += skippedBlocks.map(\.id)
-        order = ids
-        UserDefaults.standard.set(ids.map(\.uuidString), forKey: "deckOrder-\(row.id)")
     }
 
     // MARK: Deck management (overview)
 
-    /// Delete: the block leaves the plan. Sets already logged stay in history; a superset partner becomes standalone.
-    func remove(_ block: PlanBlock) {
-        plan.blocks.removeAll { $0.id == block.id }
-        for i in plan.blocks.indices where plan.blocks[i].supersetHostID == block.id { plan.blocks[i].supersetHostID = nil }
-        order.removeAll { $0 == block.id }
-        skipped.remove(block.id)
+    /// Swipe-left in the overview: the block leaves the deck for this session but is listed under Deleted, where a
+    /// swipe brings it back. Sets already logged stay in history. Deleting the block whose set was just logged
+    /// also drops the deck's Undo, which would otherwise point at a row that is no longer in play.
+    func delete(_ block: PlanBlock) {
+        edits.delete(block.id)
+        setDeleted(block, true)
         switch lastAction {
         case .skipped(let id) where id == block.id: lastAction = nil
         case .logged(let set) where set.slot == block.slot && set.exerciseKey == block.exerciseKey: lastAction = nil
         default: break
         }
-        skipRest()
-        persistPlan()
+        if currentBlock == nil { skipRest() }
     }
 
     /// Adds an exercise at the end of the deck (next free slot, day's template for its pattern).
@@ -314,6 +322,16 @@ final class ActiveSession: Identifiable {
         mutate(block) { guard $0.repLow + d >= 1 else { return }; $0.repLow += d; $0.repHigh += d }
     }
 
+    /// Rest after this block's sets — what the next rest card counts down from. Shared with the host for a superset partner.
+    func restSeconds(for block: PlanBlock) -> Int { plan.restSeconds(for: block) }
+
+    /// Plan-editor stepper: ±10 s per tap; takes effect on the next rest card for this exercise.
+    func stepRest(_ block: PlanBlock, by steps: Int) {
+        guard plan.blocks.contains(where: { $0.id == block.id }) else { return }
+        plan.stepRest(of: block, by: steps)
+        persistPlan()
+    }
+
     func increment(for block: PlanBlock) -> Double {
         model.catalog.exercises[block.exerciseKey]?.dumbbellBased == true ? EngineConfig.default.dumbbellIncrement : input.location.plateIncrement
     }
@@ -321,6 +339,12 @@ final class ActiveSession: Identifiable {
     private func mutate(_ block: PlanBlock, _ change: (inout PlanBlock) -> Void) {
         guard let i = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return }
         change(&plan.blocks[i])
+        persistPlan()
+    }
+
+    private func setDeleted(_ block: PlanBlock, _ deleted: Bool) {
+        guard let i = plan.blocks.firstIndex(where: { $0.id == block.id }) else { return }
+        plan.blocks[i].isDeleted = deleted
         persistPlan()
     }
 
@@ -333,7 +357,9 @@ final class ActiveSession: Identifiable {
     /// Picker rows. Suggested: when swapping, the block's own pattern; when adding, the day's patterns in slot order
     /// (top few of each). `all` is the whole catalog, A–Z, with availability at this location.
     func pickerSections(replacing block: PlanBlock?) -> (suggested: [Candidate], all: [Candidate]) {
-        let used = Set(plan.blocks.map(\.exerciseKey)).subtracting(block.map { [$0.exerciseKey] } ?? [])
+        // A deleted block doesn't hold its exercise: the user may add it back as a fresh row. The block being
+        // swapped does, so it never suggests itself.
+        let used = Set(plan.liveBlocks.map(\.exerciseKey))
         let dayPatterns = model.planner.resolvedSlots(dayType: plan.dayType, heavyRotation: input.heavyRotation).map(\.pattern)
         var suggested: [Candidate] = []
         if let block {
