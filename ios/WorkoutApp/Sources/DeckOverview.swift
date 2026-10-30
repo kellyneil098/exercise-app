@@ -26,6 +26,11 @@ struct DeckOverview: View {
         Screen {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    if confirming {
+                        // Back to Home on its own leading row, iOS-style: reads as navigation (not a cancel beside `+`)
+                        // and never crowds the title or the plate. Nothing is logged yet, so no confirmation.
+                        IconButton("chevron.backward", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
+                    }
                     HStack(alignment: .center, spacing: Theme.Spacing.sm) {
                         Illustration(.poohWithPot, wash: Theme.Colors.day(session.plan.dayType), washOpacity: 0.32)
                             .frame(width: 44, height: 68)
@@ -43,11 +48,7 @@ struct DeckOverview: View {
                         }
                         Spacer()
                         IconButton("plus", label: "Add exercise", tint: Theme.storybook ? Theme.Colors.ink : Theme.Colors.brass) { picker = .add }
-                        if confirming {
-                            // This screen replaces Home at the root (not pushed, not a sheet), so it closes the way the
-                            // live run does: an X in the top corner. Nothing is logged yet, so no confirmation.
-                            IconButton("xmark", label: "Back to Home", tint: Theme.Colors.textSecondary) { session.cancel() }
-                        } else {
+                        if !confirming {
                             Button { dismiss() } label: {
                                 Text("Done").font(Theme.Fonts.captionBold).foregroundStyle(Theme.storybook ? Theme.Colors.ink : Theme.Colors.canvas)
                                     .padding(.horizontal, Theme.Spacing.m).frame(height: 44)
@@ -61,7 +62,7 @@ struct DeckOverview: View {
                         ProgressBar(Double(session.completedCount) / Double(max(1, session.deckCount)), tint: Theme.Colors.day(session.plan.dayType))
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.l).padding(.top, Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
+                .padding(.horizontal, Theme.Spacing.l).padding(.top, confirming ? Theme.Spacing.s : Theme.Spacing.l).padding(.bottom, Theme.Spacing.m)
 
                 List {
                     ForEach(Array(session.activeBlocks.enumerated()), id: \.element.id) { i, b in
