@@ -102,6 +102,28 @@ final class CooldownTests: XCTestCase {
         XCTAssertTrue(moved.active(ordered(moved, plan.slotOrdered)).first!.isCooldown)
     }
 
+    func testRestoredExercisesComeBackAheadOfTheStretch() {
+        let deck = planner.generate(input(.push)).slotOrdered
+        let stretch = deck.last!, first = deck.first!
+        var edits = DeckEdits()
+        edits.skip(first.id)
+        edits.restore(first.id, in: ordered(edits, deck))
+        var active = edits.active(ordered(edits, deck))
+        XCTAssertEqual(active.last?.id, stretch.id)
+        XCTAssertEqual(active.dropLast().last?.id, first.id)
+
+        // A restored stretch goes back to the end; once moved off the end it no longer holds that spot.
+        edits.delete(stretch.id)
+        edits.restore(stretch.id, in: ordered(edits, deck))
+        XCTAssertEqual(edits.active(ordered(edits, deck)).last?.id, stretch.id)
+        edits.move(fromOffsets: IndexSet(integer: deck.count - 1), toOffset: 0, in: ordered(edits, deck))
+        edits.delete(first.id)
+        edits.restore(first.id, in: ordered(edits, deck))
+        active = edits.active(ordered(edits, deck))
+        XCTAssertEqual(active.first?.id, stretch.id)
+        XCTAssertEqual(active.last?.id, first.id)
+    }
+
     func testStretchCannotBeSwappedOrHaveItsRestEdited() {
         let input = input(.pull)
         var plan = planner.generate(input)
