@@ -6,7 +6,7 @@ from typing import Annotated
 import httpx
 import jwt
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from . import models, sync
@@ -24,22 +24,50 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _aware(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=dt.tzinfo or UTC)
+
+
 def issue_token(db: DbSession, user: models.User, device_name: str) -> str:
     token = secrets.token_urlsafe(32)
-    db.add(models.Session(token_hash=hash_token(token), user_id=user.id, device_name=device_name[:120]))
+    db.add(
+        models.Session(
+            token_hash=hash_token(token),
+            user_id=user.id,
+            device_name=device_name[:120],
+            expires_at=datetime.now(UTC) + timedelta(days=settings().session_ttl_days),
+        )
+    )
     db.commit()
     return token
 
 
-def current_user(authorization: Annotated[str | None, Header()] = None, db: DbSession = Depends(get_db)) -> models.User:
+def current_session(
+    authorization: Annotated[str | None, Header()] = None, db: DbSession = Depends(get_db)
+) -> models.Session:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
     sess = db.get(models.Session, hash_token(authorization[7:].strip()))
     if sess is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token")
-    sess.last_seen_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    idle_cutoff = now - timedelta(days=settings().session_idle_days)
+    if _aware(sess.expires_at) <= now or _aware(sess.last_seen_at) <= idle_cutoff:
+        db.delete(sess)
+        db.commit()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token expired")
+    sess.last_seen_at = now
     db.commit()
+    return sess
+
+
+def current_user(sess: models.Session = Depends(current_session), db: DbSession = Depends(get_db)) -> models.User:
     return db.get_one(models.User, sess.user_id)
+
+
+def revoke_sessions(db: DbSession, user_id: str) -> None:
+    db.execute(delete(models.Session).where(models.Session.user_id == user_id))
+    db.commit()
 
 
 def consume_invite(db: DbSession, code: str | None, new_user: models.User) -> None:

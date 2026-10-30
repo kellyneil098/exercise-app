@@ -1,4 +1,9 @@
+from datetime import UTC, datetime, timedelta
+
 from conftest import login
+from sqlalchemy import select
+
+from app import models
 
 
 def test_bootstrap_then_invite_only(client):
@@ -38,16 +43,64 @@ def test_bad_token(client):
     assert client.get("/me", headers={"Authorization": "Bearer nope"}).status_code == 401
 
 
+def _session_rows(client):
+    from app import db as dbmod
+
+    s = next(client.app.dependency_overrides[dbmod.get_db]())
+    return s, s.scalars(select(models.Session)).all()
+
+
+def test_logout_revokes_only_this_token(client):
+    a, _ = login(client, "neil@example.com")
+    b, _ = login(client, "neil@example.com")
+    assert client.post("/auth/logout", headers=a).status_code == 204
+    assert client.get("/me", headers=a).status_code == 401
+    assert client.get("/me", headers=b).status_code == 200
+    assert client.post("/auth/logout").status_code == 401
+
+
+def test_logout_all_revokes_every_token(client):
+    a, _ = login(client, "neil@example.com")
+    b, _ = login(client, "neil@example.com")
+    assert client.post("/auth/logout-all", headers=a).status_code == 204
+    assert client.get("/me", headers=a).status_code == 401
+    assert client.get("/me", headers=b).status_code == 401
+
+
+def test_token_expires_at_hard_lifetime(client):
+    tok, _ = login(client, "neil@example.com")
+    s, (row,) = _session_rows(client)
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    s.commit()
+    assert client.get("/me", headers=tok).status_code == 401
+    assert _session_rows(client)[1] == []
+
+
+def test_activity_does_not_extend_hard_lifetime(client):
+    tok, _ = login(client, "neil@example.com")
+    s, (row,) = _session_rows(client)
+    expires = row.expires_at
+    assert client.get("/me", headers=tok).status_code == 200
+    s.refresh(row)
+    assert row.expires_at == expires
+
+
+def test_idle_token_expires(client):
+    tok, _ = login(client, "neil@example.com")
+    s, (row,) = _session_rows(client)
+    row.last_seen_at = datetime.now(UTC) - timedelta(days=31)
+    s.commit()
+    assert client.get("/me", headers=tok).status_code == 401
+
+
 def test_invite_claim_is_atomic_against_stale_read(tmp_path):
     """A redemption that read the invite before a concurrent one committed must still be rejected."""
-    from datetime import UTC, datetime, timedelta
-
     import pytest
     from fastapi import HTTPException
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
-    from app import auth, models
+    from app import auth
     from app.db import Base
 
     engine = create_engine(f"sqlite:///{tmp_path / 'race.db'}")
@@ -84,10 +137,7 @@ def test_invite_claim_is_atomic_against_stale_read(tmp_path):
 
 
 def test_expired_invite_rejected(client):
-    from datetime import UTC, datetime, timedelta
-
     from app import db as dbmod
-    from app import models
     from app.main import app
 
     neil, _ = login(client, "neil@example.com")

@@ -5,13 +5,25 @@ import Security
 public enum Keychain {
     static let service = "com.kellyneil.workout"
 
+    /// The bearer token never leaves this device (excluded from backups/restores). The local user ids are not
+    /// credentials and keep migrating so a restored device still owns its restored SQLite rows.
+    static func accessibility(for key: String) -> CFString {
+        key == tokenKey ? kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly : kSecAttrAccessibleAfterFirstUnlock
+    }
+
+    /// Re-classes a token written by an older build, which used a backup-migratable accessibility class.
+    public static func migrateAccessibility() {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: tokenKey]
+        SecItemUpdate(query as CFDictionary, [kSecAttrAccessible as String: accessibility(for: tokenKey)] as CFDictionary)
+    }
+
     public static func set(_ value: String, for key: String) {
         let data = Data(value.utf8)
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: key]
         SecItemDelete(query as CFDictionary)
         var add = query
         add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        add[kSecAttrAccessible as String] = accessibility(for: key)
         SecItemAdd(add as CFDictionary, nil)
     }
 
