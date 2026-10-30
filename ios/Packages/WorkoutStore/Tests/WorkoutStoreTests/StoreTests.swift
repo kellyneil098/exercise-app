@@ -78,6 +78,33 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(back?.plan?.blocks.count, plan.blocks.count)
     }
 
+    /// The default stretch is part of the saved plan, so a resumed deck still has it — moved, deleted or not —
+    /// and plans saved before blocks had a `kind` still load, as plain exercises.
+    func testStretchBlockPersistsAndOlderPlansStillLoad() throws {
+        let catalog = try SeedLoader.loadBundled()
+        let planner = Planner(catalog: catalog)
+        let inventory = LocationInventory(locationKey: "crunch_union_square", name: "Crunch", available: Set(catalog.equipmentTypes.map(\.key)), dumbbellMaxWeight: nil, plateIncrement: 2.5)
+        var plan = planner.generate(PlannerInput(dayType: .push, durationMinutes: 45, location: inventory, heavyRotation: HeavyRotation(sequence: ["horizontal_press"])))
+        let stretch = try XCTUnwrap(plan.blocks.last)
+        XCTAssertTrue(stretch.isCooldown)
+        let store = try WorkoutStore.inMemory()
+        let row = SessionRow(userId: "u1", dayType: .push, locationId: "loc", durationMin: 45, plan: plan)
+        try store.save(row)
+        XCTAssertEqual(try store.db.read { try SessionRow.fetchOne($0, key: row.id) }?.plan, plan)
+
+        plan.blocks[plan.blocks.count - 1].isDeleted = true
+        try store.save(SessionRow(id: row.id, userId: "u1", dayType: .push, locationId: "loc", durationMin: 45, plan: plan))
+        let back = try XCTUnwrap(try store.db.read { try SessionRow.fetchOne($0, key: row.id) }?.plan)
+        XCTAssertTrue(back.blocks.first { $0.id == stretch.id }!.isDeleted)
+        XCTAssertFalse(back.liveBlocks.contains(where: \.isCooldown))
+
+        var legacy = row
+        legacy.planJSON = legacy.planJSON.replacingOccurrences(of: #","kind":"exercise""#, with: "")
+            .replacingOccurrences(of: #""kind":"exercise","#, with: "")
+        XCTAssertFalse(legacy.planJSON.contains(#""kind":"exercise""#))
+        XCTAssertEqual(legacy.plan?.blocks.filter { $0.kind == .exercise }.count, plan.blocks.count - 1)
+    }
+
     /// Closing Today's plan with its X soft-deletes the unstarted session, so a relaunch goes to Home rather than
     /// resuming it; an open deck is still what resumes. Mirrors `AppModel.cancel` and `restoreActiveSession`.
     func testCancelledUnstartedSessionDoesNotResume() throws {

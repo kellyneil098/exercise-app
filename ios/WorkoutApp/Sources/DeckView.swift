@@ -104,8 +104,11 @@ struct DeckView: View {
             } else {
                 cue("arrow.left", "Skip", Theme.Colors.swipeSkip)
                 Spacer()
-                cue("arrow.up", "Rate", Theme.Colors.swipeRate)
-                Spacer()
+                // The stretch has no effort to rate.
+                if session.currentBlock?.isCooldown != true {
+                    cue("arrow.up", "Rate", Theme.Colors.swipeRate)
+                    Spacer()
+                }
                 cue("arrow.right", "Done", Theme.Colors.swipeDone)
             }
         }
@@ -147,6 +150,8 @@ struct StepCard: View {
                     Haptics.play(.setLogged)
                     fly(.up) { session.complete(effort: e) }
                 }
+            } else if step.block.isCooldown {
+                StretchCard(step: step, session: session)
             } else {
                 SetCard(step: step, session: session)
             }
@@ -166,7 +171,7 @@ struct StepCard: View {
         if axis == .horizontal, drag.width < -20, !rating {
             return (.skip, min(1, Double((-drag.width - 20) / (threshold - 20))))
         }
-        if axis == .vertical, drag.height < -20, !rating {
+        if axis == .vertical, drag.height < -20, !rating, !step.block.isCooldown {
             return (.rate, min(1, Double((-drag.height - 20) / (threshold - 20))))
         }
         return nil
@@ -230,7 +235,7 @@ struct StepCard: View {
                 } else if endedAxis == .horizontal, x < -threshold, !rating {
                     Haptics.play(.exerciseDone)
                     fly(.left) { session.skip(step.block) }
-                } else if endedAxis == .vertical, y < -threshold, !rating {
+                } else if endedAxis == .vertical, y < -threshold, !rating, !step.block.isCooldown {
                     Haptics.play(.swap)
                     fly(.up) {
                         var t = Transaction(); t.disablesAnimations = true
@@ -654,6 +659,7 @@ struct RestCard: View {
 
     func detail(_ s: DeckStep) -> String {
         let b = s.block
+        if b.isCooldown { return "~\(Int((b.estimatedSeconds / 60).rounded())) min · cooldown" }
         if let w = s.warmup { return "Warm-up · \(w.weight.formatted()) lb × \(w.reps)" }
         let range = b.measure == .seconds ? "\(b.repLow)–\(b.repHigh) sec" : "\(b.repLow)–\(b.repHigh) reps"
         let load = b.weight.map { "\($0.formatted()) lb · " } ?? ""
@@ -685,6 +691,66 @@ struct TimerControl<Content: View>: View {
         }
         .buttonStyle(PressStyle())
         .accessibilityLabel(label)
+    }
+}
+
+/// The stretch placeholder in hand: a reminder, not a set — no load, reps, set count or rating.
+/// Right = done, left = skip, like any card; there's no rate side.
+struct StretchCard: View {
+    let step: DeckStep
+    let session: ActiveSession
+    var b: PlanBlock { step.block }
+    var minutes: Int { Int((b.estimatedSeconds / 60).rounded()) }
+    var tint: Color { Theme.storybook ? Theme.Colors.leaf : Theme.Colors.day(session.plan.dayType) }
+
+    var body: some View {
+        Card(raised: true, plate: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: "figure.flexibility")
+                    .font(.system(size: 84, weight: .regular))
+                    .foregroundStyle(Theme.storybook ? Theme.Colors.ink : tint)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 150)
+                    .background {
+                        if Theme.storybook {
+                            WashBlob(color: tint, opacity: 0.32).scaleEffect(x: 0.92, y: 0.9)
+                        } else {
+                            RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                                .fill(LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        }
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        Bee(size: 14).offset(x: 4, y: -6).storybookOnly()
+                    }
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Theme.Spacing.s) {
+                    Text((Theme.storybook ? "Cool-down" : "Cooldown").uppercased()).font(Theme.Fonts.overline).tracking(1.2)
+                        .foregroundStyle(Theme.storybook ? Theme.Colors.ink : tint)
+                        .padding(.horizontal, Theme.Spacing.s).frame(height: 24)
+                        .background(tint.opacity(Theme.storybook ? 0.4 : 0.12), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.Colors.ink.opacity(Theme.storybook ? 0.4 : 0), lineWidth: 1))
+                    Text(b.exerciseName).font(Theme.Fonts.title).foregroundStyle(Theme.Colors.textPrimary)
+                }
+                .padding(.top, Theme.Spacing.l)
+                Spacer(minLength: Theme.Spacing.l)
+                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                    HStack(alignment: .lastTextBaseline, spacing: Theme.Spacing.s) {
+                        Text("\(minutes)").font(Theme.Fonts.hero).heroTracking()
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                            .glow(Theme.storybook ? Theme.Colors.honeyLight : tint, radius: Theme.storybook ? 36 : 40, opacity: Theme.storybook ? 0.7 : 0.22)
+                        Text("min").font(Theme.Fonts.heading).foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    Text(Theme.storybook ? "A good long stretch, like Pooh after a nap." : "Stretch it out however feels good.")
+                        .font(Theme.storybook ? Theme.Fonts.quip : Theme.Fonts.body).foregroundStyle(Theme.Colors.textSecondary)
+                }
+                Spacer(minLength: Theme.Spacing.l)
+            }
+            .cardBody()
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Stretch, \(minutes) minute cooldown")
+        .accessibilityHint("Swipe right when you're done, left to skip")
     }
 }
 
@@ -820,7 +886,7 @@ struct FinishView: View {
     @Environment(AppModel.self) private var model
     @State private var shown = false
 
-    var sets: [SetLog] { session.logs.filter { !$0.isWarmup } }
+    var sets: [SetLog] { session.logs.filter { !$0.isWarmup && $0.exerciseKey != PlanBlock.cooldownExerciseKey } }
     var volume: Double { sets.reduce(0) { $0 + Double($1.repsDone) * ($1.weight ?? 0) } }
     var minutes: Int { Int(Date.now.timeIntervalSince(session.row.startedAt) / 60) }
     var name: String { model.settings?.displayName.split(separator: " ").first.map(String.init) ?? "" }

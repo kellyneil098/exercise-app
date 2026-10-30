@@ -7,7 +7,8 @@ final class DeckEditsTests: XCTestCase {
         let planner = Planner(catalog: Fixtures.catalog)
         let input = PlannerInput(dayType: .push, durationMinutes: 60, location: Fixtures.commercial, heavyRotation: Fixtures.rotation(.push),
                                  states: Fixtures.baseline, recentSessions: [], now: Date(timeIntervalSince1970: 1_800_000_000))
-        return planner.generate(input).blocks.sorted { $0.slot < $1.slot }
+        // Plain exercises only; the default stretch's ordering rules are covered in CooldownTests.
+        return planner.generate(input).blocks.filter { !$0.isCooldown }.sorted { $0.slot < $1.slot }
     }()
     var ids: [UUID] { blocks.map(\.id) }
 

@@ -196,7 +196,7 @@ final class AppModel {
         }) ?? []
         return rows.compactMap { r in
             guard let d = DayType(rawValue: r.dayType) else { return nil }
-            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.liveBlocks.map(\.exerciseKey) ?? [])
+            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.progressionBlocks.map(\.exerciseKey) ?? [])
         }
     }
 
@@ -211,7 +211,7 @@ final class AppModel {
         }) ?? []
         return rows.compactMap { r in
             guard let d = DayType(rawValue: r.dayType) else { return nil }
-            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.liveBlocks.map(\.exerciseKey) ?? [])
+            return RecentSession(dayType: d, performedAt: r.completedAt ?? r.startedAt, exerciseKeys: r.plan?.progressionBlocks.map(\.exerciseKey) ?? [])
         }
     }
 
@@ -318,7 +318,7 @@ final class AppModel {
 
     private func applyProgression(_ session: ActiveSession) {
         var states = exerciseStates
-        for block in session.plan.liveBlocks {
+        for block in session.plan.progressionBlocks {
             guard let exercise = catalog.exercises[block.exerciseKey] else { continue }
             let logs = session.logs(for: block).filter { !$0.isWarmup }.sorted { $0.setIndex < $1.setIndex }
             guard !logs.isEmpty else { continue }

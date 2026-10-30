@@ -36,6 +36,13 @@ public struct DeckEdits: Equatable, Sendable {
         order = before + moving + after + setAside(ordered)
     }
 
+    /// A block just added to the plan: once there is a manual order it joins the end of the active deck, but ahead of
+    /// a cooldown sitting last, so the stretch stays the final card. (Without a manual order, slot order already does this.)
+    public mutating func add(_ id: UUID, in ordered: [PlanBlock]) {
+        guard !order.isEmpty else { return }
+        order = appendingBeforeStretch(id, in: ordered) + setAside(ordered)
+    }
+
     public mutating func skip(_ id: UUID) {
         deleted.remove(id)
         skipped.insert(id)
@@ -47,13 +54,19 @@ public struct DeckEdits: Equatable, Sendable {
         deleted.insert(id)
     }
 
-    /// Back into the deck at the end of what's left, so it never jumps ahead of the block in hand.
+    /// Back into the deck at the end of what's left (ahead of a trailing stretch), so it never jumps ahead of the block in hand.
     public mutating func restore(_ id: UUID, in ordered: [PlanBlock]) {
         skipped.remove(id)
         deleted.remove(id)
-        var ids = active(ordered).map(\.id).filter { $0 != id }
-        ids.append(id)
-        order = ids + setAside(ordered)
+        order = appendingBeforeStretch(id, in: ordered) + setAside(ordered)
+    }
+
+    /// The active deck with `id` at the end, but ahead of a cooldown that's still last so the stretch keeps ending the workout.
+    private func appendingBeforeStretch(_ id: UUID, in ordered: [PlanBlock]) -> [UUID] {
+        let active = active(ordered).filter { $0.id != id }
+        var ids = active.map(\.id)
+        ids.insert(id, at: active.last?.isCooldown == true ? ids.count - 1 : ids.count)
+        return ids
     }
 
     private func setAside(_ ordered: [PlanBlock]) -> [UUID] { ordered.filter { isSetAside($0.id) }.map(\.id) }

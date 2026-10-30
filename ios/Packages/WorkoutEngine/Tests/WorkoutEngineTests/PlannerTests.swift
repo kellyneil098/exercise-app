@@ -79,7 +79,10 @@ final class PlannerTests: XCTestCase {
             var prev = -1
             for minutes in EngineConfig.default.durationBuckets {
                 let plan = planner.generate(input(day, minutes, Fixtures.commercial))
-                XCTAssertLessThanOrEqual(plan.estimatedSeconds, Double(minutes * 60), "\(day) \(minutes)")
+                // The budget sizes the lifting; the default stretch rides on top of it.
+                let cooldown = plan.blocks.filter(\.isCooldown).reduce(0) { $0 + $1.estimatedSeconds }
+                XCTAssertEqual(cooldown, 600, "\(day) \(minutes)")
+                XCTAssertLessThanOrEqual(plan.estimatedSeconds - cooldown, Double(minutes * 60), "\(day) \(minutes)")
                 let work = plan.blocks.reduce(0) { $0 + $1.sets }
                 XCTAssertGreaterThanOrEqual(work, prev, "\(day) \(minutes) shrank")
                 prev = work
@@ -109,7 +112,7 @@ final class PlannerTests: XCTestCase {
     func testPaddingNeverTouchesHeavyOrSuperset() {
         let plan = planner.generate(input(.pull, 90, Fixtures.commercial))
         let templates = Fixtures.catalog.slotTemplates[.pull]!
-        for b in plan.blocks {
+        for b in plan.blocks where !b.isCooldown {
             let t = templates.first { $0.slot == b.slot }!
             if b.band == .heavy || b.isSupersetted { XCTAssertEqual(b.sets, t.sets, b.exerciseName) }
             XCTAssertLessThanOrEqual(b.sets, t.sets + 1, "at most one padding set per block: \(b.exerciseName)")
@@ -150,7 +153,7 @@ final class PlannerTests: XCTestCase {
         let first = planner.generate(input(.push, 60, Fixtures.commercial))
         let recent = [RecentSession(dayType: .push, performedAt: Date(), exerciseKeys: first.blocks.map(\.exerciseKey))]
         let second = planner.generate(input(.push, 60, Fixtures.commercial, recent: recent))
-        for (a, b) in zip(first.blocks, second.blocks) where a.slot == b.slot {
+        for (a, b) in zip(first.blocks, second.blocks) where a.slot == b.slot && !a.isCooldown {
             switch a.band {
             case .heavy, .medium: XCTAssertEqual(a.exerciseKey, b.exerciseKey, "stable slot \(a.slot) changed")
             case .volume:
