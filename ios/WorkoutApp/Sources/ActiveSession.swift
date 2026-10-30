@@ -195,6 +195,7 @@ final class ActiveSession: Identifiable {
         append(block: b, reps: reps, weight: b.weight, effort: effort, isWarmup: false)
         guard let next = currentBlock else { skipRest(); return }
         if next.supersetHostID == b.id { skipRest(); return }   // partner's set fills the host's rest
+        if next.isCooldown { skipRest(); return }   // straight into the stretch, no countdown in front of it
         startRest(seconds: plan.restSeconds(for: b))
     }
 
